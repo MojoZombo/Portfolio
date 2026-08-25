@@ -105,15 +105,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
               {/* Interactive 3D Model Showcase */}
               <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 relative shadow-inner">
                 {/* 3D Viewer Header Badges & Fullscreen Button */}
-                <div className="absolute top-3 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
-                  <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-2 bg-white/85 dark:bg-slate-900/85 px-2.5 py-1 rounded-md backdrop-blur border border-slate-200 dark:border-slate-800 shadow-sm pointer-events-auto">
+                <div className="absolute top-3 left-3 right-3 sm:left-4 sm:right-4 z-10 flex items-center justify-between pointer-events-none">
+                  {/* Hidden on mobile, visible on tablet/desktop */}
+                  <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 hidden sm:flex items-center gap-2 bg-white/85 dark:bg-slate-900/85 px-2.5 py-1 rounded-md backdrop-blur border border-slate-200 dark:border-slate-800 shadow-sm pointer-events-auto">
                     <Cpu size={13} className="text-blue-500" />
                     <span>INTERACTIVE 3D CAD MODEL // DRAG TO ORBIT // SCROLL TO ZOOM</span>
                   </div>
 
                   <button
                     onClick={() => setIs3DFullscreen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-mono font-medium shadow-sm border border-slate-200 dark:border-slate-700 transition-all hover:scale-105 pointer-events-auto cursor-pointer"
+                    className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-md bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-mono font-medium shadow-sm border border-slate-200 dark:border-slate-700 transition-all hover:scale-105 pointer-events-auto cursor-pointer"
                     title="Open Fullscreen 3D Model Inspector"
                   >
                     <Maximize2 size={13} className="text-blue-500" />

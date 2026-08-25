@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import React, { Suspense, useState, useRef, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
@@ -136,14 +137,14 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
           <OrbitControls
             target={[0, 0, 0]}
             enableZoom={allowZoom}
-            enablePan={false}
+            enablePan={allowZoom}
             autoRotate={false}
             minPolarAngle={Math.PI / 6}
             maxPolarAngle={Math.PI / 1.8}
             dampingFactor={0.08}
             touches={{
-              ONE: allowZoom ? 1 : 1, // ROTATE
-              TWO: allowZoom ? 2 : 0, // DOLLY_PAN
+              ONE: THREE.TOUCH.ROTATE,
+              TWO: allowZoom ? THREE.TOUCH.DOLLY_PAN : THREE.TOUCH.DOLLY_PAN,
             }}
             onStart={handleCanvasInteraction}
           />
