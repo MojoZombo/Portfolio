@@ -24,7 +24,7 @@ export const Header: React.FC = () => {
           {/* Quick Action Links & Theme Toggle */}
           <div className="flex items-center gap-3 font-mono text-xs shrink-0">
             <a
-              href="https://drive.google.com/file/d/1XOueEaIH79_c5zfLJpQ_xbPge8pCHtF_/view?usp=sharing"
+              href="./Jaden_Fann_Resume.pdf"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 font-medium transition-colors shadow-sm"

@@ -107,7 +107,7 @@ export const App: React.FC = () => {
               <ExternalLink size={11} />
             </a>
             <a
-              href="https://drive.google.com/file/d/1XOueEaIH79_c5zfLJpQ_xbPge8pCHtF_/view?usp=sharing"
+              href="./Jaden_Fann_Resume.pdf"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-blue-500 transition-colors"
