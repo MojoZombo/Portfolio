@@ -141,23 +141,33 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
 
   // Register a model with its specific default alignment, colors and animation kinematics
   const registerModel = useCallback((defaults: RegisteredModelDefaults) => {
-    setModelRegistry((prev) => {
-      const existing = prev[defaults.modelId];
-      if (
-        existing &&
-        existing.parts.length === defaults.parts.length &&
-        existing.defaultAnimations === defaults.defaultAnimations &&
-        existing.defaultColors === defaults.defaultColors &&
-        existing.scale === defaults.scale &&
-        existing.offset[0] === defaults.offset[0] &&
-        existing.rotation[0] === defaults.rotation[0]
-      ) {
-        return prev;
+    setModelRegistry((prev) => ({
+      ...prev,
+      [defaults.modelId]: defaults,
+    }));
+
+    setSettings((currentSettings) => {
+      // If no model is set yet, or if the registering model is currently active, populate its settings immediately
+      if (!currentSettings.modelId || currentSettings.modelId === defaults.modelId) {
+        return {
+          modelId: defaults.modelId,
+          offsetX: defaults.offset[0],
+          offsetY: defaults.offset[1],
+          offsetZ: defaults.offset[2],
+          rotX: defaults.rotation[0],
+          rotY: defaults.rotation[1],
+          rotZ: defaults.rotation[2],
+          scale: defaults.scale,
+          autoRotate: true,
+          rotationSpeed: 0.6,
+          showGizmo: true,
+          colorOverrides: defaults.defaultColors || {},
+          animationOverrides: defaults.defaultAnimations || {},
+          nameOverrides: {},
+          cdprConfig: defaults.defaultCDPRConfig || DEFAULT_CDPR_CONFIG,
+        };
       }
-      return {
-        ...prev,
-        [defaults.modelId]: defaults,
-      };
+      return currentSettings;
     });
   }, []);
 

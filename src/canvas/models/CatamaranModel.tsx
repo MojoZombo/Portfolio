@@ -216,49 +216,54 @@ export const CatamaranModel: React.FC<ModelProps> = ({
       linewidth: 1.5,
     });
 
-    let meshIndex = 0;
+    let runningPartIdx = 0;
+    let meshIdx = 0;
     clone.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
-        const currentIdx = meshIndex;
+        const currentPartStart = runningPartIdx;
+        const currentMeshIdx = meshIdx;
 
         if (Array.isArray(mesh.material)) {
           const toonArr = mesh.material.map((_, subIdx) => {
-            const initialColor = DEFAULT_PART_COLORS[currentIdx + subIdx] || '#cbd5e1';
+            const partNum = currentPartStart + subIdx;
+            const initialColor = DEFAULT_PART_COLORS[partNum] || '#cbd5e1';
             return new THREE.MeshToonMaterial({
               color: new THREE.Color(initialColor),
               gradientMap: toonGradient,
             });
           });
           toonMap.set(mesh, toonArr);
+          runningPartIdx += mesh.material.length;
         } else {
-          const initialColor = DEFAULT_PART_COLORS[currentIdx] || '#cbd5e1';
+          const initialColor = DEFAULT_PART_COLORS[currentPartStart] || '#cbd5e1';
           const toon = new THREE.MeshToonMaterial({
             color: new THREE.Color(initialColor),
             gradientMap: toonGradient,
           });
           toonMap.set(mesh, toon);
+          runningPartIdx += 1;
         }
 
-        if (masterCatamaranPrototype!.staticEdgesList[currentIdx]) {
+        if (masterCatamaranPrototype!.staticEdgesList[currentMeshIdx]) {
           const bpLine = new THREE.LineSegments(
-            masterCatamaranPrototype!.staticEdgesList[currentIdx],
+            masterCatamaranPrototype!.staticEdgesList[currentMeshIdx],
             bpLineMat
           );
           mesh.add(bpLine);
           bpLines.push(bpLine);
         }
 
-        if (masterCatamaranPrototype!.activeEdgesList[currentIdx]) {
+        if (masterCatamaranPrototype!.activeEdgesList[currentMeshIdx]) {
           const celLine = new THREE.LineSegments(
-            masterCatamaranPrototype!.activeEdgesList[currentIdx],
+            masterCatamaranPrototype!.activeEdgesList[currentMeshIdx],
             celLineMat
           );
           mesh.add(celLine);
           celLines.push(celLine);
         }
 
-        meshIndex++;
+        meshIdx++;
       }
     });
 
@@ -338,33 +343,31 @@ export const CatamaranModel: React.FC<ModelProps> = ({
           toonMatOrArray.forEach((tm) => {
             const currentPartIdx = partRunningIndex++;
             const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
-            const overrideHex = isModelCalibrating
-              ? (settings.colorOverrides[currentPartIdx] || DEFAULT_PART_COLORS[currentPartIdx])
-              : DEFAULT_PART_COLORS[currentPartIdx];
+            const overrideHex = (isModelCalibrating && settings.colorOverrides?.[currentPartIdx])
+              ? settings.colorOverrides[currentPartIdx]
+              : (DEFAULT_PART_COLORS[currentPartIdx] || '#cbd5e1');
 
-            if (overrideHex) {
-              tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
-            }
+            tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
             tm.emissive.set(isPartSelected ? '#0284c7' : '#000000');
           });
         } else {
           const currentPartIdx = partRunningIndex++;
           const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
-          const overrideHex = isModelCalibrating
-            ? (settings.colorOverrides[currentPartIdx] || DEFAULT_PART_COLORS[currentPartIdx])
-            : DEFAULT_PART_COLORS[currentPartIdx];
+          const overrideHex = (isModelCalibrating && settings.colorOverrides?.[currentPartIdx])
+            ? settings.colorOverrides[currentPartIdx]
+            : (DEFAULT_PART_COLORS[currentPartIdx] || '#cbd5e1');
 
           mesh.material = toonMatOrArray;
-          if (overrideHex) {
-            toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
-          }
+          toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
           toonMatOrArray.emissive.set(isPartSelected ? '#0284c7' : '#000000');
         }
       } else {
         if (Array.isArray(toonMatOrArray)) {
           mesh.material = toonMatOrArray.map(() => bpMat);
+          partRunningIndex += toonMatOrArray.length;
         } else {
           mesh.material = bpMat;
+          partRunningIndex += 1;
         }
       }
     });
@@ -383,6 +386,7 @@ export const CatamaranModel: React.FC<ModelProps> = ({
   ]);
 
   useFrame((state, delta) => {
+    // Always apply transform calibration
     if (cloneRef.current) {
       const offsetX = isModelCalibrating ? settings.offsetX : DEFAULT_OFFSET[0];
       const offsetY = isModelCalibrating ? settings.offsetY : DEFAULT_OFFSET[1];
@@ -411,7 +415,7 @@ export const CatamaranModel: React.FC<ModelProps> = ({
     }
 
     const baseScale = isModelCalibrating ? settings.scale : DEFAULT_SCALE;
-    const targetScale = isActive ? baseScale * 1.15 : baseScale;
+    const targetScale = isModelCalibrating ? baseScale : (isActive ? baseScale * 1.05 : baseScale);
     scaleRef.current = THREE.MathUtils.damp(scaleRef.current, targetScale, 4.0, delta);
     if (groupRef.current) {
       groupRef.current.scale.setScalar(scaleRef.current);
@@ -483,3 +487,4 @@ export const CatamaranModel: React.FC<ModelProps> = ({
 };
 
 useGLTF.preload('./models/Sailboat.glb');
+
