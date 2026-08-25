@@ -25,11 +25,37 @@ const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Underwater Robot
 const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
-const DEFAULT_ROTATION_DEG: [number, number, number] = [-90, 0, 0];
-const DEFAULT_SCALE = 3.10;
+const DEFAULT_ROTATION_DEG: [number, number, number] = [0.0, 0.0, 0.0];
+const DEFAULT_SCALE = 5.50;
 
 // Default Part Colors for Underwater Robot
-const DEFAULT_PART_COLORS: Record<number, string> = {};
+const DEFAULT_PART_COLORS: Record<number, string> = {
+  0: '#003262', // dropperBottom-1
+  1: '#FDB515', // dropperPlatform-2
+  2: '#64748b', // Mesh_8
+  3: '#64748b', // Mesh_8_1
+  4: '#64748b', // Mesh_8_2
+  11: '#003262', // Mesh_46
+  13: '#FDB515', // Mesh_49
+  14: '#FDB515', // Mesh_49_1
+  16: '#cbd5e1', // Mesh_36_1
+  19: '#cbd5e1', // Mesh_36_4
+  20: '#cbd5e1', // Mesh_37
+  22: '#1e293b', // Mesh_37_2
+  23: '#64748b', // Mesh_37_3
+  24: '#64748b', // Mesh_37_4
+  25: '#64748b', // Mesh_37_5
+  26: '#64748b', // Mesh_37_6
+  27: '#64748b', // Mesh_37_7
+  28: '#003262', // Dynamic_Gripper-1
+  29: '#64748b', // M200_Motor-1
+  30: '#64748b', // Mesh_15
+  31: '#64748b', // Mesh_15_1
+  32: '#003262', // CameraMountBack_-_Radial-2
+  33: '#475569', // CameraMountFront_-_Radial-1
+  35: '#3f5b88', // Mesh_4
+  37: '#FDB515', // VerticalDoubleThruster-2
+};
 
 // Default Kinematics Animations
 const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {};
@@ -116,8 +142,8 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
   isRotating = true,
 }) => {
   const groupRef = useRef<THREE.Group>(null);
+  const pivotRef = useRef<THREE.Group | null>(null);
   const cloneRef = useRef<THREE.Group | null>(null);
-  const centerRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const scaleRef = useRef(DEFAULT_SCALE);
   const meshNodesRef = useRef<MeshNodeInfo[]>([]);
 
@@ -172,6 +198,9 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
   // Create permanent scene instance ONCE
   const { centeredScene, toonMaterialsMap, blueprintEdgeLines, celEdgeLines } = useMemo(() => {
     const root = new THREE.Group();
+    const pivot = new THREE.Group();
+    pivotRef.current = pivot;
+
     const clone = masterUnderwaterRobotPrototype!.template.clone(true);
     cloneRef.current = clone;
 
@@ -189,59 +218,72 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
       linewidth: 1.5,
     });
 
-    let meshIndex = 0;
+    let runningPartIdx = 0;
+    let meshIdx = 0;
     clone.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
-        const currentIdx = meshIndex;
+        const currentPartStart = runningPartIdx;
+        const currentMeshIdx = meshIdx;
 
         if (Array.isArray(mesh.material)) {
           const toonArr = mesh.material.map((_, subIdx) => {
-            const initialColor = DEFAULT_PART_COLORS[currentIdx + subIdx] || '#cbd5e1';
+            const partNum = currentPartStart + subIdx;
+            const initialColor = DEFAULT_PART_COLORS[partNum] || '#cbd5e1';
             return new THREE.MeshToonMaterial({
               color: new THREE.Color(initialColor),
               gradientMap: toonGradient,
             });
           });
           toonMap.set(mesh, toonArr);
+          runningPartIdx += mesh.material.length;
         } else {
-          const initialColor = DEFAULT_PART_COLORS[currentIdx] || '#cbd5e1';
+          const initialColor = DEFAULT_PART_COLORS[currentPartStart] || '#cbd5e1';
           const toon = new THREE.MeshToonMaterial({
             color: new THREE.Color(initialColor),
             gradientMap: toonGradient,
           });
           toonMap.set(mesh, toon);
+          runningPartIdx += 1;
         }
 
-        if (masterUnderwaterRobotPrototype!.staticEdgesList[currentIdx]) {
+        if (masterUnderwaterRobotPrototype!.staticEdgesList[currentMeshIdx]) {
           const bpLine = new THREE.LineSegments(
-            masterUnderwaterRobotPrototype!.staticEdgesList[currentIdx],
+            masterUnderwaterRobotPrototype!.staticEdgesList[currentMeshIdx],
             bpLineMat
           );
           mesh.add(bpLine);
           bpLines.push(bpLine);
         }
 
-        if (masterUnderwaterRobotPrototype!.activeEdgesList[currentIdx]) {
+        if (masterUnderwaterRobotPrototype!.activeEdgesList[currentMeshIdx]) {
           const celLine = new THREE.LineSegments(
-            masterUnderwaterRobotPrototype!.activeEdgesList[currentIdx],
+            masterUnderwaterRobotPrototype!.activeEdgesList[currentMeshIdx],
             celLineMat
           );
           mesh.add(celLine);
           celLines.push(celLine);
         }
 
-        meshIndex++;
+        meshIdx++;
       }
     });
 
-    // Auto-center around bounding box volume center
+    // 1. Center the unrotated CAD geometry inside the pivot group
     const bbox = new THREE.Box3().setFromObject(clone);
     const center = bbox.getCenter(new THREE.Vector3());
-    centerRef.current.copy(center);
-    clone.position.sub(center);
+    clone.position.set(-center.x, -center.y, -center.z);
 
-    root.add(clone);
+    // 2. Set initial world rotation and offset on the pivot
+    pivot.rotation.set(
+      (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180,
+      (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180,
+      (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180
+    );
+    pivot.position.set(DEFAULT_OFFSET[0], DEFAULT_OFFSET[1], DEFAULT_OFFSET[2]);
+
+    pivot.add(clone);
+    root.add(pivot);
 
     return {
       centeredScene: root,
@@ -306,33 +348,31 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
           toonMatOrArray.forEach((tm) => {
             const currentPartIdx = partRunningIndex++;
             const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
-            const overrideHex = isModelCalibrating
-              ? (settings.colorOverrides[currentPartIdx] || DEFAULT_PART_COLORS[currentPartIdx])
-              : DEFAULT_PART_COLORS[currentPartIdx];
+            const overrideHex = (isModelCalibrating && settings.colorOverrides?.[currentPartIdx])
+              ? settings.colorOverrides[currentPartIdx]
+              : (DEFAULT_PART_COLORS[currentPartIdx] || '#cbd5e1');
 
-            if (overrideHex) {
-              tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
-            }
+            tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
             tm.emissive.set(isPartSelected ? '#0284c7' : '#000000');
           });
         } else {
           const currentPartIdx = partRunningIndex++;
           const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
-          const overrideHex = isModelCalibrating
-            ? (settings.colorOverrides[currentPartIdx] || DEFAULT_PART_COLORS[currentPartIdx])
-            : DEFAULT_PART_COLORS[currentPartIdx];
+          const overrideHex = (isModelCalibrating && settings.colorOverrides?.[currentPartIdx])
+            ? settings.colorOverrides[currentPartIdx]
+            : (DEFAULT_PART_COLORS[currentPartIdx] || '#cbd5e1');
 
           mesh.material = toonMatOrArray;
-          if (overrideHex) {
-            toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
-          }
+          toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
           toonMatOrArray.emissive.set(isPartSelected ? '#0284c7' : '#000000');
         }
       } else {
         if (Array.isArray(toonMatOrArray)) {
           mesh.material = toonMatOrArray.map(() => bpMat);
+          partRunningIndex += toonMatOrArray.length;
         } else {
           mesh.material = bpMat;
+          partRunningIndex += 1;
         }
       }
     });
@@ -352,15 +392,17 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
 
   // Frame loop
   useFrame((state, delta) => {
-    if (isModelCalibrating && cloneRef.current) {
-      cloneRef.current.rotation.set(
-        (settings.rotX * Math.PI) / 180,
-        (settings.rotY * Math.PI) / 180,
-        (settings.rotZ * Math.PI) / 180
-      );
-      cloneRef.current.position
-        .copy(new THREE.Vector3(settings.offsetX, settings.offsetY, settings.offsetZ))
-        .sub(centerRef.current);
+    // Always apply transform calibration directly to pivot
+    if (pivotRef.current) {
+      const offsetX = isModelCalibrating ? settings.offsetX : DEFAULT_OFFSET[0];
+      const offsetY = isModelCalibrating ? settings.offsetY : DEFAULT_OFFSET[1];
+      const offsetZ = isModelCalibrating ? settings.offsetZ : DEFAULT_OFFSET[2];
+      const rotX = isModelCalibrating ? (settings.rotX * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180;
+      const rotY = isModelCalibrating ? (settings.rotY * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180;
+      const rotZ = isModelCalibrating ? (settings.rotZ * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180;
+
+      pivotRef.current.rotation.set(rotX, rotY, rotZ);
+      pivotRef.current.position.set(offsetX, offsetY, offsetZ);
     }
 
     if (!isActive && !isModelCalibrating) {
@@ -377,7 +419,7 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
     }
 
     const baseScale = isModelCalibrating ? settings.scale : DEFAULT_SCALE;
-    const targetScale = isActive ? baseScale * 1.15 : baseScale;
+    const targetScale = isModelCalibrating ? baseScale : (isActive ? baseScale * 1.05 : baseScale);
     scaleRef.current = THREE.MathUtils.damp(scaleRef.current, targetScale, 4.0, delta);
     if (groupRef.current) {
       groupRef.current.scale.setScalar(scaleRef.current);

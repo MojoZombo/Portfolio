@@ -25,11 +25,30 @@ const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Anti-Tangle Winch
 const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
-const DEFAULT_ROTATION_DEG: [number, number, number] = [-90, 0, 0];
+const DEFAULT_ROTATION_DEG: [number, number, number] = [-180.0, 0.0, 0.0];
 const DEFAULT_SCALE = 18.00;
 
 // Default Part Colors for Anti-Tangle Winch
-const DEFAULT_PART_COLORS: Record<number, string> = {};
+const DEFAULT_PART_COLORS: Record<number, string> = {
+  0: '#475569', // Mesh_0
+  1: '#475569', // Mesh_0_1
+  2: '#475569', // Mesh_0_2
+  3: '#475569', // CONV-HDW00-065-01-1
+  4: '#475569', // Mesh_4
+  5: '#475569', // Mesh_4_1
+  6: '#c19a6b', // Mesh_2
+  7: '#f8debf', // Mesh_2_1
+  8: '#c19a6b', // Mesh_2_2
+  9: '#FDB515', // Mesh_2_3
+  10: '#FDB515', // Mesh_2_4
+  11: '#64748b', // CONV-WIN00-011-03-1
+  12: '#475569', // dowel-1
+  13: '#475569', // dowel-2
+  14: '#f8fafc', // Retaining_Ring_45-1
+  16: '#475569', // CONV-HDW00-064-01-1001
+  21: '#0284c7', // Reversing_Screw_Rectangle_profile-1001
+  22: '#475569', // shaft_collar_print-1001
+};
 
 // Default Kinematics Animations
 const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {};
@@ -116,8 +135,8 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
   isRotating = true,
 }) => {
   const groupRef = useRef<THREE.Group>(null);
+  const pivotRef = useRef<THREE.Group | null>(null);
   const cloneRef = useRef<THREE.Group | null>(null);
-  const centerRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const scaleRef = useRef(DEFAULT_SCALE);
   const meshNodesRef = useRef<MeshNodeInfo[]>([]);
 
@@ -172,6 +191,9 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
   // Create permanent scene instance ONCE
   const { centeredScene, toonMaterialsMap, blueprintEdgeLines, celEdgeLines } = useMemo(() => {
     const root = new THREE.Group();
+    const pivot = new THREE.Group();
+    pivotRef.current = pivot;
+
     const clone = masterAntiTangleWinchPrototype!.template.clone(true);
     cloneRef.current = clone;
 
@@ -189,59 +211,72 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
       linewidth: 1.5,
     });
 
-    let meshIndex = 0;
+    let runningPartIdx = 0;
+    let meshIdx = 0;
     clone.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
-        const currentIdx = meshIndex;
+        const currentPartStart = runningPartIdx;
+        const currentMeshIdx = meshIdx;
 
         if (Array.isArray(mesh.material)) {
           const toonArr = mesh.material.map((_, subIdx) => {
-            const initialColor = DEFAULT_PART_COLORS[currentIdx + subIdx] || '#cbd5e1';
+            const partNum = currentPartStart + subIdx;
+            const initialColor = DEFAULT_PART_COLORS[partNum] || '#cbd5e1';
             return new THREE.MeshToonMaterial({
               color: new THREE.Color(initialColor),
               gradientMap: toonGradient,
             });
           });
           toonMap.set(mesh, toonArr);
+          runningPartIdx += mesh.material.length;
         } else {
-          const initialColor = DEFAULT_PART_COLORS[currentIdx] || '#cbd5e1';
+          const initialColor = DEFAULT_PART_COLORS[currentPartStart] || '#cbd5e1';
           const toon = new THREE.MeshToonMaterial({
             color: new THREE.Color(initialColor),
             gradientMap: toonGradient,
           });
           toonMap.set(mesh, toon);
+          runningPartIdx += 1;
         }
 
-        if (masterAntiTangleWinchPrototype!.staticEdgesList[currentIdx]) {
+        if (masterAntiTangleWinchPrototype!.staticEdgesList[currentMeshIdx]) {
           const bpLine = new THREE.LineSegments(
-            masterAntiTangleWinchPrototype!.staticEdgesList[currentIdx],
+            masterAntiTangleWinchPrototype!.staticEdgesList[currentMeshIdx],
             bpLineMat
           );
           mesh.add(bpLine);
           bpLines.push(bpLine);
         }
 
-        if (masterAntiTangleWinchPrototype!.activeEdgesList[currentIdx]) {
+        if (masterAntiTangleWinchPrototype!.activeEdgesList[currentMeshIdx]) {
           const celLine = new THREE.LineSegments(
-            masterAntiTangleWinchPrototype!.activeEdgesList[currentIdx],
+            masterAntiTangleWinchPrototype!.activeEdgesList[currentMeshIdx],
             celLineMat
           );
           mesh.add(celLine);
           celLines.push(celLine);
         }
 
-        meshIndex++;
+        meshIdx++;
       }
     });
 
-    // Auto-center around bounding box volume center
+    // 1. Center the unrotated CAD geometry inside the pivot group
     const bbox = new THREE.Box3().setFromObject(clone);
     const center = bbox.getCenter(new THREE.Vector3());
-    centerRef.current.copy(center);
-    clone.position.sub(center);
+    clone.position.set(-center.x, -center.y, -center.z);
 
-    root.add(clone);
+    // 2. Set initial world rotation and offset on the pivot
+    pivot.rotation.set(
+      (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180,
+      (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180,
+      (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180
+    );
+    pivot.position.set(DEFAULT_OFFSET[0], DEFAULT_OFFSET[1], DEFAULT_OFFSET[2]);
+
+    pivot.add(clone);
+    root.add(pivot);
 
     return {
       centeredScene: root,
@@ -306,33 +341,31 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
           toonMatOrArray.forEach((tm) => {
             const currentPartIdx = partRunningIndex++;
             const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
-            const overrideHex = isModelCalibrating
-              ? (settings.colorOverrides[currentPartIdx] || DEFAULT_PART_COLORS[currentPartIdx])
-              : DEFAULT_PART_COLORS[currentPartIdx];
+            const overrideHex = (isModelCalibrating && settings.colorOverrides?.[currentPartIdx])
+              ? settings.colorOverrides[currentPartIdx]
+              : (DEFAULT_PART_COLORS[currentPartIdx] || '#cbd5e1');
 
-            if (overrideHex) {
-              tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
-            }
+            tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
             tm.emissive.set(isPartSelected ? '#0284c7' : '#000000');
           });
         } else {
           const currentPartIdx = partRunningIndex++;
           const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
-          const overrideHex = isModelCalibrating
-            ? (settings.colorOverrides[currentPartIdx] || DEFAULT_PART_COLORS[currentPartIdx])
-            : DEFAULT_PART_COLORS[currentPartIdx];
+          const overrideHex = (isModelCalibrating && settings.colorOverrides?.[currentPartIdx])
+            ? settings.colorOverrides[currentPartIdx]
+            : (DEFAULT_PART_COLORS[currentPartIdx] || '#cbd5e1');
 
           mesh.material = toonMatOrArray;
-          if (overrideHex) {
-            toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
-          }
+          toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
           toonMatOrArray.emissive.set(isPartSelected ? '#0284c7' : '#000000');
         }
       } else {
         if (Array.isArray(toonMatOrArray)) {
           mesh.material = toonMatOrArray.map(() => bpMat);
+          partRunningIndex += toonMatOrArray.length;
         } else {
           mesh.material = bpMat;
+          partRunningIndex += 1;
         }
       }
     });
@@ -352,15 +385,17 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
 
   // Frame loop
   useFrame((state, delta) => {
-    if (isModelCalibrating && cloneRef.current) {
-      cloneRef.current.rotation.set(
-        (settings.rotX * Math.PI) / 180,
-        (settings.rotY * Math.PI) / 180,
-        (settings.rotZ * Math.PI) / 180
-      );
-      cloneRef.current.position
-        .copy(new THREE.Vector3(settings.offsetX, settings.offsetY, settings.offsetZ))
-        .sub(centerRef.current);
+    // Always apply transform calibration directly to pivot
+    if (pivotRef.current) {
+      const offsetX = isModelCalibrating ? settings.offsetX : DEFAULT_OFFSET[0];
+      const offsetY = isModelCalibrating ? settings.offsetY : DEFAULT_OFFSET[1];
+      const offsetZ = isModelCalibrating ? settings.offsetZ : DEFAULT_OFFSET[2];
+      const rotX = isModelCalibrating ? (settings.rotX * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180;
+      const rotY = isModelCalibrating ? (settings.rotY * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180;
+      const rotZ = isModelCalibrating ? (settings.rotZ * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180;
+
+      pivotRef.current.rotation.set(rotX, rotY, rotZ);
+      pivotRef.current.position.set(offsetX, offsetY, offsetZ);
     }
 
     if (!isActive && !isModelCalibrating) {
@@ -377,7 +412,7 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
     }
 
     const baseScale = isModelCalibrating ? settings.scale : DEFAULT_SCALE;
-    const targetScale = isActive ? baseScale * 1.15 : baseScale;
+    const targetScale = isModelCalibrating ? baseScale : (isActive ? baseScale * 1.05 : baseScale);
     scaleRef.current = THREE.MathUtils.damp(scaleRef.current, targetScale, 4.0, delta);
     if (groupRef.current) {
       groupRef.current.scale.setScalar(scaleRef.current);

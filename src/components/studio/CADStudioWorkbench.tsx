@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Search,
   Edit2,
+  Crosshair,
 } from 'lucide-react';
 
 interface StudioProps {
@@ -256,6 +257,20 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
             title="Toggle Isometric Orthographic vs Perspective Camera"
           >
             {isOrthographic ? 'Isometric (Ortho)' : 'Perspective'}
+          </button>
+
+          {/* Center Axes / Gizmo Toggle */}
+          <button
+            onClick={() => updateSetting('showGizmo', !settings.showGizmo)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all ${
+              settings.showGizmo
+                ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/40 font-medium'
+                : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+            }`}
+            title="Toggle Center Pivot Axes (CAD Gizmo)"
+          >
+            <Crosshair size={13} className={settings.showGizmo ? 'text-emerald-400' : 'text-slate-400'} />
+            <span className="text-[11px]">{settings.showGizmo ? 'Axes ON' : 'Axes OFF'}</span>
           </button>
 
           {/* Grid Toggle */}
@@ -779,6 +794,24 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Viewport Gizmo & Center Axes Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 font-mono text-xs">
+                  <div className="flex items-center gap-2">
+                    <Crosshair size={14} className={settings.showGizmo ? 'text-emerald-400' : 'text-slate-500'} />
+                    <span className="text-slate-300 font-medium">Center Pivot Axes (CAD Gizmo)</span>
+                  </div>
+                  <button
+                    onClick={() => updateSetting('showGizmo', !settings.showGizmo)}
+                    className={`px-3 py-1 rounded-lg border text-xs font-mono transition-colors ${
+                      settings.showGizmo
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
+                  >
+                    {settings.showGizmo ? 'Visible' : 'Hidden'}
+                  </button>
                 </div>
 
                 {/* Reset button */}

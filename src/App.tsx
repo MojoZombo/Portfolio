@@ -84,7 +84,7 @@ export const App: React.FC = () => {
       {/* Minimal Engineering Footer */}
       <footer className="relative z-20 w-full py-12 text-slate-500 dark:text-slate-400 font-mono text-xs text-center border-t border-slate-200/40 dark:border-slate-800/40 mt-12">
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span>© {new Date().getFullYear()} JADEN FANN // UC BERKELEY</span>
+          <span>© {new Date().getFullYear()} JADEN FANN // MECHANICAL ENGINEER</span>
           <div className="flex items-center gap-6">
             <button
               onClick={() => {
