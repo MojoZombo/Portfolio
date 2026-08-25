@@ -26,7 +26,7 @@ const toonGradient = createToonGradientMap();
 // Optimal Calibrated Defaults for Sailing Catamaran
 const DEFAULT_OFFSET: [number, number, number] = [0.00, -0.40, 0.64];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [-90.0, 0.0, 0.0];
-const DEFAULT_SCALE = 1.45;
+const DEFAULT_SCALE = 2.0;
 
 // Default Part Colors for Sailing Catamaran
 const DEFAULT_PART_COLORS: Record<number, string> = {
@@ -143,8 +143,8 @@ export const CatamaranModel: React.FC<ModelProps> = ({
   isRotating = true,
 }) => {
   const groupRef = useRef<THREE.Group>(null);
+  const pivotRef = useRef<THREE.Group | null>(null);
   const cloneRef = useRef<THREE.Group | null>(null);
-  const centerRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const scaleRef = useRef(DEFAULT_SCALE);
   const meshNodesRef = useRef<MeshNodeInfo[]>([]);
 
@@ -199,6 +199,9 @@ export const CatamaranModel: React.FC<ModelProps> = ({
   // Create permanent scene instance ONCE
   const { centeredScene, toonMaterialsMap, blueprintEdgeLines, celEdgeLines } = useMemo(() => {
     const root = new THREE.Group();
+    const pivot = new THREE.Group();
+    pivotRef.current = pivot;
+
     const clone = masterCatamaranPrototype!.template.clone(true);
     cloneRef.current = clone;
 
@@ -267,18 +270,21 @@ export const CatamaranModel: React.FC<ModelProps> = ({
       }
     });
 
-    // Auto-center around bounding box volume center
+    // 1. Center the unrotated CAD geometry inside the pivot group
     const bbox = new THREE.Box3().setFromObject(clone);
     const center = bbox.getCenter(new THREE.Vector3());
-    centerRef.current.copy(center);
-    clone.position.copy(new THREE.Vector3(DEFAULT_OFFSET[0], DEFAULT_OFFSET[1], DEFAULT_OFFSET[2])).sub(center);
-    clone.rotation.set(
+    clone.position.set(-center.x, -center.y, -center.z);
+
+    // 2. Set initial world rotation and offset on the pivot
+    pivot.rotation.set(
       (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180,
       (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180,
       (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180
     );
+    pivot.position.set(DEFAULT_OFFSET[0], DEFAULT_OFFSET[1], DEFAULT_OFFSET[2]);
 
-    root.add(clone);
+    pivot.add(clone);
+    root.add(pivot);
 
     return {
       centeredScene: root,
@@ -386,8 +392,8 @@ export const CatamaranModel: React.FC<ModelProps> = ({
   ]);
 
   useFrame((state, delta) => {
-    // Always apply transform calibration
-    if (cloneRef.current) {
+    // Always apply transform calibration directly to pivot
+    if (pivotRef.current) {
       const offsetX = isModelCalibrating ? settings.offsetX : DEFAULT_OFFSET[0];
       const offsetY = isModelCalibrating ? settings.offsetY : DEFAULT_OFFSET[1];
       const offsetZ = isModelCalibrating ? settings.offsetZ : DEFAULT_OFFSET[2];
@@ -395,10 +401,8 @@ export const CatamaranModel: React.FC<ModelProps> = ({
       const rotY = isModelCalibrating ? (settings.rotY * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180;
       const rotZ = isModelCalibrating ? (settings.rotZ * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180;
 
-      cloneRef.current.rotation.set(rotX, rotY, rotZ);
-      cloneRef.current.position
-        .copy(new THREE.Vector3(offsetX, offsetY, offsetZ))
-        .sub(centerRef.current);
+      pivotRef.current.rotation.set(rotX, rotY, rotZ);
+      pivotRef.current.position.set(offsetX, offsetY, offsetZ);
     }
 
     if (!isActive && !isModelCalibrating) {
