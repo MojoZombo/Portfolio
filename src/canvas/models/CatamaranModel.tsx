@@ -24,12 +24,39 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Sailing Catamaran
-const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
-const DEFAULT_ROTATION_DEG: [number, number, number] = [-90, 0, 0];
+const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.64];
+const DEFAULT_ROTATION_DEG: [number, number, number] = [-90.0, 0.0, 0.0];
 const DEFAULT_SCALE = 1.45;
 
 // Default Part Colors for Sailing Catamaran
-const DEFAULT_PART_COLORS: Record<number, string> = {};
+const DEFAULT_PART_COLORS: Record<number, string> = {
+  2: '#cbd5e1', // Aluminium_extrusion_20x20x1000-1
+  3: '#cbd5e1', // Aluminium_extrusion_20x20x1000-2
+  4: '#cbd5e1', // Aluminium_extrusion_20x20x1000-3
+  8: '#1e293b', // Cantam_Sail_Gear_45_Teeth_10mm_Thick_for_print_(1)-1
+  9: '#1e293b', // PART_Sail_Bearing_Mounting_Plate-1
+  10: '#1e293b', // PART_Sail_Bearing_Mounting_Plate-2
+  11: '#1e293b', // Sail_Bearing_Extention-1
+  12: '#1e293b', // Sail_Bearing_Housing_less_friction-1
+  13: '#1e293b', // Sail_Bearing_Housing_w_posts-1
+  14: '#3b82f6', // Electronics_Housing_Clamp-1
+  15: '#3b82f6', // Electronics_Housing_Clamp-2
+  16: '#3b82f6', // Electronics_Housing_Clamp-3
+  17: '#3b82f6', // Electronics_Housing_Clamp-4
+  18: '#0284c7', // Electronics_Housing-1
+  19: '#003262', // Baby_Sail_Attatchment-1001
+  20: '#FDB515', // Mesh_19001
+  21: '#003262', // Mesh_19001_1
+  22: '#003262', // Mesh_19001_2
+  23: '#003262', // Baby_Sail_Rod_Sleeve-1
+  24: '#003262', // Daddy_Sail_Rod_Sleeve-1
+  30: '#FDB515', // rudder_1-1
+  31: '#FDB515', // rudder_mount-1
+  32: '#FDB515', // rudder_mount-2
+  33: '#FDB515', // rudder_1-1001
+  34: '#FDB515', // rudder_mount-1001
+  35: '#FDB515', // rudder_mount-2001
+};
 
 // Default Kinematics Animations
 const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {};
@@ -239,7 +266,12 @@ export const CatamaranModel: React.FC<ModelProps> = ({
     const bbox = new THREE.Box3().setFromObject(clone);
     const center = bbox.getCenter(new THREE.Vector3());
     centerRef.current.copy(center);
-    clone.position.sub(center);
+    clone.position.copy(new THREE.Vector3(DEFAULT_OFFSET[0], DEFAULT_OFFSET[1], DEFAULT_OFFSET[2])).sub(center);
+    clone.rotation.set(
+      (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180,
+      (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180,
+      (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180
+    );
 
     root.add(clone);
 
@@ -351,14 +383,17 @@ export const CatamaranModel: React.FC<ModelProps> = ({
   ]);
 
   useFrame((state, delta) => {
-    if (isModelCalibrating && cloneRef.current) {
-      cloneRef.current.rotation.set(
-        (settings.rotX * Math.PI) / 180,
-        (settings.rotY * Math.PI) / 180,
-        (settings.rotZ * Math.PI) / 180
-      );
+    if (cloneRef.current) {
+      const offsetX = isModelCalibrating ? settings.offsetX : DEFAULT_OFFSET[0];
+      const offsetY = isModelCalibrating ? settings.offsetY : DEFAULT_OFFSET[1];
+      const offsetZ = isModelCalibrating ? settings.offsetZ : DEFAULT_OFFSET[2];
+      const rotX = isModelCalibrating ? (settings.rotX * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180;
+      const rotY = isModelCalibrating ? (settings.rotY * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180;
+      const rotZ = isModelCalibrating ? (settings.rotZ * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180;
+
+      cloneRef.current.rotation.set(rotX, rotY, rotZ);
       cloneRef.current.position
-        .copy(new THREE.Vector3(settings.offsetX, settings.offsetY, settings.offsetZ))
+        .copy(new THREE.Vector3(offsetX, offsetY, offsetZ))
         .sub(centerRef.current);
     }
 
