@@ -16,6 +16,16 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
   const itemRef = useRef<HTMLDivElement | null>(null);
   const [isActive, setIsActive] = useState(false);
   const isActiveRef = useRef(false);
+  const [isDesktop, setIsDesktop] = useState(true);
+
+  useEffect(() => {
+    const updateDimensions = () => {
+      setIsDesktop(typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
+    };
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
 
   useEffect(() => {
     const el = itemRef.current;
@@ -23,7 +33,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
 
     let ticking = false;
 
-    // Detect active center zone with hysteresis to prevent rapid toggling/flashing
+    // Detect active center zone with adaptive threshold for mobile vs desktop
     const checkVisibility = () => {
       if (!ticking) {
         window.requestAnimationFrame(() => {
@@ -33,9 +43,10 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
           const viewportCenter = windowHeight / 2;
           const distance = Math.abs(elementCenter - viewportCenter);
 
-          // Hysteresis: Enter active at 18% threshold, exit only when outside 28%
-          const enterThreshold = windowHeight * 0.18;
-          const exitThreshold = windowHeight * 0.28;
+          // On mobile, generous 28% entry / 42% exit to keep model engaged while scrolling
+          const isMobileDevice = window.innerWidth < 768;
+          const enterThreshold = windowHeight * (isMobileDevice ? 0.28 : 0.18);
+          const exitThreshold = windowHeight * (isMobileDevice ? 0.42 : 0.28);
 
           let nextActive = isActiveRef.current;
           if (distance < enterThreshold) {
@@ -72,47 +83,50 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
     <section
       id={`project-${project.id}`}
       ref={itemRef}
-      className="relative min-h-[44vh] sm:min-h-[48vh] flex items-center justify-center py-2 sm:py-3 overflow-visible"
+      className="relative min-h-[460px] sm:min-h-[520px] md:min-h-[55vh] flex items-center justify-center py-6 sm:py-10 md:py-14 overflow-visible"
     >
-      <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center justify-center overflow-visible">
+      <div className="relative w-full max-w-5xl mx-auto px-3 sm:px-6 flex flex-col md:flex-row items-center justify-center overflow-visible gap-4 md:gap-0">
         
-        {/* Dynamic Project Title & Details Button (Pops out on left when active in center) */}
+        {/* Project Header / Details:
+            - Desktop: Floats on left and slides in dynamically when active in center view
+            - Mobile: Cleanly positioned above the 3D model, always visible with crisp typography
+        */}
         <motion.div
           initial={false}
           animate={{
-            opacity: isActive ? 1 : 0,
-            x: isActive ? 0 : -24,
-            pointerEvents: isActive ? 'auto' : 'none',
+            opacity: isDesktop ? (isActive ? 1 : 0) : 1,
+            x: isDesktop ? (isActive ? 0 : -24) : 0,
+            pointerEvents: isDesktop ? (isActive ? 'auto' : 'none') : 'auto',
           }}
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           className="w-full md:w-5/12 md:absolute md:left-4 lg:left-8 z-20"
         >
-          <div className="space-y-2">
+          <div className="space-y-2.5 bg-slate-50/70 dark:bg-slate-900/60 md:bg-transparent md:dark:bg-transparent backdrop-blur-sm md:backdrop-blur-none p-3.5 sm:p-4 md:p-0 rounded-2xl md:rounded-none border border-slate-200/50 dark:border-slate-800/50 md:border-0 shadow-sm md:shadow-none">
             {/* Company Badge & Date */}
             <div className="flex flex-wrap items-center gap-2">
               {project.company && (
                 <CompanyLogo company={project.company} logoUrl={project.companyLogo} size="sm" />
               )}
-              <span className="font-mono text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <span className="font-mono text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
                 {project.date.toUpperCase()}
               </span>
             </div>
 
             {/* Title */}
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight">
               {project.title}
             </h2>
 
             {/* Subtitle */}
-            <p className="text-xs sm:text-sm font-mono text-slate-500 dark:text-slate-400">
+            <p className="text-xs sm:text-sm font-mono text-slate-500 dark:text-slate-400 line-clamp-2 sm:line-clamp-none">
               {project.subtitle}
             </p>
 
             {/* Single clean button to open details */}
-            <div className="pt-1.5">
+            <div className="pt-1">
               <button
                 onClick={() => onSelect(project)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded text-xs font-mono font-medium bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-200 dark:hover:bg-white dark:text-slate-900 transition-all shadow-sm active:scale-95 cursor-pointer"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-mono font-medium bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-200 dark:hover:bg-white dark:text-slate-900 transition-all shadow-sm active:scale-95 cursor-pointer touch-manipulation"
               >
                 <span>View Project Details</span>
                 <ArrowUpRight size={14} />
@@ -121,11 +135,11 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
           </div>
         </motion.div>
 
-        {/* 3D Model: Shifts sideways in center focus, silky smooth 60fps transform */}
+        {/* 3D Model: Shifts right on desktop when active in center focus */}
         <motion.div
           initial={false}
           animate={{
-            x: isActive ? (typeof window !== 'undefined' && window.innerWidth >= 768 ? 160 : 0) : 0,
+            x: isDesktop && isActive ? 160 : 0,
           }}
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
           className="w-full flex items-center justify-center overflow-visible will-change-transform"
@@ -134,7 +148,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
             <ModelViewer
               modelType={project.modelType}
               isActive={isActive}
-              className="h-[480px] sm:h-[560px] w-full"
+              className="h-[300px] xs:h-[340px] sm:h-[440px] md:h-[540px] w-full"
             />
           </div>
         </motion.div>
