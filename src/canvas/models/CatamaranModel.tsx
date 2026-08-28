@@ -17,6 +17,7 @@ interface MeshNodeInfo {
   mesh: THREE.Mesh;
   initialPos: THREE.Vector3;
   initialRot: THREE.Euler;
+  initialQuat: THREE.Quaternion;
   centerOfMass: THREE.Vector3;
   index: number;
 }
@@ -227,6 +228,9 @@ export const CatamaranModel: React.FC<ModelProps> = ({
         const currentPartStart = runningPartIdx;
         const currentMeshIdx = meshIdx;
 
+        mesh.userData.cadPartIndex = currentPartStart;
+        mesh.userData.isCadMesh = true;
+
         if (Array.isArray(mesh.material)) {
           const toonArr = mesh.material.map((_, subIdx) => {
             const partNum = currentPartStart + subIdx;
@@ -304,14 +308,17 @@ export const CatamaranModel: React.FC<ModelProps> = ({
         if (!mesh.geometry.boundingBox) {
           mesh.geometry.computeBoundingBox();
         }
-        const com = mesh.geometry.boundingBox
+        const geomCom = mesh.geometry.boundingBox
           ? mesh.geometry.boundingBox.getCenter(new THREE.Vector3())
           : new THREE.Vector3();
+        const initQuat = mesh.quaternion.clone();
+        const com = mesh.position.clone().add(geomCom.clone().applyQuaternion(initQuat));
 
         list.push({
           mesh,
           initialPos: mesh.position.clone(),
           initialRot: mesh.rotation.clone(),
+          initialQuat: initQuat,
           centerOfMass: com,
           index: idx,
         });
@@ -444,7 +451,11 @@ export const CatamaranModel: React.FC<ModelProps> = ({
         }
 
         const phaseRad = (anim.phase * Math.PI) / 180;
-        const axis = anim.axis;
+        const axisVec = new THREE.Vector3(
+          anim.axis === 'x' ? 1 : 0,
+          anim.axis === 'y' ? 1 : 0,
+          anim.axis === 'z' ? 1 : 0
+        );
         const dir = anim.direction ?? 1;
         const omega = (anim.speed * Math.PI * 2) / 60;
 
@@ -454,29 +465,35 @@ export const CatamaranModel: React.FC<ModelProps> = ({
         if (pivotMode === 'origin') {
           pivot.set(0, 0, 0);
         } else if (pivotMode === 'custom') {
-          pivot.add(new THREE.Vector3((anim.pivotX || 0) / 100, (anim.pivotY || 0) / 100, (anim.pivotZ || 0) / 100));
+          pivot.add(
+            new THREE.Vector3(
+              (anim.pivotX || 0) / 100,
+              (anim.pivotY || 0) / 100,
+              (anim.pivotZ || 0) / 100
+            )
+          );
         }
 
         if (anim.type === 'continuous-spin' || anim.type === 'oscillate-rotation') {
-          const targetEuler = node.initialRot.clone();
+          const angle =
+            anim.type === 'continuous-spin'
+              ? time * omega * dir
+              : Math.sin(time * omega + phaseRad) *
+                (((anim.amplitude || 30) * Math.PI) / 180) *
+                dir;
 
-          if (anim.type === 'continuous-spin') {
-            targetEuler[axis] = node.initialRot[axis] + (time * omega * dir);
-          } else {
-            const ampRad = (anim.amplitude * Math.PI) / 180;
-            targetEuler[axis] = node.initialRot[axis] + Math.sin(time * omega + phaseRad) * ampRad * dir;
-          }
-
-          const pivotVector = pivot.clone();
-          const rotatedPivot = pivot.clone().applyEuler(targetEuler);
-
-          node.mesh.rotation.copy(targetEuler);
-          node.mesh.position.copy(node.initialPos).add(pivotVector).sub(rotatedPivot);
+          const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
+          node.mesh.quaternion.copy(qDelta).multiply(node.initialQuat);
+          node.mesh.position
+            .copy(pivot)
+            .add(node.initialPos.clone().sub(pivot).applyQuaternion(qDelta));
         } else if (anim.type === 'linear-reciprocate') {
-          node.mesh.rotation.copy(node.initialRot);
-          const ampMeters = (anim.amplitude / 100) * dir;
-          node.mesh.position.copy(node.initialPos);
-          node.mesh.position[axis] = node.initialPos[axis] + Math.sin(time * omega + phaseRad) * ampMeters;
+          node.mesh.quaternion.copy(node.initialQuat);
+          const ampMeters = ((anim.amplitude || 10) / 100) * dir;
+          const displacement = axisVec
+            .clone()
+            .multiplyScalar(Math.sin(time * omega + phaseRad) * ampMeters);
+          node.mesh.position.copy(node.initialPos).add(displacement);
         }
       });
     }

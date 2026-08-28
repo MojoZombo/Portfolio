@@ -43,10 +43,10 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
           const viewportCenter = windowHeight / 2;
           const distance = Math.abs(elementCenter - viewportCenter);
 
-          // On mobile, generous 28% entry / 42% exit to keep model engaged while scrolling
+          // Adaptive threshold for mobile vs desktop with compact spacing
           const isMobileDevice = window.innerWidth < 768;
-          const enterThreshold = windowHeight * (isMobileDevice ? 0.28 : 0.18);
-          const exitThreshold = windowHeight * (isMobileDevice ? 0.42 : 0.28);
+          const enterThreshold = windowHeight * (isMobileDevice ? 0.30 : 0.22);
+          const exitThreshold = windowHeight * (isMobileDevice ? 0.44 : 0.32);
 
           let nextActive = isActiveRef.current;
           if (distance < enterThreshold) {
@@ -83,7 +83,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
     <section
       id={`project-${project.id}`}
       ref={itemRef}
-      className="relative min-h-[460px] sm:min-h-[520px] md:min-h-[55vh] flex items-center justify-center py-6 sm:py-10 md:py-14 overflow-visible"
+      className="relative min-h-[360px] sm:min-h-[420px] md:min-h-[44vh] flex items-center justify-center py-3 sm:py-5 md:py-8 overflow-visible"
     >
       <div className="relative w-full max-w-5xl mx-auto px-3 sm:px-6 flex flex-col md:flex-row items-center justify-center overflow-visible gap-4 md:gap-0">
         
@@ -148,7 +148,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
             <ModelViewer
               modelType={project.modelType}
               isActive={isActive}
-              className="h-[300px] xs:h-[340px] sm:h-[440px] md:h-[540px] w-full"
+              className="h-[270px] xs:h-[310px] sm:h-[400px] md:h-[490px] w-full"
             />
           </div>
         </motion.div>

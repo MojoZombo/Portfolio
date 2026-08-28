@@ -17,6 +17,7 @@ interface MeshNodeInfo {
   mesh: THREE.Mesh;
   initialPos: THREE.Vector3;
   initialRot: THREE.Euler;
+  initialQuat: THREE.Quaternion;
   centerOfMass: THREE.Vector3;
   index: number;
 }
@@ -26,31 +27,12 @@ const toonGradient = createToonGradientMap();
 // Optimal Calibrated Defaults for Anti-Tangle Winch
 const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [-180.0, 0.0, 0.0];
-const DEFAULT_SCALE = 18.00;
+const DEFAULT_SCALE = 18.0;
 
-// Default Part Colors for Anti-Tangle Winch
-const DEFAULT_PART_COLORS: Record<number, string> = {
-  0: '#475569', // Mesh_0
-  1: '#475569', // Mesh_0_1
-  2: '#475569', // Mesh_0_2
-  3: '#475569', // CONV-HDW00-065-01-1
-  4: '#475569', // Mesh_4
-  5: '#475569', // Mesh_4_1
-  6: '#c19a6b', // Mesh_2
-  7: '#f8debf', // Mesh_2_1
-  8: '#c19a6b', // Mesh_2_2
-  9: '#FDB515', // Mesh_2_3
-  10: '#FDB515', // Mesh_2_4
-  11: '#64748b', // CONV-WIN00-011-03-1
-  12: '#475569', // dowel-1
-  13: '#475569', // dowel-2
-  14: '#f8fafc', // Retaining_Ring_45-1
-  16: '#475569', // CONV-HDW00-064-01-1001
-  21: '#0284c7', // Reversing_Screw_Rectangle_profile-1001
-  22: '#475569', // shaft_collar_print-1001
-};
+// Baked Custom Part Color Overrides for Winch
+const DEFAULT_PART_COLORS: Record<number, string> = {};
 
-// Default Kinematics Animations
+// Baked Custom Part Kinematics Animations
 const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {};
 
 // Shared global blueprint materials
@@ -219,6 +201,9 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
         const currentPartStart = runningPartIdx;
         const currentMeshIdx = meshIdx;
 
+        mesh.userData.cadPartIndex = currentPartStart;
+        mesh.userData.isCadMesh = true;
+
         if (Array.isArray(mesh.material)) {
           const toonArr = mesh.material.map((_, subIdx) => {
             const partNum = currentPartStart + subIdx;
@@ -296,14 +281,17 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
         if (!mesh.geometry.boundingBox) {
           mesh.geometry.computeBoundingBox();
         }
-        const com = mesh.geometry.boundingBox
+        const geomCom = mesh.geometry.boundingBox
           ? mesh.geometry.boundingBox.getCenter(new THREE.Vector3())
           : new THREE.Vector3();
+        const initQuat = mesh.quaternion.clone();
+        const com = mesh.position.clone().add(geomCom.clone().applyQuaternion(initQuat));
 
         list.push({
           mesh,
           initialPos: mesh.position.clone(),
           initialRot: mesh.rotation.clone(),
+          initialQuat: initQuat,
           centerOfMass: com,
           index: idx,
         });
@@ -437,7 +425,11 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
         }
 
         const phaseRad = (anim.phase * Math.PI) / 180;
-        const axis = anim.axis;
+        const axisVec = new THREE.Vector3(
+          anim.axis === 'x' ? 1 : 0,
+          anim.axis === 'y' ? 1 : 0,
+          anim.axis === 'z' ? 1 : 0
+        );
         const dir = anim.direction ?? 1;
         const omega = (anim.speed * Math.PI * 2) / 60;
 
@@ -447,29 +439,35 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
         if (pivotMode === 'origin') {
           pivot.set(0, 0, 0);
         } else if (pivotMode === 'custom') {
-          pivot.add(new THREE.Vector3((anim.pivotX || 0) / 100, (anim.pivotY || 0) / 100, (anim.pivotZ || 0) / 100));
+          pivot.add(
+            new THREE.Vector3(
+              (anim.pivotX || 0) / 100,
+              (anim.pivotY || 0) / 100,
+              (anim.pivotZ || 0) / 100
+            )
+          );
         }
 
         if (anim.type === 'continuous-spin' || anim.type === 'oscillate-rotation') {
-          const targetEuler = node.initialRot.clone();
+          const angle =
+            anim.type === 'continuous-spin'
+              ? time * omega * dir
+              : Math.sin(time * omega + phaseRad) *
+                (((anim.amplitude || 30) * Math.PI) / 180) *
+                dir;
 
-          if (anim.type === 'continuous-spin') {
-            targetEuler[axis] = node.initialRot[axis] + (time * omega * dir);
-          } else {
-            const ampRad = (anim.amplitude * Math.PI) / 180;
-            targetEuler[axis] = node.initialRot[axis] + Math.sin(time * omega + phaseRad) * ampRad * dir;
-          }
-
-          const pivotVector = pivot.clone();
-          const rotatedPivot = pivot.clone().applyEuler(targetEuler);
-
-          node.mesh.rotation.copy(targetEuler);
-          node.mesh.position.copy(node.initialPos).add(pivotVector).sub(rotatedPivot);
+          const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
+          node.mesh.quaternion.copy(qDelta).multiply(node.initialQuat);
+          node.mesh.position
+            .copy(pivot)
+            .add(node.initialPos.clone().sub(pivot).applyQuaternion(qDelta));
         } else if (anim.type === 'linear-reciprocate') {
-          node.mesh.rotation.copy(node.initialRot);
-          const ampMeters = (anim.amplitude / 100) * dir;
-          node.mesh.position.copy(node.initialPos);
-          node.mesh.position[axis] = node.initialPos[axis] + Math.sin(time * omega + phaseRad) * ampMeters;
+          node.mesh.quaternion.copy(node.initialQuat);
+          const ampMeters = ((anim.amplitude || 10) / 100) * dir;
+          const displacement = axisVec
+            .clone()
+            .multiplyScalar(Math.sin(time * omega + phaseRad) * ampMeters);
+          node.mesh.position.copy(node.initialPos).add(displacement);
         }
       });
     }

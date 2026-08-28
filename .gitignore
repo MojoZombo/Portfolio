@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 .pnp
 .pnp.js
@@ -38,3 +38,4 @@ Thumbs.db
 check_*.js
 inspect_*.js
 fetch_dates.js
+*_original.glb

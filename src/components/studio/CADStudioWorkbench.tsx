@@ -1,10 +1,13 @@
-import React, { useState, useMemo, useEffect, Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
+import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, OrthographicCamera, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei';
+import * as THREE from 'three';
 import { projectsData } from '../../data/projectsData';
 import { ModelRenderer } from '../../canvas/ModelRenderer';
 import { useTheme } from '../../context/ThemeContext';
-import { useTransformCalibration } from '../../context/TransformCalibrationContext';
+import { useTransformCalibration, SplitPartRecord } from '../../context/TransformCalibrationContext';
+import { CADCuttingPlaneGizmo } from '../../canvas/CADCuttingPlaneGizmo';
+import { separateDisconnectedIslands, sliceGeometryByPlane } from '../../utils/meshSplitter';
 import {
   Palette,
   Play,
@@ -22,6 +25,10 @@ import {
   Search,
   Edit2,
   Crosshair,
+  Scissors,
+  Boxes,
+  Sparkles,
+  Undo2,
 } from 'lucide-react';
 
 interface StudioProps {
@@ -43,6 +50,168 @@ const COLOR_PRESETS = [
   { name: 'Powder White', hex: '#f8fafc' },
   { name: 'Raw Aluminum', hex: '#cbd5e1' },
 ];
+
+/**
+ * Scene bridge to allow dynamic on-demand mesh splitting, individual part highlighting, material updates,
+ * and live kinematics animation for both native CAD parts and dynamically split sub-parts.
+ */
+function StudioSceneBridge({
+  onSceneReady,
+  selectedPartIndex,
+  colorOverrides,
+  animationOverrides,
+}: {
+  onSceneReady: (scene: THREE.Scene) => void;
+  selectedPartIndex: number | null;
+  colorOverrides: Record<number, string>;
+  animationOverrides: Record<number, any>;
+}) {
+  const { scene } = useThree();
+
+  useEffect(() => {
+    onSceneReady(scene);
+  }, [scene, onSceneReady]);
+
+  // Live update highlight glow, colors, and live kinematics for all CAD parts and dynamically split sub-meshes
+  useFrame((state) => {
+    const time = state.clock.getElapsedTime();
+    let fallbackIdx = 0;
+
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        if (
+          !mesh.name.includes('Helper') &&
+          !mesh.name.includes('Gizmo') &&
+          !mesh.name.includes('Grid') &&
+          !mesh.name.includes('Line')
+        ) {
+          const currentIdx =
+            mesh.userData.cadPartIndex !== undefined
+              ? mesh.userData.cadPartIndex
+              : mesh.userData.partIndex !== undefined
+              ? mesh.userData.partIndex
+              : fallbackIdx;
+
+          mesh.userData.partIndex = currentIdx;
+          mesh.userData.cadPartIndex = currentIdx;
+          mesh.userData.isCadMesh = true;
+
+          // 1. Initial transform capture for robust kinematics
+          if (!mesh.userData.initialPos) {
+            mesh.userData.initialPos = mesh.position.clone();
+            mesh.userData.initialRot = mesh.rotation.clone();
+            mesh.userData.initialQuat = mesh.quaternion.clone();
+          }
+
+          // 2. Center of mass calculation in parent space
+          if (!mesh.userData.centerOfMass) {
+            if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+            const geomCom = mesh.geometry.boundingBox
+              ? mesh.geometry.boundingBox.getCenter(new THREE.Vector3())
+              : new THREE.Vector3();
+
+            mesh.userData.geomCom = geomCom;
+            mesh.userData.centerOfMass = mesh.userData.initialPos
+              .clone()
+              .add(geomCom.clone().applyQuaternion(mesh.userData.initialQuat));
+          }
+
+          // 3. Highlight glow & Color override sync
+          const isSelected = selectedPartIndex === currentIdx;
+          const overrideColor = colorOverrides[currentIdx];
+
+          const mat = mesh.material;
+          if (mat) {
+            if (Array.isArray(mat)) {
+              mat.forEach((m) => {
+                if ((m as THREE.MeshToonMaterial).isMeshToonMaterial) {
+                  const tm = m as THREE.MeshToonMaterial;
+                  if (isSelected) {
+                    tm.color.set('#38bdf8');
+                    tm.emissive.set('#0284c7');
+                  } else {
+                    if (overrideColor) tm.color.set(overrideColor);
+                    tm.emissive.set('#000000');
+                  }
+                }
+              });
+            } else if ((mat as THREE.MeshToonMaterial).isMeshToonMaterial) {
+              const tm = mat as THREE.MeshToonMaterial;
+              if (isSelected) {
+                tm.color.set('#38bdf8');
+                tm.emissive.set('#0284c7');
+              } else {
+                if (overrideColor) tm.color.set(overrideColor);
+                tm.emissive.set('#000000');
+              }
+            }
+          }
+
+          // 4. Kinematics Animation (Rotation around true Center of Mass with ZERO axis drift)
+          const anim = animationOverrides[currentIdx];
+          if (anim && anim.type !== 'none') {
+            const axisVec = new THREE.Vector3(
+              anim.axis === 'x' ? 1 : 0,
+              anim.axis === 'y' ? 1 : 0,
+              anim.axis === 'z' ? 1 : 0
+            );
+            const dir = anim.direction ?? 1;
+            const omega = (anim.speed * Math.PI * 2) / 60;
+            const phaseRad = ((anim.phase || 0) * Math.PI) / 180;
+
+            const pivotMode = anim.pivotMode || 'center-of-mass';
+            let pivotPoint = (mesh.userData.centerOfMass as THREE.Vector3).clone();
+            if (pivotMode === 'origin') {
+              pivotPoint.set(0, 0, 0);
+            } else if (pivotMode === 'custom') {
+              pivotPoint.add(
+                new THREE.Vector3(
+                  (anim.pivotX || 0) / 100,
+                  (anim.pivotY || 0) / 100,
+                  (anim.pivotZ || 0) / 100
+                )
+              );
+            }
+
+            if (anim.type === 'continuous-spin' || anim.type === 'oscillate-rotation') {
+              const angle =
+                anim.type === 'continuous-spin'
+                  ? time * omega * dir
+                  : Math.sin(time * omega + phaseRad) *
+                    (((anim.amplitude || 30) * Math.PI) / 180) *
+                    dir;
+
+              const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
+              mesh.quaternion.copy(qDelta).multiply(mesh.userData.initialQuat);
+              mesh.position
+                .copy(pivotPoint)
+                .add(
+                  (mesh.userData.initialPos as THREE.Vector3)
+                    .clone()
+                    .sub(pivotPoint)
+                    .applyQuaternion(qDelta)
+                );
+            } else if (anim.type === 'linear-reciprocate') {
+              mesh.quaternion.copy(mesh.userData.initialQuat);
+              const ampMeters = ((anim.amplitude || 10) / 100) * dir;
+              const displacement = axisVec
+                .clone()
+                .multiplyScalar(Math.sin(time * omega + phaseRad) * ampMeters);
+              mesh.position
+                .copy(mesh.userData.initialPos as THREE.Vector3)
+                .add(displacement);
+            }
+          }
+
+          fallbackIdx++;
+        }
+      }
+    });
+  });
+
+  return null;
+}
 
 function getSafeColor(hex: string | undefined, fallback = '#cbd5e1'): string {
   if (!hex || typeof hex !== 'string') return fallback;
@@ -73,9 +242,13 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     resetPartAnimation,
     resetSettings,
     setIsOpen,
+    cuttingPlaneConfig,
+    setCuttingPlaneConfig,
+    registerSplitParts,
+    splitHistory,
   } = useTransformCalibration();
 
-  const [activeTab, setActiveTab] = useState<'transform' | 'colors' | 'kinematics' | 'cdpr' | 'export'>('transform');
+  const [activeTab, setActiveTab] = useState<'transform' | 'colors' | 'splitter' | 'kinematics' | 'cdpr' | 'export'>('transform');
   const [partSearch, setPartSearch] = useState('');
   const [renderMode, setRenderMode] = useState<'shaded' | 'blueprint'>('shaded');
   const [isOrthographic, setIsOrthographic] = useState(false);
@@ -83,6 +256,8 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
   const [showGrid, setShowGrid] = useState(true);
   const [editingPartIndex, setEditingPartIndex] = useState<number | null>(null);
   const [tempPartName, setTempPartName] = useState('');
+  const [splitFeedback, setSplitFeedback] = useState<string | null>(null);
+  const [splitToleranceRatio, setSplitToleranceRatio] = useState<number>(0.001);
 
   // Ensure calibration context is active in Studio
   useEffect(() => {
@@ -164,12 +339,265 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const sceneRef = useRef<THREE.Scene | null>(null);
+
   const handleSaveRename = (index: number) => {
     if (tempPartName.trim()) {
       updatePartName(index, tempPartName.trim());
     }
     setEditingPartIndex(null);
     setTempPartName('');
+  };
+
+  const handleSplitIslands = (partIndex: number) => {
+    if (!sceneRef.current) return;
+
+    // Locate target mesh in active WebGL scene
+    const cadMeshes: THREE.Mesh[] = [];
+    const nonGizmoMeshes: THREE.Mesh[] = [];
+    sceneRef.current.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const m = child as THREE.Mesh;
+        if (m.userData?.isCadMesh) {
+          cadMeshes.push(m);
+        }
+        if (
+          !m.name.includes('Helper') &&
+          !m.name.includes('Gizmo') &&
+          !m.name.includes('Grid') &&
+          !m.name.includes('Line')
+        ) {
+          nonGizmoMeshes.push(m);
+        }
+      }
+    });
+
+    const targetMesh =
+      cadMeshes.find(
+        (m) =>
+          m.userData.cadPartIndex === partIndex ||
+          m.userData.partIndex === partIndex
+      ) ||
+      cadMeshes[partIndex] ||
+      nonGizmoMeshes.find((m) => m.userData.partIndex === partIndex) ||
+      nonGizmoMeshes[partIndex];
+
+    if (!targetMesh || !targetMesh.geometry || !targetMesh.parent) {
+      setSplitFeedback(`⚠️ Unable to locate 3D mesh for part #${partIndex}.`);
+      setTimeout(() => setSplitFeedback(null), 3000);
+      return;
+    }
+
+    // Save original geometry for undo
+    if (!targetMesh.userData.originalGeometry) {
+      targetMesh.userData.originalGeometry = targetMesh.geometry.clone();
+    }
+
+    const res = separateDisconnectedIslands(targetMesh.geometry, splitToleranceRatio);
+    if (res.islandCount <= 1) {
+      setSplitFeedback(`ℹ️ Part #${partIndex} is already a single unified solid piece with no air gaps.`);
+      setTimeout(() => setSplitFeedback(null), 4000);
+      return;
+    }
+
+    const parent = targetMesh.parent;
+    const originalPart = availableParts.find((p) => p.index === partIndex);
+    const originalName = originalPart?.name || `Part #${partIndex}`;
+    const baseName = originalName.replace(/\s*\(.*?\)$/, '');
+
+    // 1. Keep island 0 on original mesh
+    targetMesh.geometry = res.geometries[0];
+    targetMesh.geometry.computeBoundingBox();
+    targetMesh.name = `${baseName} (Body A)`;
+    targetMesh.userData.partIndex = partIndex;
+    targetMesh.userData.cadPartIndex = partIndex;
+    targetMesh.userData.isCadMesh = true;
+
+    // 2. Add sibling meshes for additional islands
+    const subPartConfigs: { name: string; color: string }[] = [];
+    const createdMeshes: THREE.Mesh[] = [];
+
+    for (let i = 1; i < res.geometries.length; i++) {
+      const bodyLabel = String.fromCharCode(65 + i);
+      const subMat = Array.isArray(targetMesh.material)
+        ? targetMesh.material.map((m) => m.clone())
+        : targetMesh.material.clone();
+
+      const subMesh = new THREE.Mesh(res.geometries[i], subMat);
+      subMesh.name = `${baseName} (Body ${bodyLabel})`;
+      subMesh.position.copy(targetMesh.position);
+      subMesh.rotation.copy(targetMesh.rotation);
+      subMesh.scale.copy(targetMesh.scale);
+      subMesh.castShadow = targetMesh.castShadow;
+      subMesh.receiveShadow = targetMesh.receiveShadow;
+      subMesh.userData.isSubPart = true;
+      subMesh.userData.parentIndex = partIndex;
+      subMesh.userData.isCadMesh = true;
+
+      parent.add(subMesh);
+      createdMeshes.push(subMesh);
+
+      subPartConfigs.push({
+        name: `${baseName} (Body ${bodyLabel})`,
+        color: COLOR_PRESETS[(partIndex + i * 3) % COLOR_PRESETS.length].hex,
+      });
+    }
+
+    // Register new sub-parts in context
+    const newIndices = registerSplitParts(partIndex, subPartConfigs, 'islands');
+    createdMeshes.forEach((cm, idx) => {
+      if (newIndices[idx] !== undefined) {
+        cm.userData.partIndex = newIndices[idx];
+        cm.userData.cadPartIndex = newIndices[idx];
+      }
+    });
+
+    if (newIndices.length > 0) {
+      setSelectedPartIndex(newIndices[0]);
+      setSplitFeedback(`✨ Separated "${originalName}" into ${res.islandCount} independent 3D parts!`);
+      setTimeout(() => setSplitFeedback(null), 4500);
+    }
+  };
+
+  const handleSplitByPlane = (partIndex: number) => {
+    if (!sceneRef.current) return;
+
+    const cadMeshes: THREE.Mesh[] = [];
+    const nonGizmoMeshes: THREE.Mesh[] = [];
+    sceneRef.current.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const m = child as THREE.Mesh;
+        if (m.userData?.isCadMesh) {
+          cadMeshes.push(m);
+        }
+        if (
+          !m.name.includes('Helper') &&
+          !m.name.includes('Gizmo') &&
+          !m.name.includes('Grid') &&
+          !m.name.includes('Line')
+        ) {
+          nonGizmoMeshes.push(m);
+        }
+      }
+    });
+
+    const targetMesh =
+      cadMeshes.find(
+        (m) =>
+          m.userData.cadPartIndex === partIndex ||
+          m.userData.partIndex === partIndex
+      ) ||
+      cadMeshes[partIndex] ||
+      nonGizmoMeshes.find((m) => m.userData.partIndex === partIndex) ||
+      nonGizmoMeshes[partIndex];
+
+    if (!targetMesh || !targetMesh.geometry || !targetMesh.parent) return;
+
+    if (!targetMesh.userData.originalGeometry) {
+      targetMesh.userData.originalGeometry = targetMesh.geometry.clone();
+    }
+
+    const normal = new THREE.Vector3(
+      cuttingPlaneConfig.axis === 'x' ? 1 : 0,
+      cuttingPlaneConfig.axis === 'y' ? 1 : 0,
+      cuttingPlaneConfig.axis === 'z' ? 1 : 0
+    );
+    const point = new THREE.Vector3(
+      cuttingPlaneConfig.axis === 'x' ? cuttingPlaneConfig.offset : 0,
+      cuttingPlaneConfig.axis === 'y' ? cuttingPlaneConfig.offset : 0,
+      cuttingPlaneConfig.axis === 'z' ? cuttingPlaneConfig.offset : 0
+    );
+
+    const res = sliceGeometryByPlane(targetMesh.geometry, point, normal);
+    if (!res) {
+      setSplitFeedback(`⚠️ Cutting plane does not intersect part #${partIndex}. Try adjusting the position slider.`);
+      setTimeout(() => setSplitFeedback(null), 4000);
+      return;
+    }
+
+    const parent = targetMesh.parent;
+    const originalPart = availableParts.find((p) => p.index === partIndex);
+    const originalName = originalPart?.name || `Part #${partIndex}`;
+    const baseName = originalName.replace(/\s*\(.*?\)$/, '');
+    const axisLabel = cuttingPlaneConfig.axis.toUpperCase();
+
+    // 1. Assign sideA to target mesh
+    targetMesh.geometry = res.sideA;
+    targetMesh.geometry.computeBoundingBox();
+    targetMesh.name = `${baseName} (+${axisLabel} Half)`;
+    targetMesh.userData.partIndex = partIndex;
+    targetMesh.userData.cadPartIndex = partIndex;
+    targetMesh.userData.isCadMesh = true;
+
+    // 2. Clone and attach sideB mesh
+    const subMat = Array.isArray(targetMesh.material)
+      ? targetMesh.material.map((m) => m.clone())
+      : targetMesh.material.clone();
+
+    const subMesh = new THREE.Mesh(res.sideB, subMat);
+    subMesh.name = `${baseName} (-${axisLabel} Half)`;
+    subMesh.position.copy(targetMesh.position);
+    subMesh.rotation.copy(targetMesh.rotation);
+    subMesh.scale.copy(targetMesh.scale);
+    subMesh.castShadow = targetMesh.castShadow;
+    subMesh.receiveShadow = targetMesh.receiveShadow;
+    subMesh.userData.isSubPart = true;
+    subMesh.userData.parentIndex = partIndex;
+    subMesh.userData.isCadMesh = true;
+    parent.add(subMesh);
+
+    const subPartConfigs = [
+      {
+        name: `${baseName} (-${axisLabel} Half)`,
+        color: COLOR_PRESETS[(partIndex + 5) % COLOR_PRESETS.length].hex,
+      },
+    ];
+
+    const newIndices = registerSplitParts(partIndex, subPartConfigs, 'plane');
+    if (newIndices.length > 0) {
+      subMesh.userData.partIndex = newIndices[0];
+      subMesh.userData.cadPartIndex = newIndices[0];
+      setSelectedPartIndex(newIndices[0]);
+      setSplitFeedback(`✂️ Bisected "${originalName}" along ${axisLabel}-axis into 2 independent 3D parts!`);
+      setTimeout(() => setSplitFeedback(null), 4500);
+    }
+    setCuttingPlaneConfig({ active: false });
+  };
+
+  const handleRevertSplit = (splitRecord: SplitPartRecord) => {
+    if (!sceneRef.current) return;
+
+    const parentPartIndex = splitRecord.originalPartIndex;
+    let targetMesh: THREE.Mesh | null = null;
+    const subMeshesToRemove: THREE.Mesh[] = [];
+
+    sceneRef.current.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const m = child as THREE.Mesh;
+        if (
+          m.userData.cadPartIndex === parentPartIndex ||
+          m.userData.partIndex === parentPartIndex
+        ) {
+          targetMesh = m;
+        }
+        if (m.userData.parentIndex === parentPartIndex && m.userData.isSubPart) {
+          subMeshesToRemove.push(m);
+        }
+      }
+    });
+
+    if (targetMesh && (targetMesh as THREE.Mesh).userData.originalGeometry) {
+      (targetMesh as THREE.Mesh).geometry = (targetMesh as THREE.Mesh).userData.originalGeometry;
+      (targetMesh as THREE.Mesh).geometry.computeBoundingBox();
+    }
+
+    subMeshesToRemove.forEach((sm) => {
+      sm.parent?.remove(sm);
+      sm.geometry.dispose();
+    });
+
+    setSplitFeedback(`↺ Reverted split for Part #${parentPartIndex} back to unified body.`);
+    setTimeout(() => setSplitFeedback(null), 3500);
   };
 
   return (
@@ -393,6 +821,20 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              setSelectedPartIndex(part.index);
+                              setCuttingPlaneConfig({ targetPartIndex: part.index });
+                              setActiveTab('splitter');
+                            }}
+                            className={`p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-black/20 transition-opacity cursor-pointer ${
+                              isSelected ? 'text-white' : 'text-purple-400 hover:text-white'
+                            }`}
+                            title="Open Splitter Tool for this part"
+                          >
+                            <Scissors size={11} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setEditingPartIndex(part.index);
                               setTempPartName(part.name);
                             }}
@@ -488,6 +930,26 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
               />
             </Suspense>
 
+            {/* Scene Bridge for Dynamic Live Splitting & Material Synchronization */}
+            <StudioSceneBridge
+              onSceneReady={(sc) => {
+                sceneRef.current = sc;
+              }}
+              selectedPartIndex={selectedPartIndex}
+              colorOverrides={settings.colorOverrides}
+              animationOverrides={settings.animationOverrides}
+            />
+
+            {/* Interactive Cutting Plane Gizmo for Part Slicing */}
+            {cuttingPlaneConfig.active && (
+              <CADCuttingPlaneGizmo
+                axis={cuttingPlaneConfig.axis}
+                offset={cuttingPlaneConfig.offset}
+                size={2.8}
+                visible={true}
+              />
+            )}
+
             {/* Interactive Orientation Gizmo Cube in Top-Right */}
             <GizmoHelper alignment="top-right" margin={[70, 70]}>
               <GizmoViewport axisColors={['#ef4444', '#22c55e', '#3b82f6']} labelColor="#ffffff" />
@@ -559,6 +1021,23 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
             >
               <Palette size={13} />
               <span>Colors</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('splitter');
+                if (selectedPartIndex !== null) {
+                  setCuttingPlaneConfig({ targetPartIndex: selectedPartIndex });
+                }
+              }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-mono font-medium transition-all ${
+                activeTab === 'splitter'
+                  ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50 shadow-sm font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Scissors size={13} />
+              <span>Splitter</span>
             </button>
 
             <button
@@ -902,7 +1381,269 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
               </div>
             )}
 
-            {/* TAB 3: KINEMATICS & MOTION */}
+            {/* TAB 3: MESH PART SPLITTER */}
+            {activeTab === 'splitter' && (
+              <div className="space-y-5">
+                {splitFeedback && (
+                  <div className="p-3 bg-purple-950/70 border border-purple-500/50 rounded-xl text-xs font-mono text-purple-200 flex items-center gap-2 animate-fade-in shadow-lg">
+                    <Sparkles size={15} className="text-purple-400 shrink-0" />
+                    <span>{splitFeedback}</span>
+                  </div>
+                )}
+
+                {selectedPartIndex === null ? (
+                  <div className="bg-slate-950/60 rounded-xl p-5 text-center border border-slate-800 space-y-3">
+                    <Scissors size={28} className="mx-auto text-purple-400 opacity-60" />
+                    <p className="text-xs font-mono text-slate-200 font-semibold">Select a Part to Split</p>
+                    <p className="text-[11px] font-mono text-slate-400 leading-relaxed">
+                      Choose any compound part from the assembly tree on the left to separate disconnected bodies (air gaps) or add cutting planes to bisect geometry.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Selected Part Card Header */}
+                    <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700 space-y-1.5 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-bold flex items-center gap-1.5">
+                          <Scissors size={12} />
+                          <span>Active Target Node</span>
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          Part #{selectedPartIndex}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-3.5 h-3.5 rounded-full shrink-0 border border-white/20 shadow-inner"
+                          style={{ backgroundColor: settings.colorOverrides[selectedPartIndex] || selectedPart?.color || '#cbd5e1' }}
+                        />
+                        <h4 className="text-xs font-bold text-white font-mono truncate">
+                          {selectedPart?.name || `Part #${selectedPartIndex}`}
+                        </h4>
+                      </div>
+                    </div>
+
+                    {/* METHOD 1: DISCONNECTED ISLANDS (AIR SEPARATION) */}
+                    <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Boxes size={15} className="text-blue-400" />
+                          <span className="text-xs font-mono font-bold text-white">Separate by Air / Loose Bodies</span>
+                        </div>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">
+                          Auto-Detect
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] font-mono text-slate-400 leading-relaxed">
+                        Scans triangle connectivity across the selected geometry to detect physically separate bodies with air between them (e.g. dual extrusions, brackets, or fastener sets sharing 1 mesh).
+                      </p>
+
+                      {/* Gap Detection Sensitivity Selector */}
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between text-[11px] font-mono">
+                          <span className="text-slate-300 font-semibold">Gap Sensitivity</span>
+                          <span className="text-blue-400 font-bold">
+                            {splitToleranceRatio === 0.0003
+                              ? 'Fine (Tiny Gaps)'
+                              : splitToleranceRatio === 0.001
+                              ? 'Balanced (Standard CAD)'
+                              : 'Coarse (Wide Gaps Only)'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {[
+                            { label: 'Fine', value: 0.0003, desc: '0.03%' },
+                            { label: 'Balanced', value: 0.001, desc: '0.1%' },
+                            { label: 'Coarse', value: 0.004, desc: '0.4%' },
+                          ].map((opt) => (
+                            <button
+                              key={opt.label}
+                              onClick={() => setSplitToleranceRatio(opt.value)}
+                              className={`py-1.5 rounded-lg text-[11px] font-mono font-semibold transition-all cursor-pointer border ${
+                                splitToleranceRatio === opt.value
+                                  ? 'bg-blue-600/30 text-blue-300 border-blue-500/50 shadow-sm'
+                                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                              }`}
+                            >
+                              {opt.label} <span className="text-[9px] opacity-70">({opt.desc})</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleSplitIslands(selectedPartIndex)}
+                        className="w-full py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-mono font-bold flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                      >
+                        <Sparkles size={13} />
+                        <span>⚡ Separate Disconnected Bodies</span>
+                      </button>
+                    </div>
+
+                    {/* METHOD 2: INTERACTIVE CUTTING PLANE SLICER */}
+                    <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-800 space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Scissors size={15} className="text-purple-400" />
+                          <span className="text-xs font-mono font-bold text-white">Bisect with Cutting Plane</span>
+                        </div>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">
+                          Planar Slice
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] font-mono text-slate-400 leading-relaxed">
+                        Add a 3D slicing plane across the part to cut and divide it into two independent sub-parts for custom multi-tone coloring or isolated animation.
+                      </p>
+
+                      {/* Slicing Axis Buttons */}
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-mono font-semibold text-slate-300">Cutting Normal Axis</span>
+                        <div className="flex gap-2">
+                          {(['x', 'y', 'z'] as const).map((ax) => (
+                            <button
+                              key={ax}
+                              onClick={() => {
+                                setCuttingPlaneConfig({
+                                  active: true,
+                                  targetPartIndex: selectedPartIndex,
+                                  axis: ax,
+                                });
+                              }}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-mono uppercase font-bold transition-all cursor-pointer ${
+                                cuttingPlaneConfig.active && cuttingPlaneConfig.axis === ax
+                                  ? ax === 'x'
+                                    ? 'bg-red-600 text-white shadow-md'
+                                    : ax === 'y'
+                                    ? 'bg-green-600 text-white shadow-md'
+                                    : 'bg-blue-600 text-white shadow-md'
+                                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              {ax}-Axis
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Plane Offset Position Slider */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-xs font-mono">
+                          <span className="text-slate-300 font-semibold">Plane Position</span>
+                          <span className="text-purple-400 font-bold">
+                            {(cuttingPlaneConfig.offset * 100).toFixed(1)} cm
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="range"
+                            min="-1.5"
+                            max="1.5"
+                            step="0.01"
+                            value={cuttingPlaneConfig.offset}
+                            onChange={(e) => {
+                              setCuttingPlaneConfig({
+                                active: true,
+                                targetPartIndex: selectedPartIndex,
+                                offset: parseFloat(e.target.value),
+                              });
+                            }}
+                            className="flex-1 accent-purple-500 cursor-pointer"
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={cuttingPlaneConfig.offset}
+                            onChange={(e) => {
+                              setCuttingPlaneConfig({
+                                active: true,
+                                targetPartIndex: selectedPartIndex,
+                                offset: parseFloat(e.target.value) || 0,
+                              });
+                            }}
+                            className="w-16 px-2 py-0.5 bg-slate-900 text-xs font-mono text-white rounded border border-slate-700 text-right outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Cutting Plane Gizmo Toggle */}
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          onClick={() => {
+                            setCuttingPlaneConfig({
+                              active: !cuttingPlaneConfig.active,
+                              targetPartIndex: selectedPartIndex,
+                            });
+                          }}
+                          className={`text-[11px] font-mono px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                            cuttingPlaneConfig.active
+                              ? 'bg-purple-600/30 text-purple-300 border-purple-500/50 font-bold'
+                              : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                          }`}
+                        >
+                          {cuttingPlaneConfig.active ? '👁️ Plane Gizmo Active' : 'Show 3D Plane Gizmo'}
+                        </button>
+
+                        <button
+                          onClick={() => handleSplitByPlane(selectedPartIndex)}
+                          className="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+                        >
+                          <Scissors size={12} />
+                          <span>✂️ Apply Split</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* METHOD 3: SPLIT HISTORY & LINEAGE */}
+                    {splitHistory.length > 0 && (
+                      <div className="bg-slate-950/80 rounded-xl p-3.5 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-mono font-bold text-slate-300">
+                            Split History ({splitHistory.length})
+                          </span>
+                          <button
+                            onClick={() => setActiveTab('colors')}
+                            className="text-[10px] font-mono text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                          >
+                            Color Sub-Parts →
+                          </button>
+                        </div>
+                        <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                          {splitHistory.map((rec) => (
+                            <div
+                              key={rec.id}
+                              className="p-2 rounded bg-slate-900/90 border border-slate-800 text-[11px] font-mono flex items-center justify-between"
+                            >
+                              <span className="text-slate-300">
+                                Part #{rec.originalPartIndex} →{' '}
+                                <span className="text-purple-400 font-semibold">
+                                  {rec.newPartIndices.map((i) => `#${i}`).join(', ')}
+                                </span>
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">
+                                  {rec.type}
+                                </span>
+                                <button
+                                  onClick={() => handleRevertSplit(rec)}
+                                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+                                  title="Revert / Merge this split"
+                                >
+                                  <Undo2 size={11} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 4: KINEMATICS & MOTION */}
             {activeTab === 'kinematics' && (
               <div className="space-y-5">
                 {selectedPartIndex === null ? (

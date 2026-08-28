@@ -17,6 +17,7 @@ interface MeshNodeInfo {
   mesh: THREE.Mesh;
   initialPos: THREE.Vector3;
   initialRot: THREE.Euler;
+  initialQuat: THREE.Quaternion;
   centerOfMass: THREE.Vector3;
   index: number;
 }
@@ -26,78 +27,13 @@ const toonGradient = createToonGradientMap();
 // Optimal Calibrated Defaults for Drone-Catch Winch
 const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.00, 0.00, 0.00];
-const DEFAULT_SCALE = 7.00;
+const DEFAULT_SCALE = 6.50;
 
 // Baked Custom Part Color Overrides for Winch
-const DEFAULT_PART_COLORS: Record<number, string> = {
-  0: '#a5a8ac',
-  1: '#8cacf3',
-  2: '#059669',
-  6: '#0c053d',
-  9: '#3e4041',
-  12: '#3e4041',
-  15: '#cbd5e1',
-  16: '#999456',
-  19: '#1e293b',
-  20: '#1e293b',
-  22: '#94cbff',
-  23: '#6f7576',
-  27: '#383838',
-  29: '#cbd5e1',
-  30: '#94cbff',
-};
+const DEFAULT_PART_COLORS: Record<number, string> = {};
 
-// Baked Custom Part Kinematics Animations (Speeds in RPM)
-const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
-  1: {
-    type: 'continuous-spin',
-    axis: 'x',
-    direction: 1,
-    speed: 40.6,
-    amplitude: 35,
-    phase: 0,
-    pivotMode: 'center-of-mass',
-    pivotX: 0,
-    pivotY: 0,
-    pivotZ: 0,
-  },
-  16: {
-    type: 'continuous-spin',
-    axis: 'x',
-    direction: -1,
-    speed: 60,
-    amplitude: 35,
-    phase: 0,
-    pivotMode: 'center-of-mass',
-    pivotX: 0,
-    pivotY: 0,
-    pivotZ: 0,
-  },
-  22: {
-    type: 'continuous-spin',
-    axis: 'x',
-    direction: -1,
-    speed: 120,
-    amplitude: 35,
-    phase: 0,
-    pivotMode: 'center-of-mass',
-    pivotX: 0,
-    pivotY: 0,
-    pivotZ: 0,
-  },
-  30: {
-    type: 'continuous-spin',
-    axis: 'x',
-    direction: -1,
-    speed: 120,
-    amplitude: 35,
-    phase: 0,
-    pivotMode: 'center-of-mass',
-    pivotX: 0,
-    pivotY: 0,
-    pivotZ: 0,
-  },
-};
+// Baked Custom Part Kinematics Animations
+const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {};
 
 // Shared global blueprint materials
 const darkBlueprintMat = new THREE.MeshBasicMaterial({
@@ -138,7 +74,7 @@ function buildMasterWinchPrototype(sourceScene: THREE.Group) {
       if (Array.isArray(mesh.material)) {
         mesh.material.forEach((m) => {
           const stdMat = m as THREE.MeshStandardMaterial;
-          const defaultBakedColor = DEFAULT_PART_COLORS[partsInfo.length] || (stdMat?.color ? `#${stdMat.color.getHexString()}` : '#d6d1c8');
+          const defaultBakedColor = (stdMat?.color ? `#${stdMat.color.getHexString()}` : '#d6d1c8');
           partsInfo.push({
             index: partsInfo.length,
             name: m.name ? m.name.replace(/_\d+$/, '') : `Winch Sub-assembly ${partsInfo.length + 1}`,
@@ -147,7 +83,7 @@ function buildMasterWinchPrototype(sourceScene: THREE.Group) {
         });
       } else {
         const stdMat = mesh.material as THREE.MeshStandardMaterial;
-        const defaultBakedColor = DEFAULT_PART_COLORS[partsInfo.length] || (stdMat?.color ? `#${stdMat.color.getHexString()}` : '#d6d1c8');
+        const defaultBakedColor = (stdMat?.color ? `#${stdMat.color.getHexString()}` : '#d6d1c8');
         partsInfo.push({
           index: partsInfo.length,
           name: mesh.name || `Winch Part ${partsInfo.length + 1}`,
@@ -172,8 +108,8 @@ function buildMasterWinchPrototype(sourceScene: THREE.Group) {
 
 export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRotating = true }) => {
   const groupRef = useRef<THREE.Group>(null);
+  const pivotRef = useRef<THREE.Group | null>(null);
   const cloneRef = useRef<THREE.Group | null>(null);
-  const centerRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const scaleRef = useRef(DEFAULT_SCALE);
   const meshNodesRef = useRef<MeshNodeInfo[]>([]);
   const { theme } = useTheme();
@@ -187,8 +123,8 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
     settings,
   } = useTransformCalibration();
 
-  // Load the CAD assembly from public/models/winchcablerobot.glb
-  const { scene } = useGLTF('./models/winchcablerobot.glb');
+  // Load the CAD assembly from public/models/cablerobotwinchtest2.glb
+  const { scene } = useGLTF('./models/cablerobotwinchtest2.glb');
 
   // Exact matching blueprint colors
   const blueprintLineColor = isDark ? '#94A8C4' : '#1E293B';
@@ -214,7 +150,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
     }
   }, [registerModel]);
 
-  // Set active model id ONLY when calibration drawer is open (prevents root context thrashing on scroll)
+  // Set active model id ONLY when calibration drawer is open
   useEffect(() => {
     if (isActive && isCalibrating) {
       setActiveModelId('drone-catch');
@@ -223,119 +159,143 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
 
   const isModelCalibrating = isCalibrating && activeModelId === 'drone-catch';
 
-  // Create permanent scene instance ONCE (100% stable, zero re-cloning on scroll)
+  // Create permanent scene instance ONCE
   const { centeredScene, toonMaterialsMap, blueprintEdgeLines, celEdgeLines } = useMemo(() => {
     const root = new THREE.Group();
-    const clone = scene.clone(true);
+    const pivot = new THREE.Group();
+    pivotRef.current = pivot;
+
+    const clone = masterWinchPrototype!.template.clone(true);
     cloneRef.current = clone;
-
-    const rotXRad = (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180;
-    const rotYRad = (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180;
-    const rotZRad = (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180;
-
-    clone.rotation.set(rotXRad, rotYRad, rotZRad);
-    root.add(clone);
-
-    const bbox = new THREE.Box3().setFromObject(root);
-    const center = new THREE.Vector3();
-    bbox.getCenter(center);
-    centerRef.current = center;
-
-    clone.position.sub(center).add(new THREE.Vector3(...DEFAULT_OFFSET));
 
     const toonMap = new Map<THREE.Mesh, THREE.MeshToonMaterial | THREE.MeshToonMaterial[]>();
     const bpLines: THREE.LineSegments[] = [];
     const celLines: THREE.LineSegments[] = [];
-    const nodes: MeshNodeInfo[] = [];
 
-    let meshIndex = 0;
-    let partIndex = 0;
+    const bpLineMat = new THREE.LineBasicMaterial({
+      color: new THREE.Color(blueprintLineColor),
+      linewidth: 1,
+    });
 
+    const celLineMat = new THREE.LineBasicMaterial({
+      color: new THREE.Color(celOutlineColor),
+      linewidth: 1.5,
+    });
+
+    let runningPartIdx = 0;
+    let meshIdx = 0;
     clone.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
+        const currentPartStart = runningPartIdx;
+        const currentMeshIdx = meshIdx;
 
-        mesh.geometry.computeBoundingBox();
-        const com = new THREE.Vector3();
-        if (mesh.geometry.boundingBox) {
-          mesh.geometry.boundingBox.getCenter(com);
-        }
+        mesh.userData.cadPartIndex = currentPartStart;
+        mesh.userData.isCadMesh = true;
 
-        nodes.push({
-          mesh,
-          initialPos: mesh.position.clone(),
-          initialRot: mesh.rotation.clone(),
-          centerOfMass: com,
-          index: meshIndex,
-        });
-
-        const origMat = masterWinchPrototype?.originalMaterials[meshIndex] || mesh.material;
-
-        if (Array.isArray(origMat)) {
-          const mats = origMat.map((m) => {
-            const currentPartIdx = partIndex++;
-            const bakedColor = DEFAULT_PART_COLORS[currentPartIdx];
+        if (Array.isArray(mesh.material)) {
+          const toonArr = mesh.material.map((m, subIdx) => {
+            const partNum = currentPartStart + subIdx;
             const stdMat = m as THREE.MeshStandardMaterial;
-            const col = bakedColor ? new THREE.Color(bakedColor) : (stdMat?.color ? stdMat.color.clone() : new THREE.Color('#d6d1c8'));
+            const defaultBaked = masterWinchPrototype?.partsInfo[partNum]?.color || (stdMat?.color ? `#${stdMat.color.getHexString()}` : '#d6d1c8');
+            const initialColor = DEFAULT_PART_COLORS[partNum] || defaultBaked;
             return new THREE.MeshToonMaterial({
-              color: col,
-              emissive: new THREE.Color('#000000'),
+              color: new THREE.Color(initialColor),
               gradientMap: toonGradient,
             });
           });
-          toonMap.set(mesh, mats);
+          toonMap.set(mesh, toonArr);
+          runningPartIdx += mesh.material.length;
         } else {
-          const currentPartIdx = partIndex++;
-          const bakedColor = DEFAULT_PART_COLORS[currentPartIdx];
-          const stdMat = origMat as THREE.MeshStandardMaterial;
-          const col = bakedColor ? new THREE.Color(bakedColor) : (stdMat?.color ? stdMat.color.clone() : new THREE.Color('#d6d1c8'));
-          const mat = new THREE.MeshToonMaterial({
-            color: col,
-            emissive: new THREE.Color('#000000'),
+          const stdMat = mesh.material as THREE.MeshStandardMaterial;
+          const defaultBaked = masterWinchPrototype?.partsInfo[currentPartStart]?.color || (stdMat?.color ? `#${stdMat.color.getHexString()}` : '#d6d1c8');
+          const initialColor = DEFAULT_PART_COLORS[currentPartStart] || defaultBaked;
+          const toon = new THREE.MeshToonMaterial({
+            color: new THREE.Color(initialColor),
             gradientMap: toonGradient,
           });
-          toonMap.set(mesh, mat);
+          toonMap.set(mesh, toon);
+          runningPartIdx += 1;
         }
 
-        if (masterWinchPrototype?.staticEdgesList[meshIndex]) {
-          const bpLineMat = new THREE.LineBasicMaterial({
-            color: new THREE.Color('#94A8C4'),
-            linewidth: 1.35,
-            transparent: true,
-            opacity: 0.9,
-          });
-          const bpLine = new THREE.LineSegments(masterWinchPrototype.staticEdgesList[meshIndex], bpLineMat);
+        if (masterWinchPrototype!.staticEdgesList[currentMeshIdx]) {
+          const bpLine = new THREE.LineSegments(
+            masterWinchPrototype!.staticEdgesList[currentMeshIdx],
+            bpLineMat
+          );
           mesh.add(bpLine);
           bpLines.push(bpLine);
         }
 
-        if (masterWinchPrototype?.activeEdgesList[meshIndex]) {
-          const celLineMat = new THREE.LineBasicMaterial({
-            color: new THREE.Color('#0A0E14'),
-            linewidth: 1.5,
-            transparent: true,
-            opacity: 0.75,
-          });
-          const celLine = new THREE.LineSegments(masterWinchPrototype.activeEdgesList[meshIndex], celLineMat);
+        if (masterWinchPrototype!.activeEdgesList[currentMeshIdx]) {
+          const celLine = new THREE.LineSegments(
+            masterWinchPrototype!.activeEdgesList[currentMeshIdx],
+            celLineMat
+          );
           mesh.add(celLine);
           celLines.push(celLine);
         }
 
-        meshIndex++;
+        meshIdx++;
       }
     });
 
-    meshNodesRef.current = nodes;
+    // 1. Center the unrotated CAD geometry inside the pivot group
+    const bbox = new THREE.Box3().setFromObject(clone);
+    const center = bbox.getCenter(new THREE.Vector3());
+    clone.position.set(-center.x, -center.y, -center.z);
 
-    return { centeredScene: root, toonMaterialsMap: toonMap, blueprintEdgeLines: bpLines, celEdgeLines: celLines };
-  }, [scene]);
+    // 2. Set initial world rotation and offset on the pivot
+    pivot.rotation.set(
+      (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180,
+      (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180,
+      (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180
+    );
+    pivot.position.set(DEFAULT_OFFSET[0], DEFAULT_OFFSET[1], DEFAULT_OFFSET[2]);
 
-  // Apply materials and dynamic color overrides (Instantaneous reference swap, 0 GPU recompilation)
+    pivot.add(clone);
+    root.add(pivot);
+
+    return {
+      centeredScene: root,
+      toonMaterialsMap: toonMap,
+      blueprintEdgeLines: bpLines,
+      celEdgeLines: celLines,
+    };
+  }, []);
+
+  // Collect kinematic nodes
   useEffect(() => {
-    if (!centeredScene) return;
+    const list: MeshNodeInfo[] = [];
+    let idx = 0;
+    centeredScene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.geometry.boundingBox) {
+          mesh.geometry.computeBoundingBox();
+        }
+        const geomCom = mesh.geometry.boundingBox
+          ? mesh.geometry.boundingBox.getCenter(new THREE.Vector3())
+          : new THREE.Vector3();
+        const initQuat = mesh.quaternion.clone();
+        const com = mesh.position.clone().add(geomCom.clone().applyQuaternion(initQuat));
 
+        list.push({
+          mesh,
+          initialPos: mesh.position.clone(),
+          initialRot: mesh.rotation.clone(),
+          initialQuat: initQuat,
+          centerOfMass: com,
+          index: idx,
+        });
+        idx++;
+      }
+    });
+    meshNodesRef.current = list;
+  }, [centeredScene]);
+
+  // Apply materials and dynamic color overrides
+  useEffect(() => {
     const isShaded = isActive || isModelCalibrating;
 
     blueprintEdgeLines.forEach((line) => {
@@ -353,8 +313,8 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
     });
 
     const bpMat = isDark ? darkBlueprintMat : lightBlueprintMat;
-
     let partRunningIndex = 0;
+
     toonMaterialsMap.forEach((toonMatOrArray, mesh) => {
       if (isShaded) {
         if (Array.isArray(toonMatOrArray)) {
@@ -362,38 +322,37 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
           toonMatOrArray.forEach((tm) => {
             const currentPartIdx = partRunningIndex++;
             const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
-            const overrideHex = isModelCalibrating
-              ? (settings.colorOverrides[currentPartIdx] || DEFAULT_PART_COLORS[currentPartIdx])
-              : DEFAULT_PART_COLORS[currentPartIdx];
+            const defaultBaked = masterWinchPrototype?.partsInfo[currentPartIdx]?.color || '#d6d1c8';
+            const overrideHex = (isModelCalibrating && settings.colorOverrides?.[currentPartIdx])
+              ? settings.colorOverrides[currentPartIdx]
+              : (DEFAULT_PART_COLORS[currentPartIdx] || defaultBaked);
 
-            if (overrideHex) {
-              tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
-            }
+            tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
             tm.emissive.set(isPartSelected ? '#0284c7' : '#000000');
           });
         } else {
           const currentPartIdx = partRunningIndex++;
           const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
-          const overrideHex = isModelCalibrating
-            ? (settings.colorOverrides[currentPartIdx] || DEFAULT_PART_COLORS[currentPartIdx])
-            : DEFAULT_PART_COLORS[currentPartIdx];
+          const defaultBaked = masterWinchPrototype?.partsInfo[currentPartIdx]?.color || '#d6d1c8';
+          const overrideHex = (isModelCalibrating && settings.colorOverrides?.[currentPartIdx])
+            ? settings.colorOverrides[currentPartIdx]
+            : (DEFAULT_PART_COLORS[currentPartIdx] || defaultBaked);
 
           mesh.material = toonMatOrArray;
-          if (overrideHex) {
-            toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
-          }
+          toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
           toonMatOrArray.emissive.set(isPartSelected ? '#0284c7' : '#000000');
         }
       } else {
         if (Array.isArray(toonMatOrArray)) {
           mesh.material = toonMatOrArray.map(() => bpMat);
+          partRunningIndex += toonMatOrArray.length;
         } else {
           mesh.material = bpMat;
+          partRunningIndex += 1;
         }
       }
     });
   }, [
-    centeredScene,
     isActive,
     isModelCalibrating,
     isDark,
@@ -408,16 +367,13 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
 
   useFrame((state, delta) => {
     // Dynamically adjust calibration transforms in frame loop without scene re-cloning
-    if (isModelCalibrating && cloneRef.current) {
-      cloneRef.current.rotation.set(
+    if (isModelCalibrating && pivotRef.current) {
+      pivotRef.current.position.set(settings.offsetX, settings.offsetY, settings.offsetZ);
+      pivotRef.current.rotation.set(
         (settings.rotX * Math.PI) / 180,
         (settings.rotY * Math.PI) / 180,
         (settings.rotZ * Math.PI) / 180
       );
-      cloneRef.current.position
-        .copy(new THREE.Vector3(...DEFAULT_OFFSET))
-        .sub(centerRef.current)
-        .add(new THREE.Vector3(settings.offsetX, settings.offsetY, settings.offsetZ));
     }
 
     // 1. If static blueprint mode, keep strictly still in rest position and return
@@ -464,41 +420,49 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
         }
 
         const phaseRad = (anim.phase * Math.PI) / 180;
-        const axis = anim.axis;
+        const axisVec = new THREE.Vector3(
+          anim.axis === 'x' ? 1 : 0,
+          anim.axis === 'y' ? 1 : 0,
+          anim.axis === 'z' ? 1 : 0
+        );
         const dir = anim.direction ?? 1;
         const omega = (anim.speed * Math.PI * 2) / 60;
 
-        // Determine pivot point for rotation
         const pivotMode = anim.pivotMode || 'center-of-mass';
         let pivot = node.centerOfMass.clone();
 
         if (pivotMode === 'origin') {
           pivot.set(0, 0, 0);
         } else if (pivotMode === 'custom') {
-          pivot.add(new THREE.Vector3((anim.pivotX || 0) / 100, (anim.pivotY || 0) / 100, (anim.pivotZ || 0) / 100));
+          pivot.add(
+            new THREE.Vector3(
+              (anim.pivotX || 0) / 100,
+              (anim.pivotY || 0) / 100,
+              (anim.pivotZ || 0) / 100
+            )
+          );
         }
 
         if (anim.type === 'continuous-spin' || anim.type === 'oscillate-rotation') {
-          const targetEuler = node.initialRot.clone();
+          const angle =
+            anim.type === 'continuous-spin'
+              ? time * omega * dir
+              : Math.sin(time * omega + phaseRad) *
+                (((anim.amplitude || 30) * Math.PI) / 180) *
+                dir;
 
-          if (anim.type === 'continuous-spin') {
-            targetEuler[axis] = node.initialRot[axis] + (time * omega * dir);
-          } else {
-            const ampRad = (anim.amplitude * Math.PI) / 180;
-            targetEuler[axis] = node.initialRot[axis] + Math.sin(time * omega + phaseRad) * ampRad * dir;
-          }
-
-          // Exact rotation around Pivot Point
-          const pivotVector = pivot.clone();
-          const rotatedPivot = pivot.clone().applyEuler(targetEuler);
-
-          node.mesh.rotation.copy(targetEuler);
-          node.mesh.position.copy(node.initialPos).add(pivotVector).sub(rotatedPivot);
+          const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
+          node.mesh.quaternion.copy(qDelta).multiply(node.initialQuat);
+          node.mesh.position
+            .copy(pivot)
+            .add(node.initialPos.clone().sub(pivot).applyQuaternion(qDelta));
         } else if (anim.type === 'linear-reciprocate') {
-          node.mesh.rotation.copy(node.initialRot);
-          const ampMeters = (anim.amplitude / 100) * dir;
-          node.mesh.position.copy(node.initialPos);
-          node.mesh.position[axis] = node.initialPos[axis] + Math.sin(time * omega + phaseRad) * ampMeters;
+          node.mesh.quaternion.copy(node.initialQuat);
+          const ampMeters = ((anim.amplitude || 10) / 100) * dir;
+          const displacement = axisVec
+            .clone()
+            .multiplyScalar(Math.sin(time * omega + phaseRad) * ampMeters);
+          node.mesh.position.copy(node.initialPos).add(displacement);
         }
       });
     }
@@ -514,4 +478,4 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
 };
 
 // Preload the CAD model
-useGLTF.preload('./models/winchcablerobot.glb');
+useGLTF.preload('./models/cablerobotwinchtest2.glb');

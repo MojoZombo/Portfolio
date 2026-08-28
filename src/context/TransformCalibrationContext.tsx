@@ -225,7 +225,7 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
     modelId: 'drone-catch',
     offset: [0.00, 0.00, 0.00],
     rotation: [-90, 0, 0],
-    scale: 18.0,
+    scale: 6.50,
     defaultColors: {},
     defaultAnimations: {},
   },
@@ -293,6 +293,22 @@ export interface RegisteredModelDefaults {
   defaultCDPRConfig?: CDPRConfig;
 }
 
+export interface CuttingPlaneConfig {
+  active: boolean;
+  targetPartIndex: number | null;
+  axis: 'x' | 'y' | 'z';
+  offset: number; // in meters
+}
+
+export interface SplitPartRecord {
+  id: string;
+  modelId: string;
+  originalPartIndex: number;
+  newPartIndices: number[];
+  type: 'islands' | 'plane';
+  timestamp: number;
+}
+
 interface TransformCalibrationContextType {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
@@ -310,6 +326,10 @@ interface TransformCalibrationContextType {
   updateCDPRConfig: (config: Partial<CDPRConfig>) => void;
   resetPartAnimation: (partIndex: number) => void;
   resetSettings: () => void;
+  cuttingPlaneConfig: CuttingPlaneConfig;
+  setCuttingPlaneConfig: (config: Partial<CuttingPlaneConfig>) => void;
+  registerSplitParts: (originalIndex: number, newParts: { name: string; color?: string }[], type: 'islands' | 'plane') => number[];
+  splitHistory: SplitPartRecord[];
 }
 
 const TransformCalibrationContext = createContext<TransformCalibrationContextType | undefined>(undefined);
@@ -320,6 +340,18 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
   const [selectedPartIndex, setSelectedPartIndex] = useState<number | null>(null);
   const [modelRegistry, setModelRegistry] = useState<Record<string, RegisteredModelDefaults>>({});
   const [settings, setSettings] = useState<TransformSettings>(() => getModelSettings('robot-hand'));
+  const [dynamicExtraParts, setDynamicExtraParts] = useState<Record<string, PartColorInfo[]>>({});
+  const [splitHistory, setSplitHistory] = useState<SplitPartRecord[]>([]);
+  const [cuttingPlaneConfig, setCuttingPlaneConfigState] = useState<CuttingPlaneConfig>({
+    active: false,
+    targetPartIndex: null,
+    axis: 'y',
+    offset: 0,
+  });
+
+  const setCuttingPlaneConfig = (config: Partial<CuttingPlaneConfig>) => {
+    setCuttingPlaneConfigState((prev) => ({ ...prev, ...config }));
+  };
 
   // Register a model with its specific default alignment, colors and animation kinematics
   const registerModel = useCallback((defaults: RegisteredModelDefaults) => {
@@ -415,9 +447,69 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
     });
   };
 
+  const registerSplitParts = (
+    originalIndex: number,
+    newParts: { name: string; color?: string }[],
+    type: 'islands' | 'plane'
+  ): number[] => {
+    const activeDefaults = modelRegistry[activeModelId];
+    const baseParts = activeDefaults?.parts || [];
+    const extra = dynamicExtraParts[activeModelId] || [];
+    const currentMaxIndex = Math.max(
+      ...baseParts.map((p) => p.index),
+      ...extra.map((p) => p.index),
+      0
+    );
+
+    const generatedParts: PartColorInfo[] = newParts.map((np, idx) => ({
+      index: currentMaxIndex + 1 + idx,
+      name: np.name,
+      color: np.color || '#cbd5e1',
+    }));
+
+    const newIndices = generatedParts.map((p) => p.index);
+
+    setDynamicExtraParts((prev) => ({
+      ...prev,
+      [activeModelId]: [...(prev[activeModelId] || []), ...generatedParts],
+    }));
+
+    setSplitHistory((prev) => [
+      ...prev,
+      {
+        id: `${activeModelId}-${originalIndex}-${Date.now()}`,
+        modelId: activeModelId,
+        originalPartIndex: originalIndex,
+        newPartIndices: newIndices,
+        type,
+        timestamp: Date.now(),
+      },
+    ]);
+
+    // Pre-populate color overrides for newly generated parts
+    setSettings((prev) => {
+      const newColors = { ...prev.colorOverrides };
+      generatedParts.forEach((gp) => {
+        if (gp.color) {
+          newColors[gp.index] = gp.color;
+        }
+      });
+      return { ...prev, colorOverrides: newColors };
+    });
+
+    return newIndices;
+  };
+
   const resetSettings = () => {
     setSettings(getModelSettings(activeModelId, modelRegistry[activeModelId]));
     setSelectedPartIndex(null);
+    setDynamicExtraParts((prev) => ({ ...prev, [activeModelId]: [] }));
+    setCuttingPlaneConfigState({
+      active: false,
+      targetPartIndex: null,
+      axis: 'y',
+      offset: 0,
+    });
   };
 
   // Keyboard shortcut: Shift + C to toggle calibration tool
@@ -432,7 +524,9 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
   }, []);
 
   const rawParts = modelRegistry[activeModelId]?.parts || [];
-  const availableParts: PartColorInfo[] = rawParts.map((p) => ({
+  const extraParts = dynamicExtraParts[activeModelId] || [];
+  const allParts = [...rawParts, ...extraParts];
+  const availableParts: PartColorInfo[] = allParts.map((p) => ({
     ...p,
     name: settings.nameOverrides[p.index] || p.name,
   }));
@@ -456,6 +550,10 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
         updateCDPRConfig,
         resetPartAnimation,
         resetSettings,
+        cuttingPlaneConfig,
+        setCuttingPlaneConfig,
+        registerSplitParts,
+        splitHistory,
       }}
     >
       {children}

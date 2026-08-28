@@ -75,7 +75,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         setIsInViewport(entry.isIntersecting);
       },
       {
-        rootMargin: '350px 0px', // Pre-load 350px before entering viewport
+        rootMargin: '800px 0px', // Pre-load 800px ahead of viewport for instant appearance
         threshold: 0.01,
       }
     );
