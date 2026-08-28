@@ -68,7 +68,12 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/60 shrink-0">
               <div className="flex flex-wrap items-center gap-3">
                 {project.company && (
-                  <CompanyLogo company={project.company} logoUrl={project.companyLogo} size="sm" />
+                  <CompanyLogo
+                    company={project.company}
+                    logoUrl={project.companyLogo}
+                    companyUrl={project.companyUrl}
+                    size="sm"
+                  />
                 )}
                 <span className="px-2.5 py-0.5 rounded text-[11px] font-mono font-semibold bg-blue-100 text-blue-800 dark:bg-slate-800 dark:text-slate-300 border border-blue-200 dark:border-slate-700">
                   {project.date.toUpperCase()}
@@ -105,14 +110,15 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
               {/* Interactive 3D Model Showcase */}
               <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 relative shadow-inner">
                 {/* 3D Viewer Header Badges & Fullscreen Button */}
-                <div className="absolute top-3 left-3 right-3 sm:left-4 sm:right-4 z-10 flex items-center justify-between pointer-events-none">
+                <div className="absolute top-3 left-3 right-3 sm:left-4 sm:right-4 z-30 flex items-center justify-between pointer-events-none">
                   {/* Hidden on mobile, visible on tablet/desktop */}
                   <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 hidden sm:flex items-center gap-2 bg-white/85 dark:bg-slate-900/85 px-2.5 py-1 rounded-md backdrop-blur border border-slate-200 dark:border-slate-800 shadow-sm pointer-events-auto">
                     <Cpu size={13} className="text-blue-500" />
-                    <span>INTERACTIVE 3D CAD MODEL // DRAG TO ORBIT // SCROLL TO ZOOM</span>
+                    <span>INTERACTIVE 3D CAD MODEL</span>
                   </div>
 
                   <button
+                    type="button"
                     onClick={() => setIs3DFullscreen(true)}
                     className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-md bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-mono font-medium shadow-sm border border-slate-200 dark:border-slate-700 transition-all hover:scale-105 pointer-events-auto cursor-pointer"
                     title="Open Fullscreen 3D Model Inspector"
@@ -349,59 +355,65 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
               )}
 
               {/* Technical Specifications Grid */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                  <Layers size={14} className="text-blue-500" />
-                  <span>Technical Specifications</span>
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {project.specs.map((spec, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 flex flex-col justify-between"
-                    >
-                      <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                        {spec.label}
-                      </span>
-                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
-                        {spec.value}
-                      </span>
-                    </div>
-                  ))}
+              {project.specs && project.specs.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                    <Layers size={14} className="text-blue-500" />
+                    <span>Technical Specifications</span>
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {project.specs.map((spec, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 flex flex-col justify-between"
+                      >
+                        <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                          {spec.label}
+                        </span>
+                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
+                          {spec.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Materials & Manufacturing */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                  <CheckCircle2 size={14} className="text-emerald-500" />
-                  <span>Materials & Manufacturing Methods</span>
-                </h3>
-                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono text-slate-700 dark:text-slate-300">
-                  {project.materialsAndManufacturing.map((item, idx) => (
-                    <li key={idx} className="flex items-start gap-2 bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
-                      <span className="text-blue-500 font-bold">›</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {project.materialsAndManufacturing && project.materialsAndManufacturing.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-500" />
+                    <span>Materials & Manufacturing Methods</span>
+                  </h3>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono text-slate-700 dark:text-slate-300">
+                    {project.materialsAndManufacturing.map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-2 bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
+                        <span className="text-blue-500 font-bold">›</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Key Engineering Challenges Solved */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                  <AlertCircle size={14} className="text-amber-500" />
-                  <span>Engineering Challenges & Solutions</span>
-                </h3>
-                <ul className="space-y-2 text-xs font-mono text-slate-700 dark:text-slate-300">
-                  {project.keyChallenges.map((challenge, idx) => (
-                    <li key={idx} className="flex items-start gap-2.5 bg-amber-500/5 dark:bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
-                      <span className="text-amber-500 font-bold">•</span>
-                      <span>{challenge}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {project.keyChallenges && project.keyChallenges.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                    <AlertCircle size={14} className="text-amber-500" />
+                    <span>Engineering Challenges & Solutions</span>
+                  </h3>
+                  <ul className="space-y-2 text-xs font-mono text-slate-700 dark:text-slate-300">
+                    {project.keyChallenges.map((challenge, idx) => (
+                      <li key={idx} className="flex items-start gap-2.5 bg-amber-500/5 dark:bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+                        <span className="text-amber-500 font-bold">•</span>
+                        <span>{challenge}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
             </div>
 
@@ -469,41 +481,42 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-between p-4 sm:p-6 select-none"
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-between select-none overflow-hidden"
           >
-            {/* Fullscreen 3D Header Bar */}
-            <div className="w-full max-w-6xl flex items-center justify-between z-20">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400">
-                  <Cpu size={18} />
+            {/* Floating Top Header Bar */}
+            <div className="absolute top-4 left-4 right-4 sm:left-6 sm:right-6 flex items-center justify-between z-30 pointer-events-none">
+              <div className="flex items-center gap-2.5 bg-slate-900/85 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-700/60 shadow-xl pointer-events-auto">
+                <div className="p-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400">
+                  <Cpu size={16} />
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                  <h3 className="text-sm sm:text-base font-bold text-white tracking-tight font-mono">
                     {project.title}
                   </h3>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 pointer-events-auto">
                 <button
+                  type="button"
                   onClick={() => setIs3DFullscreen(false)}
-                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-mono font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all cursor-pointer shadow-lg"
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-mono font-medium text-slate-200 bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md border border-slate-700/60 transition-all cursor-pointer shadow-xl hover:scale-105"
                 >
-                  <Minimize2 size={14} />
+                  <Minimize2 size={14} className="text-blue-400" />
                   <span>Exit Fullscreen</span>
-                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-white/10 text-[10px]">
+                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-white/10 text-[10px] text-slate-300">
                     ESC
                   </span>
                 </button>
               </div>
             </div>
 
-            {/* Fullscreen 3D Viewport */}
-            <div className="w-full flex-1 max-w-6xl flex items-center justify-center relative overflow-visible my-2">
+            {/* Edge-to-Edge Fullscreen 3D Viewport */}
+            <div className="w-full h-full flex-1 relative overflow-hidden">
               <ModelViewer
                 modelType={project.modelType}
                 isActive={true}
-                className="h-[80vh] sm:h-[86vh] w-full"
+                className="w-full h-screen"
                 allowZoom={true}
               />
             </div>

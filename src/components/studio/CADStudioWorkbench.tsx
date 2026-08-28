@@ -29,6 +29,7 @@ import {
   Boxes,
   Sparkles,
   Undo2,
+  Camera,
 } from 'lucide-react';
 
 interface StudioProps {
@@ -57,20 +58,25 @@ const COLOR_PRESETS = [
  */
 function StudioSceneBridge({
   onSceneReady,
+  onEngineReady,
   selectedPartIndex,
   colorOverrides,
   animationOverrides,
 }: {
   onSceneReady: (scene: THREE.Scene) => void;
+  onEngineReady?: (handles: { scene: THREE.Scene; camera: THREE.Camera; gl: THREE.WebGLRenderer }) => void;
   selectedPartIndex: number | null;
   colorOverrides: Record<number, string>;
   animationOverrides: Record<number, any>;
 }) {
-  const { scene } = useThree();
+  const { scene, camera, gl } = useThree();
 
   useEffect(() => {
     onSceneReady(scene);
-  }, [scene, onSceneReady]);
+    if (onEngineReady) {
+      onEngineReady({ scene, camera, gl });
+    }
+  }, [scene, camera, gl, onSceneReady, onEngineReady]);
 
   // Live update highlight glow, colors, and live kinematics for all CAD parts and dynamically split sub-meshes
   useFrame((state) => {
@@ -258,6 +264,9 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
   const [tempPartName, setTempPartName] = useState('');
   const [splitFeedback, setSplitFeedback] = useState<string | null>(null);
   const [splitToleranceRatio, setSplitToleranceRatio] = useState<number>(0.001);
+  const studioEngineRef = useRef<{ scene: THREE.Scene; camera: THREE.Camera; gl: THREE.WebGLRenderer } | null>(null);
+  const [isExportingPosters, setIsExportingPosters] = useState(false);
+  const [exportProgress, setExportProgress] = useState<string | null>(null);
 
   // Ensure calibration context is active in Studio
   useEffect(() => {
@@ -273,6 +282,89 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
       company: p.company,
     }));
   }, []);
+
+  const captureCurrentPoster = async (customFilename?: string) => {
+    if (!studioEngineRef.current) return;
+    const { scene, camera, gl } = studioEngineRef.current;
+
+    // 1. Save previous camera state
+    const savedPos = camera.position.clone();
+    const savedRot = camera.rotation.clone();
+    const savedFov = (camera as THREE.PerspectiveCamera).fov;
+    const savedAspect = (camera as THREE.PerspectiveCamera).aspect;
+
+    // 2. Set exact 1:1 website camera perspective: position [4.6, 3.2, 5.0], FOV 34, lookAt (0,0,0)
+    camera.position.set(4.6, 3.2, 5.0);
+    camera.lookAt(0, 0, 0);
+    (camera as THREE.PerspectiveCamera).fov = 34;
+    (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+
+    // 3. Temporarily hide helpers/grid/gizmos in scene
+    const hiddenElements: THREE.Object3D[] = [];
+    scene.traverse((obj) => {
+      if (
+        obj.name.includes('Helper') ||
+        obj.name.includes('Gizmo') ||
+        obj.name.includes('Grid') ||
+        obj.type === 'GridHelper'
+      ) {
+        if (obj.visible) {
+          obj.visible = false;
+          hiddenElements.push(obj);
+        }
+      }
+    });
+
+    // 4. Force a clean transparent WebGL render frame
+    gl.setClearColor(0x000000, 0);
+    gl.render(scene, camera);
+
+    const filename = customFilename || `${activeModelId}-${renderMode}.png`;
+    const dataUrl = gl.domElement.toDataURL('image/png');
+
+    // 5. Trigger download
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    // 6. Restore original camera and gizmo visibility
+    hiddenElements.forEach((el) => {
+      el.visible = true;
+    });
+    camera.position.copy(savedPos);
+    camera.rotation.copy(savedRot);
+    (camera as THREE.PerspectiveCamera).fov = savedFov;
+    (camera as THREE.PerspectiveCamera).aspect = savedAspect;
+    (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+  };
+
+  const handleExportAllPosters = async () => {
+    setIsExportingPosters(true);
+    const models = modelsList.map((m) => m.id);
+
+    for (let i = 0; i < models.length; i++) {
+      const mid = models[i];
+      setExportProgress(`Generating 1:1 posters for ${mid} (${i + 1}/${models.length})...`);
+      setActiveModelId(mid);
+
+      // 1. Shaded mode snapshot
+      setRenderMode('shaded');
+      await new Promise((r) => setTimeout(r, 800));
+      await captureCurrentPoster(`${mid}-shaded.png`);
+
+      // 2. Blueprint mode snapshot
+      setRenderMode('blueprint');
+      await new Promise((r) => setTimeout(r, 800));
+      await captureCurrentPoster(`${mid}-blueprint.png`);
+    }
+
+    setExportProgress('✅ All 1:1 model posters exported successfully!');
+    setIsExportingPosters(false);
+    setTimeout(() => setExportProgress(null), 5000);
+  };
 
   const activeProject = useMemo(() => {
     return projectsData.find((p) => p.modelType === activeModelId) || projectsData[0];
@@ -880,7 +972,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
           {/* 3D Canvas with Direct Click Selection */}
           <Canvas
             className="grab-cursor"
-            gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+            gl={{ antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: true }}
           >
             {isOrthographic ? (
               <OrthographicCamera
@@ -934,6 +1026,9 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
             <StudioSceneBridge
               onSceneReady={(sc) => {
                 sceneRef.current = sc;
+              }}
+              onEngineReady={(handles) => {
+                studioEngineRef.current = handles;
               }}
               selectedPartIndex={selectedPartIndex}
               colorOverrides={settings.colorOverrides}
@@ -2328,27 +2423,78 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
 
             {/* TAB 5: EXPORT */}
             {activeTab === 'export' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-slate-300">Generated TypeScript Snippet</span>
-                  <button
-                    onClick={handleCopyCode}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-semibold transition-all cursor-pointer shadow-lg shadow-blue-500/20"
-                  >
-                    {copied ? <Check size={13} /> : <Copy size={13} />}
-                    <span>{copied ? 'Copied!' : 'Copy Code'}</span>
-                  </button>
+              <div className="space-y-6">
+                {/* 1:1 Instant Poster Pre-Rendering Section */}
+                <div className="bg-slate-950/80 rounded-xl p-4 border border-blue-500/30 space-y-3.5 shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Camera size={16} className="text-blue-400" />
+                      <span className="text-xs font-mono font-bold text-white">Instant Model Posters (1:1 Match)</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-semibold">
+                      0% GPU Load
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] font-mono text-slate-400 leading-relaxed">
+                    Bakes transparent PNG posters matching the live website camera (<code className="text-slate-300">FOV 34°</code>, <code className="text-slate-300">[4.6, 3.2, 5.0]</code>) and lighting for instant scrolling with zero GPU lag.
+                  </p>
+
+                  {exportProgress && (
+                    <div className="p-2.5 bg-blue-950/70 border border-blue-500/50 rounded-lg text-xs font-mono text-blue-200 flex items-center gap-2 animate-fade-in">
+                      <Sparkles size={14} className="text-blue-400 shrink-0 animate-spin" />
+                      <span>{exportProgress}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-2 pt-1">
+                    <button
+                      onClick={() => captureCurrentPoster()}
+                      disabled={isExportingPosters}
+                      className="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-mono font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-700 disabled:opacity-50"
+                    >
+                      <Camera size={13} className="text-blue-400" />
+                      <span>📸 Snapshot Active Model ({activeModelId})</span>
+                    </button>
+
+                    <button
+                      onClick={handleExportAllPosters}
+                      disabled={isExportingPosters}
+                      className="w-full py-2.5 px-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md disabled:opacity-50"
+                    >
+                      <Sparkles size={13} />
+                      <span>⚡ Batch Export All 11 Models</span>
+                    </button>
+                  </div>
+
+                  <p className="text-[10px] font-mono text-slate-500">
+                    Place exported files directly into <code className="text-slate-400">public/posters/</code> to activate instant static previews across the entire website.
+                  </p>
                 </div>
 
-                <div className="relative">
-                  <pre className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px] font-mono text-emerald-400 overflow-x-auto leading-relaxed max-h-96">
-                    <code>{generatedCode}</code>
-                  </pre>
-                </div>
+                {/* TypeScript Code Export Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold text-slate-300">Generated TypeScript Snippet</span>
+                    <button
+                      onClick={handleCopyCode}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-mono font-semibold transition-all cursor-pointer shadow-lg shadow-blue-500/20"
+                    >
+                      {copied ? <Check size={13} /> : <Copy size={13} />}
+                      <span>{copied ? 'Copied!' : 'Copy Code'}</span>
+                    </button>
+                  </div>
 
-                <p className="text-[11px] font-mono text-slate-500 leading-relaxed">
-                  Paste this snippet directly into your model component (e.g. <code className="text-slate-300">CableRobotModel.tsx</code> or <code className="text-slate-300">PingPongRobotModel.tsx</code>) to permanently bake in these calibrations!
-                </p>
+                  <div className="relative">
+                    <pre className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px] font-mono text-emerald-400 overflow-x-auto leading-relaxed max-h-80">
+                      <code>{generatedCode}</code>
+                    </pre>
+                  </div>
+
+                  <p className="text-[11px] font-mono text-slate-500 leading-relaxed">
+                    Paste this snippet directly into your model component (e.g. <code className="text-slate-300">CableRobotModel.tsx</code> or <code className="text-slate-300">PingPongRobotModel.tsx</code>) to permanently bake in these calibrations!
+                  </p>
+                </div>
               </div>
             )}
 

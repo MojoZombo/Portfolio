@@ -39,3 +39,4 @@ check_*.js
 inspect_*.js
 fetch_dates.js
 *_original.glb
+scratch/

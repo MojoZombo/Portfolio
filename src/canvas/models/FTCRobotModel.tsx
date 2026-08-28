@@ -5,35 +5,53 @@ import { CADMesh } from '../CADMesh';
 
 interface ModelProps {
   isActive?: boolean;
+  isAnimating?: boolean;
   isHovered?: boolean;
   isRotating?: boolean;
 }
 
-export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotating = true }) => {
+export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotating = true, isAnimating = true }) => {
   const groupRef = useRef<THREE.Group>(null);
   const intakeRef = useRef<THREE.Group>(null);
   const armRef = useRef<THREE.Group>(null);
-  const scaleRef = useRef(1.2);
+  const currentSpeedRef = useRef(0);
 
-  useFrame((state, delta) => {
-    // Native Three.js GPU smooth scale transition
-    const targetScale = isActive ? 1.35 : 1.2;
-    scaleRef.current = THREE.MathUtils.damp(scaleRef.current, targetScale, 4.0, delta);
+  const localTimeRef = useRef(0);
+
+  useFrame((_state, delta) => {
+    if (isAnimating) {
+      localTimeRef.current += delta;
+    }
     if (groupRef.current) {
-      groupRef.current.scale.setScalar(scaleRef.current);
+      groupRef.current.scale.setScalar(1.2);
     }
 
-    if (!isActive) return;
+    const targetSpeed = isActive && isRotating && isAnimating ? 0.7 : 0;
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
-    const t = state.clock.getElapsedTime();
-    if (groupRef.current && isRotating) {
-      groupRef.current.rotation.y += delta * 0.7;
+    if (groupRef.current) {
+      if (currentSpeedRef.current > 0.001) {
+        groupRef.current.rotation.y += delta * currentSpeedRef.current;
+      } else if (!isActive) {
+        groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, 0, 4.0, delta);
+      }
     }
+
     if (intakeRef.current) {
-      intakeRef.current.rotation.x += delta * 5;
+      if (isActive) {
+        intakeRef.current.rotation.x += delta * 5;
+      } else {
+        intakeRef.current.rotation.x = 0;
+      }
     }
+
     if (armRef.current) {
-      armRef.current.rotation.z = Math.sin(t * 1.5) * 0.25 - 0.2;
+      if (isActive) {
+        const t = localTimeRef.current;
+        armRef.current.rotation.z = Math.sin(t * 1.5) * 0.25 - 0.2;
+      } else {
+        armRef.current.rotation.z = -0.2;
+      }
     }
   });
 

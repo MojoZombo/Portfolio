@@ -9,6 +9,7 @@ import { CADPivotGizmo } from '../CADPivotGizmo';
 
 interface ModelProps {
   isActive?: boolean;
+  isAnimating?: boolean;
   isHovered?: boolean;
   isRotating?: boolean;
 }
@@ -106,12 +107,12 @@ function buildMasterWinchPrototype(sourceScene: THREE.Group) {
   return { template, originalMaterials, staticEdgesList, activeEdgesList, partsInfo };
 }
 
-export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRotating = true }) => {
+export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRotating = true, isAnimating = true }) => {
   const groupRef = useRef<THREE.Group>(null);
   const pivotRef = useRef<THREE.Group | null>(null);
   const cloneRef = useRef<THREE.Group | null>(null);
-  const scaleRef = useRef(DEFAULT_SCALE);
   const meshNodesRef = useRef<MeshNodeInfo[]>([]);
+  const currentSpeedRef = useRef(0);
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const {
@@ -365,7 +366,12 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
     isModelCalibrating ? settings.colorOverrides : null,
   ]);
 
-  useFrame((state, delta) => {
+  const localTimeRef = useRef(0);
+
+  useFrame((_state, delta) => {
+    if (isAnimating) {
+      localTimeRef.current += delta;
+    }
     // Dynamically adjust calibration transforms in frame loop without scene re-cloning
     if (isModelCalibrating && pivotRef.current) {
       pivotRef.current.position.set(settings.offsetX, settings.offsetY, settings.offsetZ);
@@ -390,23 +396,27 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
       return;
     }
 
-    // 2. Active Mode / Calibration Mode: Scale damp and turntable rotation
+    // 2. Active Mode / Calibration Mode: Constant scale and turntable rotation
     const baseScale = isModelCalibrating ? settings.scale : DEFAULT_SCALE;
-    const targetScale = isActive ? baseScale * 1.12 : baseScale;
-    scaleRef.current = THREE.MathUtils.damp(scaleRef.current, targetScale, 4.0, delta);
     if (groupRef.current) {
-      groupRef.current.scale.setScalar(scaleRef.current);
+      groupRef.current.scale.setScalar(baseScale);
     }
 
-    const shouldRotate = isModelCalibrating ? settings.autoRotate : (isActive && isRotating);
-    const speed = isModelCalibrating ? settings.rotationSpeed : 0.6;
+    // Auto rotate parent with smooth acceleration from 0 RPM
+    const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.6;
+    const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed : 0);
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
-    if (shouldRotate && groupRef.current) {
-      groupRef.current.rotation.y += delta * speed;
+    if (groupRef.current) {
+      if (currentSpeedRef.current > 0.001) {
+        groupRef.current.rotation.y += delta * currentSpeedRef.current;
+      } else if (!isActive && !isModelCalibrating) {
+        groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, 0, 4.0, delta);
+      }
     }
 
     // 3. Execute Live Kinematics Animations around Center of Mass / Custom Pivot
-    const time = state.clock.getElapsedTime();
+    const time = localTimeRef.current;
     if (meshNodesRef.current.length > 0) {
       meshNodesRef.current.forEach((node) => {
         const anim = isModelCalibrating

@@ -1,7 +1,219 @@
 import { Project } from '../types/project';
 
 export const projectsData: Project[] = [
-  // 1. Robot Humanoid Hand Mirroring (Aug 2024 - Dec 2024)
+  // 1. Tesla Deployable Linear Actuation Mechanism (September 2024 – January 2025)
+  {
+    id: 'tesla-linear-actuator',
+    title: 'Tesla Deployable Linear Actuator',
+    subtitle: 'Dual Synchronized Lead Screws & Telescoping Mechanism',
+    date: 'September 2024 – January 2025',
+    dateRange: 'September 2024 – January 2025',
+    year: 2025,
+    company: 'Tesla',
+    companyLogo: '/tesla-logo.png',
+    companyUrl: 'https://www.tesla.com',
+    tags: ['Mechanism Design', 'Telescoping Kinematics', 'FEA Analysis', 'Belt Transmission', 'GD&T Drawings'],
+    modelType: 'tesla-actuator',
+    description: 'Designed, engineered, and validated a proof-of-concept deployable linear actuation mechanism with synchronized dual lead-screws, custom belt transmission, and active anti-pinch current sensing for Tesla. Developed theoretical hand calculations, static FEA, machining workflows, and engineering drawing packages for team replication.',
+    extendedDescription: [
+      'Led the mechanical design, analytical validation, prototyping, and testing of a compact linear deployment mechanism for Tesla. The mechanism deploys a critical component between strict spatial envelopes while satisfying rigorous deflection, cycle life, and safety constraints.'
+    ],
+    structuredSections: [
+      {
+        heading: 'Project Overview & Requirements',
+        paragraphs: [
+          'The objective was to engineer a proof-of-concept linear actuation mechanism capable of deploying an internal payload between predefined spatial positions and orientations while adhering to tight volume constraints, deployment velocity requirements, deflection limits under external loads, and anti-pinch safety standards.',
+          'Key constraints included: (1) Packaging inside a restricted envelope, (2) Strict deflection and freeplay thresholds under maximum deployment load, (3) Safe anti-pinch current-sensing shutoff, (4) Repeatable cycle life with minimal maintenance, and (5) Design for manufacturing and production scalability.'
+        ]
+      },
+      {
+        heading: 'Architecture Tradeoffs: Telescoping Columns vs Linear Slides',
+        paragraphs: [
+          'Extensive trade studies were conducted across multiple linear motion architectures including drawer slides, linear profile guide rails, telescoping columns, rack and pinion drives, cable winches, and four-bar linkages. Rapid cardboard and 3D printed mockup iterations were evaluated inside physical space mockups.',
+          'Linear guide rails provided high stiffness but carried severe packaging drawbacks, high cost, and required frequent lubrication prone to debris contamination. Telescoping rectangular aluminum tubes with custom-machined Delrin corner sliders were selected: 2-stage overlap minimized cantilever deflection and freeplay, while Delrin sliders delivered an exceptionally low friction coefficient against aluminum with zero external lubrication requirements.'
+        ]
+      },
+      {
+        heading: 'Theoretical Analysis & Sizing Calculations',
+        subSections: [
+          {
+            title: 'Lead Screw Buckling & Critical Whirling Speed',
+            content: 'Calculated critical Euler buckling loads (P_cr) and critical rotation speeds (omega_cr) for dual 1018 steel lead screws under peak axial loading with fixed-fixed thrust and radial bearing supports to prevent catastrophic harmonic whipping.'
+          },
+          {
+            title: 'Hertzian Contact Stress & Slider Strain',
+            content: 'Evaluated cylindrical-against-flat contact stresses on the Delrin slider corner pads. Verified that maximum shear stresses (27 MPa) remained well within the elastic regime, keeping material strain below 3% to eliminate permanent slider deformation across cycles.'
+          },
+          {
+            title: 'Synchronous Transmission Sizing',
+            content: 'Sized a high-torque NEMA motor and custom timing belt reduction. Machined custom D-profiles directly onto the lead screw ends to interface directly with flanged timing pulleys, eliminating heavy keyways and fitting within ultra-tight packaging clearances.'
+          },
+          {
+            title: 'Static FEA Structural Verification',
+            content: 'Conducted static Finite Element Analysis (FEA) on critical sheet metal mounting brackets and tube interface plates under maximum applied loads to confirm adequate safety factors prior to manufacturing.'
+          }
+        ]
+      },
+      {
+        heading: 'Manufacturing & Prototyping',
+        subSections: [
+          {
+            title: 'Precision Machining',
+            content: 'Faced and slotted aluminum tubes on CNC/manual milling machines using common datum references for slider alignment. Turned custom retaining grooves and D-profiles on precision lead screws using a lathe.'
+          },
+          {
+            title: 'Sheet Metal Fabrication',
+            content: 'Waterjet-cut mounting plates from structural aluminum. Calibrated press-brake bend radii experimentally to achieve exact angular tolerances for motor and tube cradle brackets.'
+          },
+          {
+            title: 'Tolerancing & Clearances',
+            content: 'Iteratively tuned running clearances between telescoping tubes using calibrated Teflon shims and 3D printed verification parts to achieve the optimal balance between low friction and zero freeplay.'
+          }
+        ]
+      },
+      {
+        heading: 'Electronics & Anti-Pinch Control',
+        paragraphs: [
+          'Developed an ESP32 microcontroller system paired with a high-power H-bridge motor driver and an INA precision current shunt sensor. The firmware monitors real-time motor current draw against expected trajectory profiles, immediately halting motor actuation if an obstruction is detected (anti-pinch safety threshold) or when hard stops are reached.'
+        ]
+      },
+      {
+        heading: 'Results & Deliverables',
+        paragraphs: [
+          'The proof-of-concept prototype successfully verified all functional requirements: compact packaging envelope, smooth deployment velocity, minimal cantilever deflection, and robust anti-pinch current cutoff.',
+          'Delivered a comprehensive GD&T engineering drawing package—including part tolerances, subassembly breakdowns, and bill of materials (BOM)—providing the Tesla engineering team with the foundation for subsequent production iterations.'
+        ]
+      }
+    ],
+    specs: [
+      { label: 'Kinematic Stroke', value: '350 mm Dual-Stage Extension' },
+      { label: 'Drive Architecture', value: 'Synchronized Dual 1018 Steel Lead Screws' },
+      { label: 'Transmission', value: 'High-Torque Belt Reduction with Custom D-Pulleys' },
+      { label: 'Linear Guide', value: 'Telescoping 6061-T6 Aluminum with Delrin Sliders' },
+      { label: 'Anti-Pinch Safety', value: 'Real-time INA Current Shunt Sensing Cutoff' },
+      { label: 'Max Deflection', value: '< 1.5 mm under peak cantilever payload' }
+    ],
+    materialsAndManufacturing: [
+      '6061-T6 Aluminum rectangular tubing faced and precision-machined on CNC/manual mill',
+      'Turned 1018 steel lead screws with machined retaining ring grooves and D-profiles',
+      'Waterjet-cut and press-brake formed aluminum sheet metal motor and tube mounting plates',
+      'Custom Delrin (POM) low-friction machined slider corner pads (< 3% elastic strain)',
+      'Rapid prototype validation with calibrated Teflon shim clearances and additive components'
+    ],
+    keyChallenges: [
+      'Eliminated cantilever deflection and freeplay without resorting to heavy, debris-vulnerable linear profile rails by optimizing a 2-stage telescoping overlap.',
+      'Achieved strict packaging constraints by machining custom D-profiles directly onto lead screw shafts to eliminate heavy shaft collars.',
+      'Implemented real-time active anti-pinch firmware monitoring current spikes to safely stop motor actuation upon human or obstacle contact.'
+    ],
+    palette: {
+      primary: '#e82127',
+      secondary: '#94a3b8',
+      accent: '#3b82f6',
+      base: '#0f172a',
+      details: '#cbd5e1'
+    }
+  },
+
+  // 2. Inductive IR3 Autonomous EV Charging Robot (Jun 2024 – Sep 2024)
+  {
+    id: 'inductive-autonomous-charging-robot',
+    title: 'Inductive IR3 Autonomous EV Charging Robot',
+    subtitle: 'Mobile Robotic EV Fast-Charging UGV System',
+    date: 'Jun 2024 – Sep 2024',
+    dateRange: 'Jun 2024 – Sep 2024',
+    year: 2024,
+    company: 'Inductive Robotics',
+    companyLogo: 'https://www.inductiverobotics.com/images/logo/logo.svg',
+    companyUrl: 'https://www.inductiverobotics.com',
+    tags: ['Mobile Robotics', 'Clearpath Husky UGV', 'Chassis Modification', 'Battery Subframe', 'Robotic Arm Integration'],
+    modelType: 'inductive-robot',
+    description: 'Engineered mechanical subsystems, structural chassis modifications, high-voltage battery payload mounting, and welded robotic arm integration for the first-generation Inductive IR3 autonomous mobile EV charging robot built on a Clearpath Husky UGV platform.',
+    extendedDescription: [
+      'Designed, prototyped, and tested mechanical integration systems for an autonomous mobile robot capable of navigating parking facilities, docking with electric vehicles, delivering fast-charging power from an onboard battery payload, and returning to base.'
+    ],
+    structuredSections: [
+      {
+        heading: 'Project Background & Problem Statement',
+        paragraphs: [
+          'Traditional parking lot charging infrastructure is bottlenecked by stationary chargers: once a vehicle finishes charging, the stall remains occupied for the remainder of the workday, leaving other EVs uncharged.',
+          'Inductive Robotics conceived an autonomous mobile robotic solution that carries high-capacity EV fast-charging batteries and an articulated robotic arm. The robot autonomously navigates parking structures, charges parked vehicles to target levels, disengages, and moves to the next car, maximizing charging throughput per stall.'
+        ]
+      },
+      {
+        heading: 'Engineering Requirements & Constraints',
+        paragraphs: [
+          'The system integrated a modified Clearpath Husky Unmanned Ground Vehicle (UGV) chassis to support the heavy charging payload consisting of: (1) High-capacity EV battery pack, (2) DC fast charger / inverter, (3) Articulated robotic charging arm, (4) Onboard compute and autonomy hardware, and (5) Navigation LiDAR and sensor suite.',
+          'Core mechanical requirements: (1) Payload weight constrained below the Husky chassis 160 lb maximum load rating, (2) Secure structural mounting under dynamic vehicle acceleration/braking, (3) Modular architecture for rapid field maintenance, and (4) High-voltage wiring isolation meeting industrial safety standards.'
+        ]
+      },
+      {
+        heading: 'Mechanical Design & Subsystems',
+        subSections: [
+          {
+            title: 'Chassis Remodeling & Physical Verification',
+            content: 'Identified critical discrepancies between supplier CAD models and physical hardware dimensions. Conducted extensive physical coordinate measurement and 3D modeling of the Clearpath Husky chassis to guarantee zero-interference component packaging.'
+          },
+          {
+            title: 'Modular Battery Payload Subframe',
+            content: 'Engineered an aluminum extrusion subframe providing X/Y adjustability for future battery pack upgrades. Secured the battery pack vertically using high-strength steel tie-down rods with vibration-damping elastomer pads to protect battery cells from road shock.'
+          },
+          {
+            title: 'Welded Robot Arm Pedestal Structure',
+            content: 'Designed a high-rigidity welded steel pedestal and mounting spacer to elevate and securely anchor the articulated robotic charging arm to the chassis, balancing torsional stiffness against weight limits.'
+          },
+          {
+            title: 'Mass Distribution & Center of Gravity',
+            content: 'Modeled center of gravity (CoG) and moment of inertia across charging arm workspace configurations to ensure dynamic vehicle rollover stability during aggressive maneuvering.'
+          }
+        ]
+      },
+      {
+        heading: 'Fabrication & Manufacturing Drawings',
+        paragraphs: [
+          'Produced formal manufacturing drawing packages including welded arm pedestal weldments, chassis cutting templates, CNC machined spacers, and sheet metal brackets with standard GD&T tolerances.',
+          'Successfully manufactured and assembled the IR3 prototype, demonstrating robust payload stability and mechanical integration during field mobility and charging validation trials.'
+        ],
+        imagesLayout: 'grid-2-1',
+        images: [
+          {
+            type: 'image',
+            url: './Inductive Robotics Render No Background.png',
+            title: 'Inductive IR3 Full Autonomous EV Charging Robot CAD Assembly',
+            caption: 'Clearpath Husky UGV chassis with integrated battery subframe, welded pedestal, and articulated charging arm'
+          }
+        ]
+      }
+    ],
+    specs: [
+      { label: 'Base Platform', value: 'Clearpath Husky 4WD UGV Chassis' },
+      { label: 'Payload Capacity', value: '160 lb (72.5 kg) Rated Maximum' },
+      { label: 'Battery Subframe', value: 'Modular 6061-T6 Aluminum Extrusion with Elastomer Mounts' },
+      { label: 'Charging Arm', value: 'Multi-DOF Articulated Arm on Welded Steel Pedestal' },
+      { label: 'Autonomy Sensor Suite', value: '3D LiDAR Mast, RGB-D Depth Cameras, Onboard Compute' },
+      { label: 'Application', value: 'Autonomous Multi-Vehicle EV Parking Lot Fast Charging' }
+    ],
+    materialsAndManufacturing: [
+      'Clearpath Husky UGV structural frame precision cutting and reinforcement modifications',
+      'Welded heavy-duty steel tube arm pedestal spacer with FEA stress analysis validation',
+      '6061-T6 modular aluminum extrusion battery enclosure with threaded steel hold-down clamp bars',
+      'Vibration-damping elastomer isolation pads between battery pack and chassis to absorb road shocks',
+      'CNC milled high-voltage electrical mounting plates and waterjet cut component brackets'
+    ],
+    keyChallenges: [
+      'Overcame severe dimensional errors in manufacturer CAD models by performing full manual physical measurement and 3D coordinate scanning of the Husky chassis.',
+      'Balanced heavy 160 lb payload mass distribution and center of gravity to ensure dynamic vehicle stability and rollover prevention across arm workspace trajectories.',
+      'Designed modular, quick-disconnect battery subframe mounting enabling rapid servicing and future high-capacity cell upgrades.'
+    ],
+    palette: {
+      primary: '#f59e0b',
+      secondary: '#1e293b',
+      accent: '#0284c7',
+      base: '#0f172a',
+      details: '#94a3b8'
+    }
+  },
+
+  // 3. Robot Humanoid Hand Mirroring (Aug 2024 - Dec 2024)
   {
     id: 'robot-hand-mirroring',
     title: 'Robot Humanoid Hand Mirroring',
@@ -10,7 +222,8 @@ export const projectsData: Project[] = [
     dateRange: 'Aug 2024 – Dec 2024',
     year: 2024,
     company: 'UC Berkeley',
-    companyLogo: 'https://brand.berkeley.edu/wp-content/uploads/2024/08/brand-essentials-thumbnail-1024x656.png',
+    companyLogo: '/berkeley-logo.png',
+    companyUrl: 'https://www.berkeley.edu',
     tags: ['Robotics', 'Kinematics', 'Computer Vision', 'Tendon Drive', 'ROS2'],
     description: 'My team designed a robotic system which implements visual tracking to mirror a user’s hand and finger movements on a Sawyer arm and custom humanoid hand end effector. I designed the custom robotic hand to be integrated with a robotic arm and custom electronics, assisted with PCB design and assembly, as well as code integration.',
     projectWebsiteUrl: 'https://sites.google.com/berkeley.edu/handymanny/introduction?authuser=0',
@@ -176,6 +389,7 @@ export const projectsData: Project[] = [
     year: 2024,
     company: 'Sentien Robotics',
     companyLogo: 'https://media.licdn.com/dms/image/v2/D560BAQG-jDLP_8B52g/company-logo_200_200/company-logo_200_200/0/1728988379666/sentien_robotics_logo?e=1788998400&v=beta&t=bbhNRf0apD7CQa7Bgrr4AxpBwAPcelxmJsSM7K7XP4w',
+    companyUrl: 'https://www.sentienrobotics.com',
     tags: ['Parallel Robotics', 'High Speed', 'Controls', 'Tension Dynamics'],
     description: 'Led development of further iterations and testing of cable robot, improving reliability and robustness in high speed and accurate movements.',
     extendedDescription: [
@@ -375,7 +589,8 @@ export const projectsData: Project[] = [
     dateRange: 'Jan 2024 – May 2024',
     year: 2024,
     company: 'UC Berkeley',
-    companyLogo: 'https://brand.berkeley.edu/wp-content/uploads/2024/08/brand-essentials-thumbnail-1024x656.png',
+    companyLogo: '/berkeley-logo.png',
+    companyUrl: 'https://www.berkeley.edu',
     tags: ['Robotics', 'Mechatronics', 'Control Systems', 'Computer Vision'],
     description: 'Designed and prototyped an autonomous ping-pong dribbling robot able to bounce a ping-pong ball on a 6" square platform for extended periods of time.',
     extendedDescription: [
@@ -489,7 +704,8 @@ export const projectsData: Project[] = [
     dateRange: 'Aug 2023 – Jan 2024',
     year: 2024,
     company: 'TAFLab (UC Berkeley)',
-    companyLogo: 'https://brand.berkeley.edu/wp-content/uploads/2024/08/brand-essentials-thumbnail-1024x656.png',
+    companyLogo: '/berkeley-logo.png',
+    companyUrl: 'https://taflab.berkeley.edu',
     tags: ['Marine Systems', 'Autonomous Vehicles', 'CFD', 'Composites'],
     description: 'Designed automated ocean sail drones, increasing sailing efficiency and controllability.',
     extendedDescription: [
@@ -607,6 +823,7 @@ export const projectsData: Project[] = [
     year: 2023,
     company: 'Sentien Robotics',
     companyLogo: 'https://media.licdn.com/dms/image/v2/D560BAQG-jDLP_8B52g/company-logo_200_200/company-logo_200_200/0/1728988379666/sentien_robotics_logo?e=1788998400&v=beta&t=bbhNRf0apD7CQa7Bgrr4AxpBwAPcelxmJsSM7K7XP4w',
+    companyUrl: 'https://www.sentienrobotics.com',
     tags: ['High Speed', 'Winch Mechanics', 'Drone Recovery', 'Mechanical Design'],
     description: 'Designed and prototyped a planar cable robot, including a robust winch system running at up to 3000 rpm, to reliably catch midflight automated drones landing at 20 mph.',
     extendedDescription: [
@@ -723,7 +940,8 @@ export const projectsData: Project[] = [
     dateRange: 'May 2023 – Aug 2023',
     year: 2023,
     company: 'Raise Robotics',
-    companyLogo: 'https://showspace.so/_next/image?url=https%3A%2F%2Fchmqmeyyaiwfybqgcdoy.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fcompanies%2F856%2F856-logo-80.jpg&w=1920&q=70',
+    companyLogo: 'https://raiserobotics.ai/wp-content/uploads/2023/05/RaiseRobotics_PictorialMark_BrandColors_Alt.png',
+    companyUrl: 'https://raiserobotics.ai/',
     tags: ['FEA Simulation', 'Structural Analysis', 'Hydraulics', 'Heavy Machinery'],
     description: 'Conducted FEA and dynamic simulation for the development of a stability outrigger system for a 1500 lb construction robot.',
     extendedDescription: [
@@ -838,7 +1056,8 @@ export const projectsData: Project[] = [
     dateRange: 'May 2023 – Aug 2023',
     year: 2023,
     company: 'Raise Robotics',
-    companyLogo: 'https://showspace.so/_next/image?url=https%3A%2F%2Fchmqmeyyaiwfybqgcdoy.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fcompanies%2F856%2F856-logo-80.jpg&w=1920&q=70',
+    companyLogo: 'https://raiserobotics.ai/wp-content/uploads/2023/05/RaiseRobotics_PictorialMark_BrandColors_Alt.png',
+    companyUrl: 'https://raiserobotics.ai/',
     tags: ['Mechatronics', 'Automation', 'CNC Machining', 'Robotic Grippers'],
     description: 'Designed a modular robotic gripper to reliably hold and position 5 lb aluminum brackets during automated construction tasks.',
     extendedDescription: [
@@ -949,7 +1168,7 @@ export const projectsData: Project[] = [
     dateRange: 'Aug 2022 – May 2023',
     year: 2023,
     company: 'RoboSub (UC Berkeley)',
-    companyLogo: 'https://showspace.so/_next/image?url=https%3A%2F%2Fchmqmeyyaiwfybqgcdoy.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fcompanies%2F1452%2F1452-logo-9f.jpg&w=32&q=75',
+    companyLogo: '/robosub-logo.png',
     tags: ['Marine Robotics', 'Pressure Vessels', 'Pneumatics', 'Waterproofing'],
     description: 'Developed an underwater torpedo launcher, dropper, and gripper for the RoboSub autonomous underwater vehicle competition.',
     extendedDescription: [
@@ -1080,6 +1299,7 @@ export const projectsData: Project[] = [
     year: 2023,
     company: 'Sentien Robotics',
     companyLogo: 'https://media.licdn.com/dms/image/v2/D560BAQG-jDLP_8B52g/company-logo_200_200/company-logo_200_200/0/1728988379666/sentien_robotics_logo?e=1788998400&v=beta&t=bbhNRf0apD7CQa7Bgrr4AxpBwAPcelxmJsSM7K7XP4w',
+    companyUrl: 'https://www.sentienrobotics.com',
     tags: ['Mechanism Design', 'Level-Wind', 'Winch Systems', 'Reliability Engineering'],
     description: 'Developed and manufactured an anti-tangle winch for Sentien’s drone fleet, reducing bird nesting and increasing uniform winding distribution.',
     extendedDescription: [
@@ -1185,7 +1405,8 @@ export const projectsData: Project[] = [
     dateRange: 'Aug 2022 – Dec 2022',
     year: 2022,
     company: 'UC Berkeley',
-    companyLogo: 'https://brand.berkeley.edu/wp-content/uploads/2024/08/brand-essentials-thumbnail-1024x656.png',
+    companyLogo: '/berkeley-logo.png',
+    companyUrl: 'https://www.berkeley.edu',
     tags: ['Product Design', 'DFM', 'Injection Molding', 'Sustainability'],
     description: 'Created a more convenient, reusable, and user friendly bottle scrubber, making use of off the shelf sponges so you don\'t need to buy additional replacements.',
     extendedDescription: [
@@ -1287,7 +1508,8 @@ export const projectsData: Project[] = [
     dateRange: 'Sep 2017 – May 2021',
     year: 2021,
     company: 'FIRST Tech Challenge',
-    companyLogo: 'https://firstroboticscanada.org/wp-content/uploads/2021/01/FTC-LOGO.png',
+    companyLogo: '/ftc-logo.png',
+    companyUrl: 'https://www.firstinspires.org/robotics/ftc',
     tags: ['FTC Robotics', 'Mechanism Design', 'CAD', 'Leadership'],
     description: 'Robotics Team Mech Lead + Captain for FIRST Tech Challenge competition team across 4 competitive seasons.',
     extendedDescription: [

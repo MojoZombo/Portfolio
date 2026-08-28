@@ -9,6 +9,7 @@ import { CADPivotGizmo } from '../CADPivotGizmo';
 
 interface ModelProps {
   isActive?: boolean;
+  isAnimating?: boolean;
   isHovered?: boolean;
   isRotating?: boolean;
 }
@@ -73,11 +74,51 @@ const CDPRRig: React.FC<{
   config: CDPRConfig;
   isActive: boolean;
   isCalibrating: boolean;
+  isAnimating: boolean;
   isDark: boolean;
-}> = ({ config, isActive, isCalibrating, isDark }) => {
+}> = ({ config, isActive, isCalibrating, isAnimating, isDark }) => {
   const plateRef = useRef<THREE.Group>(null);
   const cableLineRef = useRef<THREE.LineSegments>(null);
-  const cablePositions = useMemo(() => new Float32Array(16 * 3), []); // 8 segments * 2 vertices * 3 coords = 48
+  const cablePositions = useMemo(() => {
+    const pos = new Float32Array(16 * 3);
+    const pw = config.plateSize / 2;
+    const pd = config.plateSize / 2;
+    const fw = config.frameWidth / 2;
+    const fd = config.frameDepth / 2;
+    const py = config.pulleyElevation;
+    const wy = config.winchOffsetY;
+    const wx = config.winchInsetX;
+    const wz = config.winchInsetZ;
+    const targetX = 0;
+    const targetY = config.plateElevation;
+    const targetZ = 0;
+
+    // Corner 0: (-X, -Z)
+    pos[0] = targetX - pw; pos[1] = targetY; pos[2] = targetZ - pd;
+    pos[3] = -fw;          pos[4] = py;      pos[5] = -fd;
+    pos[6] = -fw;          pos[7] = py;      pos[8] = -fd;
+    pos[9] = -fw + wx;     pos[10] = wy;     pos[11] = -fd + wz;
+
+    // Corner 1: (+X, -Z)
+    pos[12] = targetX + pw; pos[13] = targetY; pos[14] = targetZ - pd;
+    pos[15] = fw;           pos[16] = py;      pos[17] = -fd;
+    pos[18] = fw;           pos[19] = py;      pos[20] = -fd;
+    pos[21] = fw - wx;      pos[22] = wy;      pos[23] = -fd + wz;
+
+    // Corner 2: (+X, +Z)
+    pos[24] = targetX + pw; pos[25] = targetY; pos[26] = targetZ + pd;
+    pos[27] = fw;           pos[28] = py;      pos[29] = fd;
+    pos[30] = fw;           pos[31] = py;      pos[32] = fd;
+    pos[33] = fw - wx;      pos[34] = wy;      pos[35] = fd - wz;
+
+    // Corner 3: (-X, +Z)
+    pos[36] = targetX - pw; pos[37] = targetY; pos[38] = targetZ + pd;
+    pos[39] = -fw;          pos[40] = py;      pos[41] = fd;
+    pos[42] = -fw;          pos[43] = py;      pos[44] = fd;
+    pos[45] = -fw + wx;     pos[46] = wy;      pos[47] = fd - wz;
+
+    return pos;
+  }, [config]);
 
   const cableGeometry = useMemo(() => {
     const geo = new THREE.BufferGeometry();
@@ -107,13 +148,14 @@ const CDPRRig: React.FC<{
       color: new THREE.Color(wireColor),
       linewidth: config.cableThickness || 1.5,
       transparent: true,
-      opacity: isShaded ? 0.92 : 0.95,
+      opacity: 0.95,
     });
-  }, [config.cableColor, config.cableThickness, isShaded, isDark]);
+  }, [isShaded, config.cableColor, config.cableThickness, isDark]);
 
+  // Procedural Materials with Toon Gradient Fallback
   const plateToonMat = useMemo(() => {
     return new THREE.MeshToonMaterial({
-      color: new THREE.Color(config.plateColor),
+      color: new THREE.Color(config.plateColor || '#ea580c'),
       gradientMap: toonGradient,
     });
   }, [config.plateColor]);
@@ -167,11 +209,16 @@ const CDPRRig: React.FC<{
   const postGeo = useMemo(() => new THREE.CylinderGeometry(0.018, 0.018, 0.014, 16), []);
   const postEdges = useMemo(() => new THREE.EdgesGeometry(postGeo, 25), [postGeo]);
 
-  useFrame((state) => {
+  const localTimeRef = useRef(0);
+
+  useFrame((_state, delta) => {
     if (!config.enabled) return;
 
-    const time = state.clock.getElapsedTime();
-    const isMoving = isActive || isCalibrating;
+    if (isAnimating) {
+      localTimeRef.current += delta;
+    }
+    const time = localTimeRef.current;
+    const isMoving = (isActive || isCalibrating) && isAnimating;
     const speed = config.motionSpeed;
 
     let targetX = 0;
@@ -183,11 +230,12 @@ const CDPRRig: React.FC<{
       const rz = config.motionRangeZ;
 
       if (config.motionPattern === 'lissajous') {
-        targetX = rx * (0.62 * Math.sin(0.85 * time * speed) + 0.38 * Math.sin(1.95 * time * speed + 0.6));
-        targetZ = rz * (0.62 * Math.cos(0.95 * time * speed) + 0.38 * Math.cos(2.25 * time * speed + 1.2));
+        // Pure sines ensure targetX=0, targetZ=0 at time=0 (center rest position)
+        targetX = rx * (0.62 * Math.sin(0.85 * time * speed) + 0.38 * Math.sin(1.95 * time * speed));
+        targetZ = rz * (0.62 * Math.sin(0.95 * time * speed) + 0.38 * Math.sin(2.25 * time * speed));
       } else if (config.motionPattern === 'circle') {
-        targetX = rx * Math.cos(time * speed);
-        targetZ = rz * Math.sin(time * speed);
+        targetX = rx * Math.sin(time * speed);
+        targetZ = rz * (1 - Math.cos(time * speed));
       } else if (config.motionPattern === 'square') {
         const cycle = ((time * speed * 0.4) % 4);
         if (cycle < 1) {
@@ -205,8 +253,8 @@ const CDPRRig: React.FC<{
         }
       } else {
         // wander
-        targetX = rx * (0.45 * Math.sin(0.6 * time * speed) + 0.35 * Math.sin(1.4 * time * speed + 1.2) + 0.2 * Math.sin(2.8 * time * speed));
-        targetZ = rz * (0.45 * Math.cos(0.7 * time * speed) + 0.35 * Math.cos(1.6 * time * speed + 0.9) + 0.2 * Math.cos(3.1 * time * speed));
+        targetX = rx * (0.45 * Math.sin(0.6 * time * speed) + 0.35 * Math.sin(1.4 * time * speed) + 0.2 * Math.sin(2.8 * time * speed));
+        targetZ = rz * (0.45 * Math.sin(0.7 * time * speed) + 0.35 * Math.sin(1.6 * time * speed) + 0.2 * Math.sin(3.1 * time * speed));
       }
     }
 
@@ -415,12 +463,12 @@ function buildMasterCableRobot2Prototype(sourceScene: THREE.Group) {
   return { template, originalMaterials, staticEdgesList, activeEdgesList, partsInfo };
 }
 
-export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotating = true }) => {
+export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotating = true, isAnimating = true }) => {
   const groupRef = useRef<THREE.Group>(null);
   const cloneRef = useRef<THREE.Group | null>(null);
   const centerRef = useRef<THREE.Vector3>(new THREE.Vector3());
-  const scaleRef = useRef(DEFAULT_SCALE);
   const meshNodesRef = useRef<MeshNodeInfo[]>([]);
+  const currentSpeedRef = useRef(0);
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const {
@@ -660,7 +708,12 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
     isModelCalibrating ? settings.colorOverrides : null,
   ]);
 
-  useFrame((state, delta) => {
+  const localTimeRef = useRef(0);
+
+  useFrame((_state, delta) => {
+    if (isAnimating) {
+      localTimeRef.current += delta;
+    }
     // Dynamically adjust calibration transforms in frame loop without scene re-cloning
     if (isModelCalibrating && cloneRef.current) {
       cloneRef.current.rotation.set(
@@ -687,23 +740,27 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
       return;
     }
 
-    // 2. Active Mode / Calibration Mode: Scale damp and turntable rotation
+    // 2. Active Mode / Calibration Mode: Constant scale and turntable rotation
     const baseScale = isModelCalibrating ? settings.scale : DEFAULT_SCALE;
-    const targetScale = isActive ? baseScale * 1.12 : baseScale;
-    scaleRef.current = THREE.MathUtils.damp(scaleRef.current, targetScale, 4.0, delta);
     if (groupRef.current) {
-      groupRef.current.scale.setScalar(scaleRef.current);
+      groupRef.current.scale.setScalar(baseScale);
     }
 
-    const shouldRotate = isModelCalibrating ? settings.autoRotate : (isActive && isRotating);
-    const speed = isModelCalibrating ? settings.rotationSpeed : 0.6;
+    // Auto rotate parent with smooth acceleration from 0 RPM
+    const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.6;
+    const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed : 0);
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
-    if (shouldRotate && groupRef.current) {
-      groupRef.current.rotation.y += delta * speed;
+    if (groupRef.current) {
+      if (currentSpeedRef.current > 0.001) {
+        groupRef.current.rotation.y += delta * currentSpeedRef.current;
+      } else if (!isActive && !isModelCalibrating) {
+        groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, 0, 4.0, delta);
+      }
     }
 
     // 3. Execute Live Kinematics Animations around Center of Mass / Custom Pivot
-    const time = state.clock.getElapsedTime();
+    const time = localTimeRef.current;
     if (meshNodesRef.current.length > 0) {
       meshNodesRef.current.forEach((node) => {
         const anim = isModelCalibrating
@@ -778,6 +835,7 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
         config={currentCDPRConfig}
         isActive={isActive}
         isCalibrating={isModelCalibrating}
+        isAnimating={isAnimating}
         isDark={isDark}
       />
     </group>

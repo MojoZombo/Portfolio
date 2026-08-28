@@ -5,31 +5,44 @@ import { CADMesh } from '../CADMesh';
 
 interface ModelProps {
   isActive?: boolean;
+  isAnimating?: boolean;
   isHovered?: boolean;
   isRotating?: boolean;
 }
 
-export const OutriggerModel: React.FC<ModelProps> = ({ isActive = false, isRotating = true }) => {
+export const OutriggerModel: React.FC<ModelProps> = ({ isActive = false, isRotating = true, isAnimating = true }) => {
   const groupRef = useRef<THREE.Group>(null);
   const pistonRef = useRef<THREE.Group>(null);
-  const scaleRef = useRef(1.25);
+  const currentSpeedRef = useRef(0);
 
-  useFrame((state, delta) => {
-    // Native Three.js GPU smooth scale transition
-    const targetScale = isActive ? 1.4 : 1.25;
-    scaleRef.current = THREE.MathUtils.damp(scaleRef.current, targetScale, 4.0, delta);
+  const localTimeRef = useRef(0);
+
+  useFrame((_state, delta) => {
+    if (isAnimating) {
+      localTimeRef.current += delta;
+    }
     if (groupRef.current) {
-      groupRef.current.scale.setScalar(scaleRef.current);
+      groupRef.current.scale.setScalar(1.25);
     }
 
-    if (!isActive) return;
+    const targetSpeed = isActive && isRotating && isAnimating ? 0.6 : 0;
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
-    const t = state.clock.getElapsedTime();
-    if (groupRef.current && isRotating) {
-      groupRef.current.rotation.y += delta * 0.6;
+    if (groupRef.current) {
+      if (currentSpeedRef.current > 0.001) {
+        groupRef.current.rotation.y += delta * currentSpeedRef.current;
+      } else if (!isActive) {
+        groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, 0, 4.0, delta);
+      }
     }
+
     if (pistonRef.current) {
-      pistonRef.current.position.y = -0.3 + Math.sin(t * 1.5) * 0.15;
+      if (isActive) {
+        const t = localTimeRef.current;
+        pistonRef.current.position.y = -0.3 + Math.sin(t * 1.5) * 0.15;
+      } else {
+        pistonRef.current.position.y = -0.3;
+      }
     }
   });
 

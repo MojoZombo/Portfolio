@@ -5,10 +5,11 @@ import { TimelineItem } from './components/TimelineItem';
 import { TimelineRuler } from './components/TimelineRuler';
 import { ProjectModal } from './components/ProjectModal';
 import { CADStudioWorkbench } from './components/studio/CADStudioWorkbench';
+import { PosterBakerPage } from './components/poster/PosterBakerPage';
 import { CADLoadingScreen } from './components/CADLoadingScreen';
 import { projectsData } from './data/projectsData';
 import { Project } from './types/project';
-import { ExternalLink, Cpu } from 'lucide-react';
+import { ExternalLink, Cpu, Camera } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -19,18 +20,42 @@ export const App: React.FC = () => {
       window.location.search.includes('studio=true')
     );
   });
+  const [isBakerOpen, setIsBakerOpen] = useState<boolean>(() => {
+    return (
+      window.location.hash === '#baker' ||
+      window.location.search.includes('baker=true')
+    );
+  });
 
-  // Listen for hash changes (e.g. #studio)
+  // Listen for hash changes (e.g. #studio, #baker)
   useEffect(() => {
     const handleHashChange = () => {
       setIsStudioOpen(
         window.location.hash === '#studio' ||
         window.location.search.includes('studio=true')
       );
+      setIsBakerOpen(
+        window.location.hash === '#baker' ||
+        window.location.search.includes('baker=true')
+      );
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+
+  // If in dedicated Poster Baker mode, render full-screen Poster Baker
+  if (isBakerOpen) {
+    return (
+      <PosterBakerPage
+        onExit={() => {
+          setIsBakerOpen(false);
+          if (window.location.hash === '#baker') {
+            window.history.pushState(null, '', window.location.pathname);
+          }
+        }}
+      />
+    );
+  }
 
   // If in dedicated Studio mode, render full-screen Studio Workbench
   if (isStudioOpen) {
@@ -85,7 +110,19 @@ export const App: React.FC = () => {
       <footer className="relative z-20 w-full py-12 text-slate-500 dark:text-slate-400 font-mono text-xs text-center border-t border-slate-200/40 dark:border-slate-800/40 mt-12">
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span>© {new Date().getFullYear()} JADEN FANN // MECHANICAL ENGINEER</span>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
+            <button
+              onClick={() => {
+                window.location.hash = 'baker';
+                setIsBakerOpen(true);
+              }}
+              className="hover:text-emerald-500 transition-colors flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 cursor-pointer text-[11px]"
+              title="Open 1:1 Exact Model Poster Baker"
+            >
+              <Camera size={12} className="text-emerald-500" />
+              <span>Poster Baker</span>
+            </button>
+
             <button
               onClick={() => {
                 window.location.hash = 'studio';

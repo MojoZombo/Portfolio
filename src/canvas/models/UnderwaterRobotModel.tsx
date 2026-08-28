@@ -9,6 +9,7 @@ import { CADPivotGizmo } from '../CADPivotGizmo';
 
 interface ModelProps {
   isActive?: boolean;
+  isAnimating?: boolean;
   isHovered?: boolean;
   isRotating?: boolean;
 }
@@ -141,12 +142,13 @@ function buildMasterUnderwaterRobotPrototype(sourceScene: THREE.Group) {
 export const UnderwaterRobotModel: React.FC<ModelProps> = ({
   isActive = false,
   isRotating = true,
+  isAnimating = true,
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const pivotRef = useRef<THREE.Group | null>(null);
   const cloneRef = useRef<THREE.Group | null>(null);
-  const scaleRef = useRef(DEFAULT_SCALE);
   const meshNodesRef = useRef<MeshNodeInfo[]>([]);
+  const currentSpeedRef = useRef(0);
 
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -398,7 +400,12 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
   ]);
 
   // Frame loop
-  useFrame((state, delta) => {
+  const localTimeRef = useRef(0);
+
+  useFrame((_state, delta) => {
+    if (isAnimating) {
+      localTimeRef.current += delta;
+    }
     // Always apply transform calibration directly to pivot
     if (pivotRef.current) {
       const offsetX = isModelCalibrating ? settings.offsetX : DEFAULT_OFFSET[0];
@@ -426,20 +433,24 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
     }
 
     const baseScale = isModelCalibrating ? settings.scale : DEFAULT_SCALE;
-    const targetScale = isModelCalibrating ? baseScale : (isActive ? baseScale * 1.05 : baseScale);
-    scaleRef.current = THREE.MathUtils.damp(scaleRef.current, targetScale, 4.0, delta);
     if (groupRef.current) {
-      groupRef.current.scale.setScalar(scaleRef.current);
+      groupRef.current.scale.setScalar(baseScale);
     }
 
-    const shouldRotate = isModelCalibrating ? settings.autoRotate : (isActive && isRotating);
-    const speed = isModelCalibrating ? settings.rotationSpeed : 0.6;
+    // Auto rotate parent with smooth acceleration from 0 RPM
+    const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.6;
+    const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed : 0);
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
-    if (shouldRotate && groupRef.current) {
-      groupRef.current.rotation.y += delta * speed;
+    if (groupRef.current) {
+      if (currentSpeedRef.current > 0.001) {
+        groupRef.current.rotation.y += delta * currentSpeedRef.current;
+      } else if (!isActive && !isModelCalibrating) {
+        groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, 0, 4.0, delta);
+      }
     }
 
-    const time = state.clock.getElapsedTime();
+    const time = localTimeRef.current;
     if (meshNodesRef.current.length > 0) {
       meshNodesRef.current.forEach((node) => {
         const anim = isModelCalibrating ? settings.animationOverrides[node.index] : null;

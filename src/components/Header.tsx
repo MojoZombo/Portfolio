@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { Sun, Moon, FileText, ExternalLink } from 'lucide-react';
+import { Sun, Moon, FileText } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -42,25 +42,15 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Quick Action Links & Theme Toggle */}
-          <div className="flex items-center gap-3 font-mono text-xs shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 font-mono text-xs shrink-0">
             <a
               href="./Jaden_Fann_Resume.pdf"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 font-medium transition-colors shadow-sm cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 font-medium transition-colors shadow-sm cursor-pointer"
             >
               <FileText size={13} />
               <span>Resume PDF</span>
-            </a>
-
-            <a
-              href="https://showspace.so/s/jadenfann"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-colors"
-            >
-              <ExternalLink size={13} />
-              <span>Showspace</span>
             </a>
 
             <button

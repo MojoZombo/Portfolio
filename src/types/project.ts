@@ -37,17 +37,31 @@ export interface Project {
   tags: string[];
   company?: string;
   companyLogo?: string;
+  companyUrl?: string;
   description: string;
   extendedDescription: string[];
   projectWebsiteUrl?: string;
   structuredSections?: StructuredSection[];
   mediaGallery?: MediaItem[];
-  specs: ProjectSpec[];
-  materialsAndManufacturing: string[];
-  keyChallenges: string[];
+  specs?: ProjectSpec[];
+  materialsAndManufacturing?: string[];
+  keyChallenges?: string[];
   showspaceUrl?: string;
-  modelType: 'robot-hand' | 'cable-robot-2' | 'ping-pong' | 'catamaran' | 'drone-catch' | 'outrigger' | 'modular-gripper' | 'underwater-robot' | 'anti-tangle-winch' | 'bottle-scrubber' | 'ftc-robot';
-  palette: {
+  modelType:
+    | 'tesla-actuator'
+    | 'inductive-robot'
+    | 'robot-hand'
+    | 'cable-robot-2'
+    | 'ping-pong'
+    | 'catamaran'
+    | 'drone-catch'
+    | 'outrigger'
+    | 'modular-gripper'
+    | 'underwater-robot'
+    | 'anti-tangle-winch'
+    | 'bottle-scrubber'
+    | 'ftc-robot';
+  palette?: {
     primary: string;
     secondary: string;
     accent: string;
