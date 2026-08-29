@@ -25,7 +25,7 @@ export const InductiveRobotModel: React.FC<ModelProps> = ({
   const currentSpeedRef = useRef(0);
   const localTimeRef = useRef(0);
 
-  useFrame((_state, delta) => {
+  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
     if (isAnimating) {
       localTimeRef.current += delta;
     }

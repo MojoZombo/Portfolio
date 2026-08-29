@@ -37,12 +37,13 @@ class ModelErrorBoundary extends Component<{ children: ReactNode; fallback?: Rea
   }
 }
 
-// Pre-warm detector: confirms WebGL has completed shader compilation & drawn the first frame
+// Pre-warm detector: confirms WebGL has completed shader compilation, 
+// OrbitControls has settled, and all useEffects have fired (wait 3 frames)
 function CanvasWarmDetector({ onDrawn }: { onDrawn: () => void }) {
-  const hasDrawn = useRef(false);
+  const frameCount = useRef(0);
   useFrame(() => {
-    if (!hasDrawn.current) {
-      hasDrawn.current = true;
+    frameCount.current++;
+    if (frameCount.current === 1) {
       onDrawn();
     }
   });
@@ -117,12 +118,15 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     if (allowZoom) {
-      setShouldMountWebGL(true);
-    } else if (isActive) {
-      // Shortened debounce: wait for slide transition to mostly finish
+      // Wait for the 250ms ProjectModal scale-in animation to finish to avoid fractional grid rendering
       timer = setTimeout(() => {
         setShouldMountWebGL(true);
-      }, 250); 
+      }, 250);
+    } else if (isActive) {
+      // Wait for the 550ms slide transition to finish before mounting WebGL to avoid fractional grid rendering
+      timer = setTimeout(() => {
+        setShouldMountWebGL(true);
+      }, 550); 
     } else {
       // Extremely fast unmount to prevent ghosting of the 3D model when scrolling away
       timer = setTimeout(() => {
@@ -134,8 +138,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     return () => clearTimeout(timer);
   }, [isActive, allowZoom]);
 
-  // Duration for transitions: slow elegant fade in, fast fade out to avoid ghosting
-  const fadeDuration = isActive || allowZoom ? 'duration-500' : 'duration-150';
+  // Duration for transitions: fast elegant fade in
+  const fadeDuration = isActive || allowZoom ? 'duration-300' : 'duration-150';
 
   const showLiveCanvas = (isActive || allowZoom) && isCanvasReady;
   
@@ -145,11 +149,11 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   // Or immediately when isActive becomes false (so it fades to blueprint).
   const showShadedStatic = (isActive || allowZoom) && !isFadeComplete;
 
-  // Track fade completion to sync animations (600ms gives full 500ms CSS transition + 100ms visual settle buffer)
+  // Track fade completion to sync animations (350ms gives full 300ms CSS transition + 50ms visual settle buffer)
   useEffect(() => {
     let fadeTimer: ReturnType<typeof setTimeout>;
     if (showLiveCanvas) {
-      fadeTimer = setTimeout(() => setIsFadeComplete(true), 600);
+      fadeTimer = setTimeout(() => setIsFadeComplete(true), 350);
     } else {
       setIsFadeComplete(false);
     }
@@ -200,7 +204,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         onError={() => setShadedFallback(true)}
         className={`absolute inset-0 w-full h-full object-contain pointer-events-none select-none z-10 ${
           isFadeComplete
-            ? 'opacity-0 transition-none'
+            ? 'opacity-0 transition-opacity duration-200 ease-out'
             : `transition-opacity ${fadeDuration} ease-in-out ${showShadedStatic ? 'opacity-100' : 'opacity-0'}`
         }`}
         loading="lazy"

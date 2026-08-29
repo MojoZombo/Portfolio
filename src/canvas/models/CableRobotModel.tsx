@@ -211,7 +211,7 @@ const CDPRRig: React.FC<{
 
   const localTimeRef = useRef(0);
 
-  useFrame((_state, delta) => {
+  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
     if (!config.enabled) return;
 
     if (isAnimating) {
@@ -710,7 +710,7 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
 
   const localTimeRef = useRef(0);
 
-  useFrame((_state, delta) => {
+  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
     if (isAnimating) {
       localTimeRef.current += delta;
     }

@@ -140,7 +140,6 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
           </div>
         </motion.div>
 
-        {/* 3D Model: Shifts right on desktop when active in center focus */}
         <motion.div
           initial={false}
           animate={{
