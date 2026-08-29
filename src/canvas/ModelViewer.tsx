@@ -244,7 +244,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                   modelType={modelType}
                   isActive={isActive}
                   isHovered={isHovered}
-                  isRotating={isAnimationPlaying && isRotating}
+                  isRotating={isAnimationPlaying && isRotating && isFadeComplete}
                   isAnimating={isAnimationPlaying && isFadeComplete}
                 />
               </ModelErrorBoundary>
