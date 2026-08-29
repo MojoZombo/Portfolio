@@ -248,9 +248,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                   isAnimating={isAnimationPlaying && isFadeComplete}
                 />
               </ModelErrorBoundary>
+              <CanvasWarmDetector onDrawn={() => setIsCanvasReady(true)} />
             </Suspense>
-
-            <CanvasWarmDetector onDrawn={() => setIsCanvasReady(true)} />
             <CameraResetController resetTrigger={resetTrigger} />
             <CameraStateDetector onZoomChange={setIsZoomedIn} />
 
