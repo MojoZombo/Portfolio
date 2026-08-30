@@ -26,9 +26,9 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Sailing Catamaran
-const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
+const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.03, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [-90.0, 0.0, 0.0];
-const DEFAULT_SCALE = 2.60;
+const DEFAULT_SCALE = 2.00;
 
 // Default Part Colors for Sailing Catamaran
 const DEFAULT_PART_COLORS: Record<number, string> = {

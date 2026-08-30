@@ -45,6 +45,18 @@ export interface CDPRConfig {
   showWorkspaceBoundary: boolean;
 }
 
+export interface RegisteredModelDefaults {
+  modelId: string;
+  offset: [number, number, number];
+  rotation: [number, number, number]; // in degrees
+  scale: number;
+  parts: PartColorInfo[];
+  defaultColors?: Record<number, string>;
+  defaultVisibility?: Record<number, boolean>;
+  defaultAnimations?: Record<number, PartAnimationConfig>;
+  defaultCDPRConfig?: CDPRConfig;
+}
+
 export const DEFAULT_CDPR_CONFIG: CDPRConfig = {
   enabled: true,
   plateSize: 0.20,
@@ -79,6 +91,7 @@ export interface TransformSettings {
   rotationSpeed: number;
   showGizmo: boolean;
   colorOverrides: Record<number, string>; // partIndex -> hex color
+  visibilityOverrides: Record<number, boolean>; // partIndex -> isVisible
   animationOverrides: Record<number, PartAnimationConfig>; // partIndex -> animation config
   nameOverrides: Record<number, string>; // partIndex -> custom user renamed string
   cdprConfig: CDPRConfig;
@@ -88,9 +101,9 @@ export interface TransformSettings {
 const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> = {
   catamaran: {
     modelId: 'catamaran',
-    offset: [0.00, 0.00, 0.00],
-    rotation: [-90.0, 0.0, 0.0],
-    scale: 2.60,
+    offset: [0.00, 0.03, 0.00],
+    rotation: [-90, 0, 0],
+    scale: 2.0,
     defaultColors: {
       2: '#cbd5e1',
       3: '#cbd5e1',
@@ -138,11 +151,22 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
       0: '#475569', // Gripper_Attachment_Base-1001
       7: '#3b82f6', // Mesh_108
       9: '#3b82f6', // Mesh_108_2
-      14: '#1e293b', // Rubber_Pad-1006
-      16: '#475569', // Gripper_Attachment_Base-1007
-      17: '#1e293b', // Rubber_Pad-1007
-      18: '#c19a6b', // XEG-64_滑塊stp-1011
-      19: '#f25f5f', // P46_JRB_Bracket-1003
+      10: '#475569', // Mesh_108_3
+      16: '#0f172a', // Gripper_Connector-1
+      18: '#0f172a', // Gripper_Connector-2
+      21: '#0284c7', // Mesh_109
+      24: '#475569', // Mesh_109_3
+      26: '#0284c7', // Mesh_109_5
+      27: '#3b82f6', // Mesh_109_6
+      28: '#0284c7', // Mesh_112
+      32: '#3b82f6', // Mesh_112_4
+      36: '#0284c7', // Mesh_113
+      39: '#0284c7', // Mesh_113_3
+      40: '#3b82f6', // Mesh_113_4
+      41: '#0f172a', // Linear_Actuator_v3_Rod_Side_Bottom-1
+      44: '#3b82f6', // Rack-1
+      47: '#3b82f6', // Rack_Connector-1
+      48: '#475569', // Rack_Connector_Base-1
     },
     defaultAnimations: {},
   },
@@ -180,30 +204,16 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
     },
     defaultAnimations: {},
   },
-  'anti-tangle-winch': {
-    modelId: 'anti-tangle-winch',
-    offset: [0.00, 0.00, 0.00],
-    rotation: [-180.0, 0.0, 0.0],
-    scale: 18.0,
+  'cable-robot-1': {
+    modelId: 'cable-robot-1',
+    offset: [0.00, 0.23, 0.00],
+    rotation: [-90, 0, 0],
+    scale: 1.5,
     defaultColors: {
       0: '#475569', // Mesh_0
       1: '#475569', // Mesh_0_1
       2: '#475569', // Mesh_0_2
       3: '#475569', // CONV-HDW00-065-01-1
-      4: '#475569', // Mesh_4
-      5: '#475569', // Mesh_4_1
-      6: '#c19a6b', // Mesh_2
-      7: '#f8debf', // Mesh_2_1
-      8: '#c19a6b', // Mesh_2_2
-      9: '#FDB515', // Mesh_2_3
-      10: '#FDB515', // Mesh_2_4
-      11: '#64748b', // CONV-WIN00-011-03-1
-      12: '#475569', // dowel-1
-      13: '#475569', // dowel-2
-      14: '#f8fafc', // Retaining_Ring_45-1
-      16: '#475569', // CONV-HDW00-064-01-1001
-      21: '#0284c7', // Reversing_Screw_Rectangle_profile-1001
-      22: '#475569', // shaft_collar_print-1001
     },
     defaultAnimations: {},
   },
@@ -225,10 +235,29 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
   },
   'drone-catch': {
     modelId: 'drone-catch',
-    offset: [0.00, 0.00, 0.00],
-    rotation: [-90, 0, 0],
-    scale: 6.50,
-    defaultColors: {},
+    offset: [0.00, -1.57, 0.00],
+    rotation: [0, 38, 0],
+    scale: 1.00,
+    defaultColors: {
+      0: '#64748b',
+      1: '#d97706',
+      5: '#1e293b',
+      6: '#475569',
+      8: '#cbd5e1',
+      9: '#475569',
+      10: '#475569',
+      11: '#475569',
+      12: '#ea580c',
+      13: '#059669',
+      14: '#059669',
+      16: '#cbd5e1',
+      17: '#c19a6b',
+      18: '#64748b',
+      19: '#1e293b',
+    },
+    defaultVisibility: {
+      31: false,
+    },
     defaultAnimations: {},
   },
   outrigger: {
@@ -247,11 +276,51 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
     defaultColors: {},
     defaultAnimations: {},
   },
-  'ftc-robot': {
-    modelId: 'ftc-robot',
-    offset: [0.00, -0.20, 0.00],
+  'anti-tangle-winch': {
+    modelId: 'anti-tangle-winch',
+    offset: [0.00, 0.00, 0.01],
+    rotation: [-180, 0, 0],
+    scale: 20.00,
+    defaultColors: {
+      0: '#475569',
+      1: '#475569',
+      2: '#475569',
+      3: '#475569',
+      4: '#475569',
+      5: '#475569',
+      6: '#c19a6b',
+      7: '#fbd8ac',
+      8: '#c19a6b',
+      9: '#d97706',
+      10: '#d97706',
+      11: '#64748b',
+      12: '#475569',
+      13: '#475569',
+      16: '#475569',
+      17: '#cbd5e1',
+      18: '#64748b',
+      19: '#64748b',
+      21: '#3b82f6',
+      22: '#475569',
+    },
+    defaultVisibility: {
+      2: false,
+    },
+    defaultAnimations: {},
+  },
+  'inductive-robot': {
+    modelId: 'inductive-robot',
+    offset: [0.00, -0.25, 0.00],
     rotation: [0, 45, 0],
-    scale: 1.6,
+    scale: 3.5,
+    defaultColors: {},
+    defaultAnimations: {},
+  },
+  'tesla-actuator': {
+    modelId: 'tesla-actuator',
+    offset: [0.00, 0.00, 0.00],
+    rotation: [0, -90, 0],
+    scale: 8.50,
     defaultColors: {},
     defaultAnimations: {},
   },
@@ -263,6 +332,7 @@ function getModelSettings(modelId: string, registered?: RegisteredModelDefaults)
   const rotation = registered?.rotation || builtin?.rotation || [0, 0, 0];
   const scale = registered?.scale ?? builtin?.scale ?? 1.0;
   const defaultColors = { ...(builtin?.defaultColors || {}), ...(registered?.defaultColors || {}) };
+  const defaultVisibility = { ...(builtin?.defaultVisibility || {}), ...(registered?.defaultVisibility || {}) };
   const defaultAnimations = { ...(builtin?.defaultAnimations || {}), ...(registered?.defaultAnimations || {}) };
 
   return {
@@ -278,21 +348,11 @@ function getModelSettings(modelId: string, registered?: RegisteredModelDefaults)
     rotationSpeed: 0.6,
     showGizmo: true,
     colorOverrides: defaultColors,
+    visibilityOverrides: defaultVisibility,
     animationOverrides: defaultAnimations,
     nameOverrides: {},
     cdprConfig: registered?.defaultCDPRConfig || builtin?.defaultCDPRConfig || DEFAULT_CDPR_CONFIG,
   };
-}
-
-export interface RegisteredModelDefaults {
-  modelId: string;
-  offset: [number, number, number];
-  rotation: [number, number, number]; // in degrees
-  scale: number;
-  parts: PartColorInfo[];
-  defaultColors?: Record<number, string>;
-  defaultAnimations?: Record<number, PartAnimationConfig>;
-  defaultCDPRConfig?: CDPRConfig;
 }
 
 export interface CuttingPlaneConfig {
@@ -323,6 +383,7 @@ interface TransformCalibrationContextType {
   registerModel: (defaults: RegisteredModelDefaults) => void;
   updateSetting: <K extends keyof TransformSettings>(key: K, value: TransformSettings[K]) => void;
   updatePartColor: (partIndex: number, color: string) => void;
+  updatePartVisibility: (partIndex: number, isVisible: boolean) => void;
   updatePartAnimation: (partIndex: number, config: Partial<PartAnimationConfig>) => void;
   updatePartName: (partIndex: number, name: string) => void;
   updateCDPRConfig: (config: Partial<CDPRConfig>) => void;
@@ -407,6 +468,18 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
         [partIndex]: name,
       },
     }));
+  };
+
+  const updatePartVisibility = (partIndex: number, isVisible: boolean) => {
+    setSettings((prev) => {
+      const newVisibility = { ...prev.visibilityOverrides };
+      if (isVisible) {
+        delete newVisibility[partIndex]; // Default is visible
+      } else {
+        newVisibility[partIndex] = false;
+      }
+      return { ...prev, visibilityOverrides: newVisibility };
+    });
   };
 
   const updatePartAnimation = (partIndex: number, config: Partial<PartAnimationConfig>) => {
@@ -549,6 +622,7 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
         registerModel,
         updateSetting,
         updatePartColor,
+        updatePartVisibility,
         updatePartAnimation,
         updatePartName,
         updateCDPRConfig,

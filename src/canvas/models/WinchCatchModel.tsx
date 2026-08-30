@@ -26,12 +26,33 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Drone-Catch Winch
-const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
-const DEFAULT_ROTATION_DEG: [number, number, number] = [0.00, 0.00, 0.00];
-const DEFAULT_SCALE = 6.50;
+const DEFAULT_OFFSET: [number, number, number] = [0.00, -1.57, 0.00];
+const DEFAULT_ROTATION_DEG: [number, number, number] = [0.00, 38.00, 0.00];
+const DEFAULT_SCALE = 1.00;
 
 // Baked Custom Part Color Overrides for Winch
-const DEFAULT_PART_COLORS: Record<number, string> = {};
+const DEFAULT_PART_COLORS: Record<number, string> = {
+  0: '#64748b', // mesh_0
+  1: '#d97706', // mesh_0_1
+  5: '#1e293b', // mesh_0_5
+  6: '#475569', // mesh_0_6
+  8: '#cbd5e1', // mesh_0_8_(Body_A)
+  9: '#475569', // mesh_0_9
+  10: '#475569', // mesh_0_10
+  11: '#475569', // mesh_0_11
+  12: '#ea580c', // mesh_0_12
+  13: '#059669', // mesh_0_13_(Body_A)
+  14: '#059669', // mesh_0_14
+  16: '#cbd5e1', // mesh_0_16
+  17: '#c19a6b', // mesh_0_13_(Body_B)
+  18: '#64748b', // mesh_0_13_(Body_C)
+  19: '#1e293b', // mesh_0_8_(Body_B)
+};
+
+// Hidden Parts:
+const DEFAULT_PART_VISIBILITY: Record<number, boolean> = {
+  31: false, // mesh_31
+};
 
 // Baked Custom Part Kinematics Animations
 const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {};
@@ -124,8 +145,8 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
     settings,
   } = useTransformCalibration();
 
-  // Load the CAD assembly from public/models/cablerobotwinchtest2.glb
-  const { scene } = useGLTF('./models/cablerobotwinchtest2.glb');
+  // Load the CAD assembly from public/models/drone-catch-split-compressed.glb
+  const { scene } = useGLTF('./models/drone-catch-split-compressed.glb');
 
   // Exact matching blueprint colors
   const blueprintLineColor = isDark ? '#94A8C4' : '#1E293B';
@@ -146,6 +167,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
         scale: DEFAULT_SCALE,
         parts: masterWinchPrototype.partsInfo,
         defaultColors: DEFAULT_PART_COLORS,
+        defaultVisibility: DEFAULT_PART_VISIBILITY,
         defaultAnimations: DEFAULT_PART_ANIMATIONS,
       });
     }
@@ -317,6 +339,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
     let partRunningIndex = 0;
 
     toonMaterialsMap.forEach((toonMatOrArray, mesh) => {
+      let isVisible = true;
       if (isShaded) {
         if (Array.isArray(toonMatOrArray)) {
           mesh.material = toonMatOrArray;
@@ -327,6 +350,12 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
             const overrideHex = (isModelCalibrating && settings.colorOverrides?.[currentPartIdx])
               ? settings.colorOverrides[currentPartIdx]
               : (DEFAULT_PART_COLORS[currentPartIdx] || defaultBaked);
+
+            const isPartVisible = isModelCalibrating 
+              ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+              : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+            
+            if (!isPartVisible) isVisible = false;
 
             tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
             tm.emissive.set(isPartSelected ? '#0284c7' : '#000000');
@@ -339,19 +368,36 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
             ? settings.colorOverrides[currentPartIdx]
             : (DEFAULT_PART_COLORS[currentPartIdx] || defaultBaked);
 
+          const isPartVisible = isModelCalibrating 
+            ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+            : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+          
+          if (!isPartVisible) isVisible = false;
+
           mesh.material = toonMatOrArray;
           toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
           toonMatOrArray.emissive.set(isPartSelected ? '#0284c7' : '#000000');
         }
       } else {
         if (Array.isArray(toonMatOrArray)) {
-          mesh.material = toonMatOrArray.map(() => bpMat);
-          partRunningIndex += toonMatOrArray.length;
+          mesh.material = toonMatOrArray.map(() => {
+            const currentPartIdx = partRunningIndex++;
+            const isPartVisible = isModelCalibrating 
+              ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+              : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+            if (!isPartVisible) isVisible = false;
+            return bpMat;
+          });
         } else {
+          const currentPartIdx = partRunningIndex++;
+          const isPartVisible = isModelCalibrating 
+            ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+            : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+          if (!isPartVisible) isVisible = false;
           mesh.material = bpMat;
-          partRunningIndex += 1;
         }
       }
+      mesh.visible = isVisible;
     });
   }, [
     isActive,
@@ -364,6 +410,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
     blueprintLineColor,
     celOutlineColor,
     isModelCalibrating ? settings.colorOverrides : null,
+    isModelCalibrating ? settings.visibilityOverrides : null,
   ]);
 
   const localTimeRef = useRef(0);
@@ -492,4 +539,4 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
 };
 
 // Preload the CAD model
-useGLTF.preload('./models/cablerobotwinchtest2.glb');
+useGLTF.preload('./models/drone-catch-split-compressed.glb');

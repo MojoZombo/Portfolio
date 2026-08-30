@@ -26,12 +26,38 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Anti-Tangle Winch
-const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
+const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.01];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [-180.0, 0.0, 0.0];
-const DEFAULT_SCALE = 18.0;
+const DEFAULT_SCALE = 20.0;
 
 // Baked Custom Part Color Overrides for Winch
-const DEFAULT_PART_COLORS: Record<number, string> = {};
+const DEFAULT_PART_COLORS: Record<number, string> = {
+  0: '#475569', // Mesh_0
+  1: '#475569', // Mesh_0_1
+  2: '#475569', // Mesh_0_2
+  3: '#475569', // CONV-HDW00-065-01-1
+  4: '#475569', // Mesh_4
+  5: '#475569', // Mesh_4_1
+  6: '#c19a6b', // Mesh_2
+  7: '#fbd8ac', // Mesh_2_1
+  8: '#c19a6b', // Mesh_2_2
+  9: '#d97706', // Mesh_2_3
+  10: '#d97706', // Mesh_2_4
+  11: '#64748b', // CONV-WIN00-011-03-1
+  12: '#475569', // dowel-1
+  13: '#475569', // dowel-2
+  16: '#475569', // CONV-HDW00-064-01-1001
+  17: '#cbd5e1', // Retaining_Ring_45-1001
+  18: '#64748b', // dowel-2001
+  19: '#64748b', // dowel-1001
+  21: '#3b82f6', // Reversing_Screw_Rectangle_profile-1001
+  22: '#475569', // shaft_collar_print-1001
+};
+
+// Hidden Parts:
+const DEFAULT_PART_VISIBILITY: Record<number, boolean> = {
+  2: false, // Mesh_0_2
+};
 
 // Baked Custom Part Kinematics Animations
 const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {};
@@ -158,6 +184,7 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
         scale: DEFAULT_SCALE,
         parts: masterAntiTangleWinchPrototype.partsInfo,
         defaultColors: DEFAULT_PART_COLORS,
+        defaultVisibility: DEFAULT_PART_VISIBILITY,
         defaultAnimations: DEFAULT_PART_ANIMATIONS,
       });
     }
@@ -325,6 +352,7 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
 
     let partRunningIndex = 0;
     toonMaterialsMap.forEach((toonMatOrArray, mesh) => {
+      let isVisible = true;
       if (isShaded) {
         if (Array.isArray(toonMatOrArray)) {
           mesh.material = toonMatOrArray;
@@ -334,6 +362,12 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
             const overrideHex = (isModelCalibrating && settings.colorOverrides?.[currentPartIdx])
               ? settings.colorOverrides[currentPartIdx]
               : (DEFAULT_PART_COLORS[currentPartIdx] || '#cbd5e1');
+
+            const isPartVisible = isModelCalibrating 
+              ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+              : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+            
+            if (!isPartVisible) isVisible = false;
 
             tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
             tm.emissive.set(isPartSelected ? '#0284c7' : '#000000');
@@ -345,22 +379,38 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
             ? settings.colorOverrides[currentPartIdx]
             : (DEFAULT_PART_COLORS[currentPartIdx] || '#cbd5e1');
 
+          const isPartVisible = isModelCalibrating 
+            ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+            : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+          
+          if (!isPartVisible) isVisible = false;
+
           mesh.material = toonMatOrArray;
           toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
           toonMatOrArray.emissive.set(isPartSelected ? '#0284c7' : '#000000');
         }
       } else {
         if (Array.isArray(toonMatOrArray)) {
-          mesh.material = toonMatOrArray.map(() => bpMat);
-          partRunningIndex += toonMatOrArray.length;
+          mesh.material = toonMatOrArray.map(() => {
+            const currentPartIdx = partRunningIndex++;
+            const isPartVisible = isModelCalibrating 
+              ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+              : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+            if (!isPartVisible) isVisible = false;
+            return bpMat;
+          });
         } else {
+          const currentPartIdx = partRunningIndex++;
+          const isPartVisible = isModelCalibrating 
+            ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+            : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+          if (!isPartVisible) isVisible = false;
           mesh.material = bpMat;
-          partRunningIndex += 1;
         }
       }
+      mesh.visible = isVisible;
     });
   }, [
-    centeredScene,
     isActive,
     isModelCalibrating,
     isDark,
@@ -371,6 +421,7 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
     blueprintLineColor,
     celOutlineColor,
     isModelCalibrating ? settings.colorOverrides : null,
+    isModelCalibrating ? settings.visibilityOverrides : null,
   ]);
 
   // Frame loop

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, OrthographicCamera, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { projectsData } from '../../data/projectsData';
 import { ModelRenderer } from '../../canvas/ModelRenderer';
 import { useTheme } from '../../context/ThemeContext';
@@ -30,6 +31,8 @@ import {
   Sparkles,
   Undo2,
   Camera,
+  Zap,
+  Eye,
 } from 'lucide-react';
 
 interface StudioProps {
@@ -249,6 +252,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     availableParts,
     updateSetting,
     updatePartColor,
+    updatePartVisibility,
     updatePartAnimation,
     updatePartName,
     updateCDPRConfig,
@@ -377,6 +381,87 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     setTimeout(() => setExportProgress(null), 5000);
   };
 
+  const handleExportGLB = () => {
+    if (!sceneRef.current) return;
+    
+    setExportProgress('Baking meshes and exporting to GLB...');
+    setIsExportingPosters(true);
+
+    const exportGroup = new THREE.Group();
+    exportGroup.name = activeModelId + '_split';
+    
+    sceneRef.current.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh && (child.userData?.isCadMesh || child.userData?.partIndex !== undefined)) {
+        const mesh = child as THREE.Mesh;
+        // Skip helpers and gizmos just in case
+        if (mesh.name.includes('Helper') || mesh.name.includes('Gizmo') || mesh.name.includes('Grid')) return;
+
+        const clone = mesh.clone();
+        
+        // Bake world transforms
+        const worldPos = new THREE.Vector3();
+        const worldQuat = new THREE.Quaternion();
+        const worldScale = new THREE.Vector3();
+        mesh.getWorldPosition(worldPos);
+        mesh.getWorldQuaternion(worldQuat);
+        mesh.getWorldScale(worldScale);
+        
+        clone.position.copy(worldPos);
+        clone.quaternion.copy(worldQuat);
+        clone.scale.copy(worldScale);
+        
+        // Ensure proper materials (convert toon/basic to standard for export compatibility)
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            clone.material = mesh.material.map(m => {
+              const baseMat = m as THREE.MeshStandardMaterial | THREE.MeshToonMaterial | THREE.MeshBasicMaterial;
+              return new THREE.MeshStandardMaterial({ color: baseMat.color || new THREE.Color('#cbd5e1') });
+            });
+          } else {
+            const baseMat = mesh.material as THREE.MeshStandardMaterial | THREE.MeshToonMaterial | THREE.MeshBasicMaterial;
+            clone.material = new THREE.MeshStandardMaterial({ color: baseMat.color || new THREE.Color('#cbd5e1') });
+          }
+        }
+        
+        // Remove children lines (blueprints, cel shading borders)
+        clone.children = clone.children.filter(c => !(c instanceof THREE.LineSegments));
+        
+        exportGroup.add(clone);
+      }
+    });
+
+    try {
+      const exporter = new GLTFExporter();
+      exporter.parse(
+        exportGroup,
+        (gltf) => {
+          const blob = new Blob([gltf as ArrayBuffer], { type: 'application/octet-stream' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${activeModelId}-split.glb`;
+          link.click();
+          URL.revokeObjectURL(url);
+          setExportProgress(`✅ Downloaded ${activeModelId}-split.glb`);
+          setTimeout(() => setExportProgress(null), 4000);
+          setIsExportingPosters(false);
+        },
+        (error) => {
+          console.error('Export GLB error:', error);
+          setExportProgress('❌ Export GLB failed');
+          setIsExportingPosters(false);
+          setTimeout(() => setExportProgress(null), 4000);
+        },
+        { binary: true }
+      );
+    } catch (e) {
+      console.error(e);
+      setExportProgress('❌ Export GLB failed');
+      setIsExportingPosters(false);
+      setTimeout(() => setExportProgress(null), 4000);
+    }
+  };
+
   const activeProject = useMemo(() => {
     return projectsData.find((p) => p.modelType === activeModelId) || projectsData[0];
   }, [activeModelId]);
@@ -419,6 +504,19 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
         const idx = parseInt(idxStr);
         const name = availableParts.find((p) => p.index === idx)?.name || `Part #${idx}`;
         output += `  ${idx}: '${color}', // ${name}\n`;
+      }
+      output += `};\n`;
+    }
+
+    if (Object.keys(settings.visibilityOverrides).length > 0) {
+      output += `\n// Hidden Parts:\n`;
+      output += `const partVisibilityOverrides: Record<number, boolean> = {\n`;
+      for (const [idxStr, isVisible] of Object.entries(settings.visibilityOverrides)) {
+        if (isVisible === false) {
+          const idx = parseInt(idxStr);
+          const name = availableParts.find((p) => p.index === idx)?.name || `Part #${idx}`;
+          output += `  ${idx}: false, // ${name}\n`;
+        }
       }
       output += `};\n`;
     }
@@ -1440,6 +1538,24 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                           #{selectedPartIndex}
                         </span>
                       </div>
+                    </div>
+
+                    {/* Visibility Toggle */}
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 font-mono text-xs">
+                      <div className="flex items-center gap-2">
+                        <Eye size={14} className={settings.visibilityOverrides[selectedPartIndex] !== false ? 'text-emerald-400' : 'text-red-400'} />
+                        <span className="text-slate-300 font-medium">Render Part in Scene</span>
+                      </div>
+                      <button
+                        onClick={() => updatePartVisibility(selectedPartIndex, settings.visibilityOverrides[selectedPartIndex] === false)}
+                        className={`px-3 py-1 rounded-lg border text-xs font-mono transition-colors ${
+                          settings.visibilityOverrides[selectedPartIndex] !== false
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : 'bg-red-500/20 text-red-300 border-red-500/40'
+                        }`}
+                      >
+                        {settings.visibilityOverrides[selectedPartIndex] !== false ? 'VISIBLE' : 'HIDDEN'}
+                      </button>
                     </div>
 
                     {/* Color Input */}
@@ -2660,10 +2776,19 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                     <button
                       onClick={handleExportAllPosters}
                       disabled={isExportingPosters}
-                      className="w-full py-2.5 px-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md disabled:opacity-50"
+                      className="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm border border-slate-700 disabled:opacity-50"
                     >
-                      <Sparkles size={13} />
-                      <span>⚡ Batch Export All 11 Models</span>
+                      <Sparkles size={13} className="text-purple-400" />
+                      <span>⚡ Batch Export All Posters</span>
+                    </button>
+
+                    <button
+                      onClick={handleExportGLB}
+                      disabled={isExportingPosters}
+                      className="w-full py-2.5 px-3 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md disabled:opacity-50 mt-1"
+                    >
+                      <Zap size={13} />
+                      <span>📦 Export Split Model as .GLB</span>
                     </button>
                   </div>
 
