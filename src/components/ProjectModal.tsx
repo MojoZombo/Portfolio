@@ -33,9 +33,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
   }, [project, onClose, selectedImage, is3DFullscreen]);
 
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollTop > 20 && !hasScrolled) {
+      setHasScrolled(true);
+    }
     // Consider it at the bottom if within 30px
     setIsScrolledToBottom(scrollHeight - scrollTop <= clientHeight + 30);
   };
@@ -458,7 +462,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
             
             {/* Mobile Scroll Indicator */}
             <div 
-              className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-white via-white/90 dark:from-[#141C28] dark:via-[#141C28]/90 to-transparent pointer-events-none transition-opacity duration-300 flex items-end justify-center pb-6 sm:hidden ${isScrolledToBottom ? 'opacity-0' : 'opacity-100'}`}
+              className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-white via-white/90 dark:from-[#141C28] dark:via-[#141C28]/90 to-transparent pointer-events-none transition-opacity duration-300 flex items-end justify-center pb-6 sm:hidden ${hasScrolled || isScrolledToBottom ? 'opacity-0' : 'opacity-100'}`}
             >
               <div className="animate-bounce bg-slate-900/10 dark:bg-white/10 p-2 rounded-full backdrop-blur-sm text-slate-500 dark:text-slate-400 shadow-sm border border-slate-900/5 dark:border-white/10 flex items-center justify-center">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
