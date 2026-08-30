@@ -268,6 +268,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               fov={34}
               near={0.1}
               far={1000}
+              onUpdate={(c) => c.lookAt(0, 0, 0)}
             />
 
             <ambientLight intensity={isDark ? (isActive ? 0.95 : 0.85) : (isActive ? 1.05 : 0.95)} />
