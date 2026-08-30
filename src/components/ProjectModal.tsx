@@ -32,6 +32,14 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [project, onClose, selectedImage, is3DFullscreen]);
 
+  const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    // Consider it at the bottom if within 30px
+    setIsScrolledToBottom(scrollHeight - scrollTop <= clientHeight + 30);
+  };
+
   // Prevent background body scrolling when modal or fullscreen 3D is active
   useEffect(() => {
     if (project) {
@@ -49,7 +57,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
   return (
     <>
       <AnimatePresence>
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto bg-black/75 backdrop-blur-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-6 overflow-hidden bg-black/75 backdrop-blur-md">
           {/* Backdrop Click */}
           <div className="fixed inset-0" onClick={onClose} />
 
@@ -59,11 +67,11 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 15 }}
             transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-10 w-full max-w-5xl max-h-[92vh] flex flex-col bg-white dark:bg-[#141C28] rounded-2xl border border-slate-300 dark:border-none shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100"
+            className="relative z-10 w-full h-full sm:h-auto max-w-5xl max-h-[100dvh] sm:max-h-[92vh] flex flex-col bg-white dark:bg-[#141C28] rounded-none sm:rounded-2xl border-0 sm:border sm:border-slate-300 dark:sm:border-none shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100"
           >
             {/* Header Title Bar */}
-            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/60 shrink-0">
-              <div className="flex flex-wrap items-center gap-3">
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/60 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 {project.company && (
                   <CompanyLogo
                     company={project.company}
@@ -72,16 +80,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                     size="sm"
                   />
                 )}
-                <span className="px-2.5 py-0.5 rounded text-[11px] font-mono font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                <span className="px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                   {project.date.toUpperCase()}
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                <h2 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight line-clamp-1">
                   {project.title}
                 </h2>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0 ml-2">
                 {project.projectWebsiteUrl && (
                   <a
                     href={project.projectWebsiteUrl}
@@ -114,7 +122,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
             </div>
 
             {/* Modal Scrollable Body */}
-            <div className="overflow-y-auto p-6 sm:p-8 space-y-8">
+            <div 
+              className="overflow-y-auto p-4 sm:p-8 space-y-8 pb-20 sm:pb-8 relative"
+              onScroll={handleScroll}
+            >
               
               {/* Interactive 3D Model Showcase */}
               <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg p-3 relative">
@@ -443,6 +454,17 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                 </div>
               )}
 
+            </div>
+            
+            {/* Mobile Scroll Indicator */}
+            <div 
+              className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-white via-white/90 dark:from-[#141C28] dark:via-[#141C28]/90 to-transparent pointer-events-none transition-opacity duration-300 flex items-end justify-center pb-6 sm:hidden ${isScrolledToBottom ? 'opacity-0' : 'opacity-100'}`}
+            >
+              <div className="animate-bounce bg-slate-900/10 dark:bg-white/10 p-2 rounded-full backdrop-blur-sm text-slate-500 dark:text-slate-400 shadow-sm border border-slate-900/5 dark:border-white/10 flex items-center justify-center">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </div>
             </div>
           </motion.div>
         </div>

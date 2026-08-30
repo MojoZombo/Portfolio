@@ -117,6 +117,17 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [isFadeComplete, setIsFadeComplete] = useState(false);
   const [isWindowScrolling, setIsWindowScrolling] = useState(false);
 
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const mediaQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
+      setIsTouchDevice(mediaQuery.matches);
+      const handler = (e: MediaQueryListEvent) => setIsTouchDevice(e.matches);
+      mediaQuery.addEventListener('change', handler);
+      return () => mediaQuery.removeEventListener('change', handler);
+    }
+  }, []);
+
   // Track window scrolling activity to guarantee 0 WebGL mount overhead while scrolling
   useEffect(() => {
     let scrollTimer: ReturnType<typeof setTimeout>;
@@ -204,13 +215,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     <div
       ref={containerRef}
       style={{ touchAction: allowZoom ? 'none' : 'pan-y' }}
-      onPointerDownCapture={(e) => {
-        // Prevent OrbitControls from receiving touch events on the main page
-        // so the user can scroll the page instead of rotating the model
-        if (!allowZoom && e.pointerType === 'touch') {
-          e.stopPropagation();
-        }
-      }}
       className={`relative ${className} select-none pointer-events-auto flex items-center justify-center overflow-hidden`}
     >
       {/* 1. LAYER 0: BLUEPRINT (Visible when Inactive) */}
@@ -285,21 +289,25 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             <CameraResetController resetTrigger={resetTrigger} />
             <CameraStateDetector onZoomChange={setIsZoomedIn} />
 
-            <OrbitControls
-              target={[0, 0, 0]}
-              enableZoom={allowZoom}
-              enablePan={allowZoom}
-              enableRotate={true}
-              autoRotate={false}
-              minPolarAngle={Math.PI / 6}
-              maxPolarAngle={Math.PI / 1.8}
-              dampingFactor={0.08}
-              touches={{
-                ONE: THREE.TOUCH.ROTATE,
-                TWO: THREE.TOUCH.DOLLY_PAN,
-              }}
-              onStart={handleCanvasInteraction}
-            />
+            {/* OrbitControls intercepts native touchstart events via addEventListener, which hijacks scrolling.
+                To completely fix mobile scrolling, we conditionally unmount OrbitControls when on the main page (allowZoom=false) on touch devices! */}
+            {(allowZoom || !isTouchDevice) && (
+              <OrbitControls
+                target={[0, 0, 0]}
+                enableZoom={allowZoom}
+                enablePan={allowZoom}
+                enableRotate={true}
+                autoRotate={false}
+                minPolarAngle={Math.PI / 6}
+                maxPolarAngle={Math.PI / 1.8}
+                dampingFactor={0.08}
+                touches={{
+                  ONE: THREE.TOUCH.ROTATE,
+                  TWO: THREE.TOUCH.DOLLY_PAN,
+                }}
+                onStart={handleCanvasInteraction}
+              />
+            )}
           </Canvas>
         </div>
       )}
