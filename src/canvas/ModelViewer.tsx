@@ -211,7 +211,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         src={bpPosterPath}
         alt={`${modelType} blueprint`}
         onError={() => setBpFallback(true)}
-        className={`absolute inset-0 w-full h-full object-contain pointer-events-none select-none z-0 transition-opacity ${fadeDuration} ease-in-out ${
+        className={`absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0 transition-opacity ${fadeDuration} ease-in-out ${
           isActive || allowZoom ? 'opacity-0' : 'opacity-100'
         }`}
         loading="lazy"
@@ -223,7 +223,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         src={shadedPosterPath}
         alt={`${modelType} shaded`}
         onError={() => setShadedFallback(true)}
-        className={`absolute inset-0 w-full h-full object-contain pointer-events-none select-none z-10 ${
+        className={`absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-10 ${
           isFadeComplete
             ? 'opacity-0 transition-opacity duration-200 ease-out'
             : `transition-opacity ${fadeDuration} ease-in-out ${showShadedStatic ? 'opacity-100' : 'opacity-0'}`
