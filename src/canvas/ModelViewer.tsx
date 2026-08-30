@@ -287,8 +287,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               maxPolarAngle={Math.PI / 1.8}
               dampingFactor={0.08}
               touches={{
-                ONE: THREE.TOUCH.ROTATE,
-                TWO: allowZoom ? THREE.TOUCH.DOLLY_PAN : THREE.TOUCH.DOLLY_PAN,
+                ONE: allowZoom ? THREE.TOUCH.ROTATE : THREE.TOUCH.NONE,
+                TWO: allowZoom ? THREE.TOUCH.DOLLY_PAN : THREE.TOUCH.NONE,
               }}
               onStart={handleCanvasInteraction}
             />
