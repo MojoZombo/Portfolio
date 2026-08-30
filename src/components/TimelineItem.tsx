@@ -1,21 +1,70 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Project } from '../types/project';
 import { ModelViewer } from '../canvas/ModelViewer';
 import { ArrowUpRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { CompanyLogo } from './CompanyLogo';
 
+// Default animation translation distances in both directions
+export const DEFAULT_MODEL_TRANSLATE_X = 160; // Direction: Right (+X)
+export const DEFAULT_TEXT_TRANSLATE_X = -24;  // Direction: Left (-X)
+export const DEFAULT_MODEL_TRANSLATE_Y = 0;
+export const DEFAULT_TEXT_TRANSLATE_Y = 0;
+
 interface TimelineItemProps {
   project: Project;
   index: number;
   onSelect: (project: Project) => void;
   onVisible: (id: string) => void;
+  /** Custom translation distance for 3D model (default: 160px, positive = right, negative = left) */
+  modelTranslateX?: number;
+  /** Custom translation distance for text card (default: -24px, negative = left, positive = right) */
+  textTranslateX?: number;
+  /** Optional custom vertical translation distance for 3D model */
+  modelTranslateY?: number;
+  /** Optional custom vertical translation distance for text card */
+  textTranslateY?: number;
 }
 
-export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, onVisible }) => {
+const TimelineItemComponent: React.FC<TimelineItemProps> = ({
+  project,
+  onSelect,
+  onVisible,
+  modelTranslateX,
+  textTranslateX,
+  modelTranslateY,
+  textTranslateY,
+}) => {
+  // Resolve custom translation distances for both directions:
+  // Priority: Prop override > Project level setting > Default distance
+  const modelShiftX =
+    modelTranslateX ??
+    project.modelTranslateX ??
+    project.animationTranslation?.modelX ??
+    DEFAULT_MODEL_TRANSLATE_X;
+
+  const textShiftX =
+    textTranslateX ??
+    project.textTranslateX ??
+    project.animationTranslation?.textX ??
+    DEFAULT_TEXT_TRANSLATE_X;
+
+  const modelShiftY =
+    modelTranslateY ??
+    project.modelTranslateY ??
+    project.animationTranslation?.modelY ??
+    DEFAULT_MODEL_TRANSLATE_Y;
+
+  const textShiftY =
+    textTranslateY ??
+    project.textTranslateY ??
+    project.animationTranslation?.textY ??
+    DEFAULT_TEXT_TRANSLATE_Y;
+
   const itemRef = useRef<HTMLDivElement | null>(null);
   const [isActive, setIsActive] = useState(false);
   const isActiveRef = useRef(false);
+  const [isSettled, setIsSettled] = useState(false);
   const [isDesktop, setIsDesktop] = useState(true);
 
   useEffect(() => {
@@ -27,21 +76,29 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
-  useEffect(() => {
+  const docCenterYRef = useRef(0);
+
+  const measureDocCenter = useCallback(() => {
     const el = itemRef.current;
     if (!el) return;
+    const rect = el.getBoundingClientRect();
+    docCenterYRef.current = rect.top + (window.scrollY || window.pageYOffset || 0) + rect.height / 2;
+  }, []);
 
+  useEffect(() => {
     let ticking = false;
 
-    // Detect active center zone with adaptive threshold for mobile vs desktop
+    // Detect active center zone using instant arithmetic against cached position (ZERO reflows)
     const checkVisibility = () => {
       if (!ticking) {
         window.requestAnimationFrame(() => {
-          const rect = el.getBoundingClientRect();
+          if (docCenterYRef.current === 0) {
+            measureDocCenter();
+          }
+
           const windowHeight = window.innerHeight;
-          const elementCenter = rect.top + rect.height / 2;
-          const viewportCenter = windowHeight / 2;
-          const distance = Math.abs(elementCenter - viewportCenter);
+          const currentDocCenter = (window.scrollY || window.pageYOffset || 0) + windowHeight / 2;
+          const distance = Math.abs(docCenterYRef.current - currentDocCenter);
 
           // Adaptive threshold for mobile vs desktop with compact spacing
           const isMobileDevice = window.innerWidth < 768;
@@ -58,6 +115,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
           if (nextActive !== isActiveRef.current) {
             isActiveRef.current = nextActive;
             setIsActive(nextActive);
+            setIsSettled(false);
             if (nextActive) {
               onVisible(project.id);
             }
@@ -69,15 +127,21 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
       }
     };
 
+    const handleResize = () => {
+      measureDocCenter();
+      checkVisibility();
+    };
+
     window.addEventListener('scroll', checkVisibility, { passive: true });
-    window.addEventListener('resize', checkVisibility);
+    window.addEventListener('resize', handleResize, { passive: true });
+    measureDocCenter();
     checkVisibility();
 
     return () => {
       window.removeEventListener('scroll', checkVisibility);
-      window.removeEventListener('resize', checkVisibility);
+      window.removeEventListener('resize', handleResize);
     };
-  }, [project.id, onVisible]);
+  }, [project.id, onVisible, measureDocCenter]);
 
   return (
     <section
@@ -95,13 +159,14 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
           initial={false}
           animate={{
             opacity: isDesktop ? (isActive ? 1 : 0) : 1,
-            x: isDesktop ? (isActive ? 0 : -24) : 0,
+            x: isDesktop ? (isActive ? 0 : textShiftX) : 0,
+            y: isDesktop ? (isActive ? 0 : textShiftY) : 0,
             pointerEvents: isDesktop ? (isActive ? 'auto' : 'none') : 'auto',
           }}
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           className="w-full md:w-5/12 md:absolute md:left-4 lg:left-8 z-20"
         >
-          <div className="space-y-2.5 bg-slate-50/70 dark:bg-slate-900/60 md:bg-transparent md:dark:bg-transparent backdrop-blur-sm md:backdrop-blur-none p-3.5 sm:p-4 md:p-0 rounded-2xl md:rounded-none border border-slate-200/50 dark:border-slate-800/50 md:border-0 shadow-sm md:shadow-none">
+          <div className="space-y-2.5 bg-slate-50/70 dark:bg-slate-900/60 md:bg-transparent md:dark:bg-transparent backdrop-blur-sm md:backdrop-blur-none p-3.5 sm:p-4 md:p-0 rounded md:rounded-none border border-slate-200/50 dark:border-slate-800/50 md:border-0">
             {/* Company Badge & Date */}
             <div className="flex flex-wrap items-center gap-2">
               {project.company && (
@@ -131,7 +196,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
             <div className="pt-1">
               <button
                 onClick={() => onSelect(project)}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-mono font-medium bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-200 dark:hover:bg-white dark:text-slate-900 transition-all shadow-sm active:scale-95 cursor-pointer touch-manipulation"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded text-xs font-mono font-medium bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-200 dark:hover:bg-white dark:text-slate-900 transition-colors cursor-pointer touch-manipulation"
               >
                 <span>View Project Details</span>
                 <ArrowUpRight size={14} />
@@ -143,15 +208,25 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
         <motion.div
           initial={false}
           animate={{
-            x: isDesktop && isActive ? 160 : 0,
+            x: isDesktop && isActive ? modelShiftX : 0,
+            y: isDesktop && isActive ? modelShiftY : 0,
           }}
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+          onAnimationStart={() => {
+            setIsSettled(false);
+          }}
+          onAnimationComplete={() => {
+            if (isActiveRef.current) {
+              setIsSettled(true);
+            }
+          }}
           className="w-full flex items-center justify-center overflow-visible will-change-transform"
         >
           <div className="w-full max-w-2xl flex items-center justify-center overflow-visible">
             <ModelViewer
               modelType={project.modelType}
               isActive={isActive}
+              isSettled={!isDesktop || isSettled}
               className="h-[270px] xs:h-[310px] sm:h-[400px] md:h-[490px] w-full"
             />
           </div>
@@ -161,3 +236,5 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({ project, onSelect, o
     </section>
   );
 };
+
+export const TimelineItem = React.memo(TimelineItemComponent);

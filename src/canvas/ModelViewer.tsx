@@ -9,6 +9,7 @@ import { Pause, Play, RotateCcw } from 'lucide-react';
 interface ModelViewerProps {
   modelType: string;
   isActive?: boolean;
+  isSettled?: boolean;
   isHovered?: boolean;
   className?: string;
   allowZoom?: boolean;
@@ -98,6 +99,7 @@ function CameraStateDetector({
 export const ModelViewer: React.FC<ModelViewerProps> = ({
   modelType,
   isActive = false,
+  isSettled = true,
   isHovered = false,
   className = 'h-[340px] sm:h-[480px] md:h-[560px] w-full',
   allowZoom = false,
@@ -113,22 +115,41 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
 
   const [shouldMountWebGL, setShouldMountWebGL] = useState(false);
   const [isFadeComplete, setIsFadeComplete] = useState(false);
+  const [isWindowScrolling, setIsWindowScrolling] = useState(false);
 
-  // Mount WebGL ONLY when settled to prevent scroll stuttering
+  // Track window scrolling activity to guarantee 0 WebGL mount overhead while scrolling
+  useEffect(() => {
+    let scrollTimer: ReturnType<typeof setTimeout>;
+    const handleWindowScroll = () => {
+      setIsWindowScrolling(true);
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        setIsWindowScrolling(false);
+      }, 120);
+    };
+
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleWindowScroll);
+      clearTimeout(scrollTimer);
+    };
+  }, []);
+
+  // Mount WebGL ONLY when slide animation is finished AND user has paused scrolling
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     if (allowZoom) {
-      // Wait for the 250ms ProjectModal scale-in animation to finish to avoid fractional grid rendering
+      // In ProjectModal, wait 250ms for modal scale-in animation to finish
       timer = setTimeout(() => {
         setShouldMountWebGL(true);
       }, 250);
-    } else if (isActive) {
-      // Wait for the 550ms slide transition to finish before mounting WebGL to avoid fractional grid rendering
+    } else if (isActive && isSettled && !isWindowScrolling) {
+      // Mount WebGL strictly after onAnimationComplete has fired and scroll is settled!
       timer = setTimeout(() => {
         setShouldMountWebGL(true);
-      }, 550); 
-    } else {
-      // Extremely fast unmount to prevent ghosting of the 3D model when scrolling away
+      }, 60); 
+    } else if (!isActive) {
+      // Fast unmount when scrolling away
       timer = setTimeout(() => {
         setShouldMountWebGL(false);
         setIsCanvasReady(false);
@@ -136,7 +157,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       }, 150);
     }
     return () => clearTimeout(timer);
-  }, [isActive, allowZoom]);
+  }, [isActive, isSettled, isWindowScrolling, allowZoom]);
 
   // Duration for transitions: fast elegant fade in
   const fadeDuration = isActive || allowZoom ? 'duration-300' : 'duration-150';
@@ -275,9 +296,9 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         </div>
       )}
 
-      {/* Interactive Controls Pill in Corner */}
+      {/* Interactive Controls in Corner */}
       {allowZoom && (
-        <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-30 flex items-center gap-1.5 bg-slate-900/90 dark:bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-700/60 shadow-xl pointer-events-auto select-none transition-all">
+        <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-30 flex items-center gap-2 pointer-events-auto select-none">
           {/* Pause / Play Animation Button */}
           <button
             type="button"
@@ -286,36 +307,33 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               setIsAnimationPlaying(next);
               setIsRotating(next);
             }}
-            className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium ${
-              isAnimationPlaying
-                ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
-                : 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
-            }`}
+            className="px-3 py-1.5 rounded bg-white hover:bg-slate-100 text-slate-700 dark:bg-slate-900/90 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700/60 backdrop-blur-sm transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
             title={isAnimationPlaying ? 'Pause 3D animation and rotation' : 'Play 3D animation and rotation'}
           >
-            {isAnimationPlaying ? <Pause size={13} /> : <Play size={13} />}
+            {isAnimationPlaying ? (
+              <Pause size={12} className="text-blue-600 dark:text-blue-400" />
+            ) : (
+              <Play size={12} className="text-amber-600 dark:text-amber-400" />
+            )}
             <span>{isAnimationPlaying ? 'Pause' : 'Play'}</span>
           </button>
 
           {/* Reset Model / Camera View Button (Only appears if user has zoomed in / moved camera) */}
           {isZoomedIn && (
-            <>
-              <div className="w-px h-3.5 bg-slate-700 mx-0.5" />
-              <button
-                type="button"
-                onClick={() => {
-                  setResetTrigger((prev) => prev + 1);
-                  setIsZoomedIn(false);
-                  setIsAnimationPlaying(true);
-                  setIsRotating(true);
-                }}
-                className="px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium animate-fade-in"
-                title="Reset 3D model zoom and position"
-              >
-                <RotateCcw size={13} className="text-blue-400" />
-                <span>Reset View</span>
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => {
+                setResetTrigger((prev) => prev + 1);
+                setIsZoomedIn(false);
+                setIsAnimationPlaying(true);
+                setIsRotating(true);
+              }}
+              className="px-3 py-1.5 rounded bg-white hover:bg-slate-100 text-slate-700 dark:bg-slate-900/90 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700/60 backdrop-blur-sm transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
+              title="Reset 3D model zoom and position"
+            >
+              <RotateCcw size={12} className="text-blue-600 dark:text-blue-400" />
+              <span>Reset View</span>
+            </button>
           )}
         </div>
       )}

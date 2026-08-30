@@ -4,7 +4,7 @@ export interface ProjectSpec {
 }
 
 export interface MediaItem {
-  type: 'image' | 'youtube';
+  type: 'image' | 'youtube' | 'video';
   url: string;
   caption?: string;
   title?: string;
@@ -25,6 +25,17 @@ export interface StructuredSection {
   images?: MediaItem[];
   carouselImages?: MediaItem[];
   media?: MediaItem[];
+}
+
+export interface AnimationTranslation {
+  /** Horizontal translation distance for 3D model on desktop (default: 160px, positive = right, negative = left) */
+  modelX?: number;
+  /** Horizontal translation distance for text card on desktop (default: -24px, negative = left, positive = right) */
+  textX?: number;
+  /** Vertical translation distance for 3D model (default: 0px) */
+  modelY?: number;
+  /** Vertical translation distance for text card (default: 0px) */
+  textY?: number;
 }
 
 export interface Project {
@@ -68,4 +79,14 @@ export interface Project {
     base: string;
     details: string;
   };
+  /** Custom translation distances for desktop animations in both directions */
+  animationTranslation?: AnimationTranslation;
+  /** Direct shorthand for model horizontal translation distance */
+  modelTranslateX?: number;
+  /** Direct shorthand for text card horizontal translation distance */
+  textTranslateX?: number;
+  /** Direct shorthand for model vertical translation distance */
+  modelTranslateY?: number;
+  /** Direct shorthand for text card vertical translation distance */
+  textTranslateY?: number;
 }

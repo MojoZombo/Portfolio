@@ -474,10 +474,14 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
             .add(node.initialPos.clone().sub(pivot).applyQuaternion(qDelta));
         } else if (anim.type === 'linear-reciprocate') {
           node.mesh.quaternion.copy(node.initialQuat);
-          const ampMeters = ((anim.amplitude || 10) / 100) * dir;
+          const distPosM = ((anim.amplitudePositive !== undefined ? anim.amplitudePositive : (anim.amplitude || 10)) / 100);
+          const distNegM = ((anim.amplitudeNegative !== undefined ? anim.amplitudeNegative : (anim.amplitude || 10)) / 100);
+          const centerM = (distPosM - distNegM) / 2;
+          const strokeHalfM = (distPosM + distNegM) / 2;
+          const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
           const displacement = axisVec
             .clone()
-            .multiplyScalar(Math.sin(time * omega + phaseRad) * ampMeters);
+            .multiplyScalar(displacementScalar);
           node.mesh.position.copy(node.initialPos).add(displacement);
         }
       });

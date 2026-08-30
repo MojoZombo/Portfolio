@@ -11,7 +11,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-[#141C28] text-slate-100 font-sans antialiased selection:bg-blue-500 selection:text-white overflow-x-hidden transition-colors duration-300">
+  <body class="bg-slate-50 dark:bg-[#141C28] text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-blue-500 selection:text-white overflow-x-hidden transition-colors duration-300">
+    <script>
+      (function() {
+        var theme = localStorage.getItem('cad-theme');
+        if (theme === 'light') {
+          document.documentElement.style.backgroundColor = '#f8fafc';
+          document.body.style.backgroundColor = '#f8fafc';
+        } else {
+          document.documentElement.style.backgroundColor = '#141c28';
+          document.body.style.backgroundColor = '#141c28';
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

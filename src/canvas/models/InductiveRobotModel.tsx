@@ -48,21 +48,19 @@ export const InductiveRobotModel: React.FC<ModelProps> = ({
       }
     }
 
-    // Kinematic slow motion for charging arm & wheels
-    if (armBaseRef.current && isAnimating) {
-      armBaseRef.current.rotation.y = Math.sin(time * 0.8) * 0.4;
+    // Kinematic slow motion for charging arm & wheels (Starts smoothly from 0 at rest)
+    if (armBaseRef.current) {
+      armBaseRef.current.rotation.y = isAnimating ? Math.sin(time * 0.8) * 0.4 : 0;
     }
-    if (armUpperRef.current && isAnimating) {
-      armUpperRef.current.rotation.z = Math.sin(time * 1.2) * 0.25 - 0.2;
+    if (armUpperRef.current) {
+      armUpperRef.current.rotation.z = isAnimating ? Math.sin(time * 1.2) * 0.25 : 0;
     }
 
     const wheelSpin = time * 2.0;
-    if (isAnimating) {
-      if (wheelFL.current) wheelFL.current.rotation.x = wheelSpin;
-      if (wheelFR.current) wheelFR.current.rotation.x = wheelSpin;
-      if (wheelRL.current) wheelRL.current.rotation.x = wheelSpin;
-      if (wheelRR.current) wheelRR.current.rotation.x = wheelSpin;
-    }
+    if (wheelFL.current) wheelFL.current.rotation.x = isAnimating ? wheelSpin : 0;
+    if (wheelFR.current) wheelFR.current.rotation.x = isAnimating ? wheelSpin : 0;
+    if (wheelRL.current) wheelRL.current.rotation.x = isAnimating ? wheelSpin : 0;
+    if (wheelRR.current) wheelRR.current.rotation.x = isAnimating ? wheelSpin : 0;
   });
 
   // Clearpath Husky Signature Colors + Industrial EV Battery Hardware

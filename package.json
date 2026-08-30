@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@embedpdf/core": "^2.15.0",
     "@react-three/drei": "^9.99.0",
     "@react-three/fiber": "^8.15.16",
     "clsx": "^2.1.0",

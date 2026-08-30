@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { Sun, Moon, FileText } from 'lucide-react';
+import { Sun, Moon, FileText, MapPin, GraduationCap, Mail, Linkedin } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -14,29 +14,37 @@ export const Header: React.FC = () => {
               Jaden Fann
             </h1>
             <p className="text-xs sm:text-sm font-mono text-blue-600 dark:text-blue-400 font-semibold">
-              Mechanical Engineer @ Blue Origin // UC Berkeley M.S. Mechanical Engineering
+              Mechanical Engineer @ Blue Origin · UC Berkeley M.S. Mechanical Engineering
             </p>
             <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed pt-1">
               Mechanical Engineer at Blue Origin designing actuation mechanisms for the Blue Moon Lunar Lander MK II. UC Berkeley M.S. and B.S. in Mechanical Engineering with experience spanning Tesla, Sentien Robotics, Raise Robotics, and Group14 Technologies specializing in electromechanical mechanisms, robotics, and design for manufacturing.
             </p>
             
             {/* Quick contact / education tags */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-              <span>📍 Seattle, WA</span>
-              <span>🎓 UC Berkeley M.S. ME ('25)</span>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 pt-1 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin size={12} className="text-slate-400 dark:text-slate-500" />
+                <span>Seattle, WA</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <GraduationCap size={13} className="text-slate-400 dark:text-slate-500" />
+                <span>UC Berkeley M.S. ME ('25)</span>
+              </span>
               <a
                 href="mailto:fann@berkeley.edu"
-                className="hover:text-blue-500 transition-colors"
+                className="hover:text-blue-500 transition-colors inline-flex items-center gap-1.5"
               >
-                ✉️ fann@berkeley.edu
+                <Mail size={12} className="text-slate-400 dark:text-slate-500" />
+                <span>fann@berkeley.edu</span>
               </a>
               <a
                 href="https://linkedin.com/in/jadenfann"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-blue-500 transition-colors inline-flex items-center gap-0.5"
+                className="hover:text-blue-500 transition-colors inline-flex items-center gap-1.5"
               >
-                <span>🔗 LinkedIn</span>
+                <Linkedin size={12} className="text-slate-400 dark:text-slate-500" />
+                <span>LinkedIn</span>
               </a>
             </div>
           </div>
@@ -44,13 +52,14 @@ export const Header: React.FC = () => {
           {/* Quick Action Links & Theme Toggle */}
           <div className="flex flex-wrap items-center gap-2.5 font-mono text-xs shrink-0">
             <a
-              href="./Jaden_Fann_Resume.pdf"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 font-medium transition-colors shadow-sm cursor-pointer"
+              href="#resume"
+              onClick={() => {
+                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 font-medium transition-colors cursor-pointer"
             >
               <FileText size={13} />
-              <span>Resume PDF</span>
+              <span>Resume</span>
             </a>
 
             <button

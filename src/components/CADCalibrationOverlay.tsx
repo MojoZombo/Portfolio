@@ -725,24 +725,72 @@ const partAnimationOverrides = ${JSON.stringify(settings.animationOverrides, nul
                           />
                         </div>
 
-                        {/* Amplitude / Stroke Slider */}
-                        {activeAnim.type !== 'continuous-spin' && (
+                        {/* Amplitude / Stroke Sliders */}
+                        {activeAnim.type === 'linear-reciprocate' ? (
+                          <div className="space-y-2 p-2 rounded-lg bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                            <div className="flex justify-between text-[10px] font-semibold text-amber-500">
+                              <span>Translation Distances</span>
+                              <span>
+                                Total: {(
+                                  (activeAnim.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim.amplitude || 10)) +
+                                  (activeAnim.amplitudeNegative !== undefined ? activeAnim.amplitudeNegative : (activeAnim.amplitude || 10))
+                                ).toFixed(1)} cm
+                              </span>
+                            </div>
+
+                            {/* Forward Distance (+ Axis) */}
+                            <div className="space-y-0.5">
+                              <div className="flex justify-between text-[10px]">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium">Forward (+{activeAnim.axis.toUpperCase()})</span>
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                  {activeAnim.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim.amplitude || 10)} cm
+                                </span>
+                              </div>
+                              <input
+                                type="range"
+                                min="0"
+                                max="50"
+                                step="0.5"
+                                value={activeAnim.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim.amplitude || 10)}
+                                onChange={(e) =>
+                                  updatePartAnimation(selectedPartIndex, { amplitudePositive: parseFloat(e.target.value) })
+                                }
+                                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                              />
+                            </div>
+
+                            {/* Reverse Distance (- Axis) */}
+                            <div className="space-y-0.5">
+                              <div className="flex justify-between text-[10px]">
+                                <span className="text-rose-600 dark:text-rose-400 font-medium">Reverse (-{activeAnim.axis.toUpperCase()})</span>
+                                <span className="font-bold text-rose-600 dark:text-rose-400">
+                                  {activeAnim.amplitudeNegative !== undefined ? activeAnim.amplitudeNegative : (activeAnim.amplitude || 10)} cm
+                                </span>
+                              </div>
+                              <input
+                                type="range"
+                                min="0"
+                                max="50"
+                                step="0.5"
+                                value={activeAnim.amplitudeNegative !== undefined ? activeAnim.amplitudeNegative : (activeAnim.amplitude || 10)}
+                                onChange={(e) =>
+                                  updatePartAnimation(selectedPartIndex, { amplitudeNegative: parseFloat(e.target.value) })
+                                }
+                                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                              />
+                            </div>
+                          </div>
+                        ) : activeAnim.type === 'oscillate-rotation' ? (
                           <div className="space-y-1">
                             <div className="flex justify-between text-[10px]">
-                              <span>
-                                {activeAnim.type === 'oscillate-rotation' ? 'Angle Amplitude' : 'Stroke Length'}
-                              </span>
-                              <span className="font-bold text-amber-500">
-                                {activeAnim.type === 'oscillate-rotation'
-                                  ? `${activeAnim.amplitude}°`
-                                  : `${activeAnim.amplitude} cm`}
-                              </span>
+                              <span>Angle Amplitude</span>
+                              <span className="font-bold text-amber-500">{activeAnim.amplitude}°</span>
                             </div>
                             <input
                               type="range"
-                              min={activeAnim.type === 'oscillate-rotation' ? '5' : '1'}
-                              max={activeAnim.type === 'oscillate-rotation' ? '180' : '50'}
-                              step={activeAnim.type === 'oscillate-rotation' ? '5' : '1'}
+                              min="5"
+                              max="180"
+                              step="5"
                               value={activeAnim.amplitude}
                               onChange={(e) =>
                                 updatePartAnimation(selectedPartIndex, { amplitude: parseFloat(e.target.value) })
@@ -750,7 +798,7 @@ const partAnimationOverrides = ${JSON.stringify(settings.animationOverrides, nul
                               className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
                             />
                           </div>
-                        )}
+                        ) : null}
 
                         {/* Phase Offset Slider */}
                         <div className="space-y-1">

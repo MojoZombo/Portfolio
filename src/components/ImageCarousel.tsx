@@ -29,7 +29,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
   const currentImg = images[currentIndex];
 
   return (
-    <div className="relative w-full rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 shadow-sm my-3 select-none">
+    <div className="relative w-full rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 my-3 select-none">
       {/* Main Image Display Area (Seamless with page) */}
       <div className="relative h-[320px] sm:h-[400px] w-full flex items-center justify-center p-3 sm:p-5">
         <AnimatePresence mode="wait">
@@ -45,9 +45,9 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
             <img
               src={currentImg.url}
               alt={currentImg.caption || currentImg.title || 'Project image'}
-              className="max-h-full max-w-full object-contain rounded-lg drop-shadow-sm group-hover:scale-[1.01] transition-transform"
+              className="max-h-full max-w-full object-contain rounded-lg group-hover:scale-[1.01] transition-transform"
             />
-            <div className="absolute top-3 right-3 bg-slate-900/75 hover:bg-slate-900 text-white text-xs font-mono px-2.5 py-1 rounded backdrop-blur flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute top-3 right-3 bg-slate-900/75 hover:bg-slate-900 text-white text-xs font-mono px-2.5 py-1 rounded flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
               <ZoomIn size={13} />
               <span>Enlarge</span>
             </div>
@@ -62,20 +62,20 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
                 e.stopPropagation();
                 prevSlide();
               }}
-              className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-sm backdrop-blur transition-all active:scale-95 cursor-pointer z-10"
+              className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white/90 hover:bg-white text-slate-700 dark:bg-slate-900/90 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700/60 backdrop-blur-sm transition-colors cursor-pointer z-10"
               aria-label="Previous Image"
             >
-              <ChevronLeft size={18} />
+              <ChevronLeft size={16} />
             </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 nextSlide();
               }}
-              className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-sm backdrop-blur transition-all active:scale-95 cursor-pointer z-10"
+              className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white/90 hover:bg-white text-slate-700 dark:bg-slate-900/90 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700/60 backdrop-blur-sm transition-colors cursor-pointer z-10"
               aria-label="Next Image"
             >
-              <ChevronRight size={18} />
+              <ChevronRight size={16} />
             </button>
           </>
         )}

@@ -7,40 +7,90 @@ import { ProjectModal } from './components/ProjectModal';
 import { CADStudioWorkbench } from './components/studio/CADStudioWorkbench';
 import { PosterBakerPage } from './components/poster/PosterBakerPage';
 import { CADLoadingScreen } from './components/CADLoadingScreen';
+import { ResumeModal } from './components/ResumeModal';
 import { projectsData } from './data/projectsData';
 import { Project } from './types/project';
 import { ExternalLink, Cpu, Camera } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(() => {
+    const rawHash = window.location.hash.replace(/^#\/?/, '');
+    if (rawHash && rawHash !== 'resume' && rawHash !== 'studio' && rawHash !== 'baker') {
+      return projectsData.find(p => p.id === rawHash) || null;
+    }
+    return null;
+  });
   const [activeProjectId, setActiveProjectId] = useState<string>(projectsData[0]?.id || '');
+  const [isResumeOpen, setIsResumeOpen] = useState<boolean>(() => {
+    return (
+      window.location.hash === '#resume' ||
+      window.location.hash === '#/resume' ||
+      window.location.search.includes('resume=true')
+    );
+  });
   const [isStudioOpen, setIsStudioOpen] = useState<boolean>(() => {
     return (
       window.location.hash === '#studio' ||
+      window.location.hash === '#/studio' ||
       window.location.search.includes('studio=true')
     );
   });
   const [isBakerOpen, setIsBakerOpen] = useState<boolean>(() => {
     return (
       window.location.hash === '#baker' ||
+      window.location.hash === '#/baker' ||
       window.location.search.includes('baker=true')
     );
   });
 
-  // Listen for hash changes (e.g. #studio, #baker)
+  // Listen for hash changes (e.g. #resume, #studio, #baker, #tesla-actuator, etc.)
   useEffect(() => {
     const handleHashChange = () => {
-      setIsStudioOpen(
-        window.location.hash === '#studio' ||
-        window.location.search.includes('studio=true')
-      );
-      setIsBakerOpen(
-        window.location.hash === '#baker' ||
-        window.location.search.includes('baker=true')
-      );
+      const rawHash = window.location.hash.replace(/^#\/?/, '');
+      const isResume = rawHash === 'resume' || window.location.search.includes('resume=true');
+      const isStudio = rawHash === 'studio' || window.location.search.includes('studio=true');
+      const isBaker = rawHash === 'baker' || window.location.search.includes('baker=true');
+
+      setIsResumeOpen(isResume);
+      setIsStudioOpen(isStudio);
+      setIsBakerOpen(isBaker);
+
+      if (isStudio || isBaker) {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      }
+
+      if (!isResume && !isStudio && !isBaker && rawHash) {
+        const found = projectsData.find(p => p.id === rawHash);
+        setSelectedProject(found || null);
+      } else if (!rawHash) {
+        setSelectedProject(null);
+      }
     };
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handleHashChange);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handleHashChange);
+    };
+  }, []);
+
+  const handleSelectProject = React.useCallback((p: Project) => {
+    setSelectedProject(p);
+    if (window.location.hash.replace(/^#\/?/, '') !== p.id) {
+      window.history.pushState(null, '', `#${p.id}`);
+    }
+  }, []);
+
+  const handleCloseProjectModal = React.useCallback(() => {
+    setSelectedProject(null);
+    const currentHash = window.location.hash.replace(/^#\/?/, '');
+    if (currentHash && currentHash !== 'resume' && currentHash !== 'studio' && currentHash !== 'baker') {
+      window.history.pushState(null, '', window.location.pathname + window.location.search);
+    }
+  }, []);
+
+  const handleVisibleProject = React.useCallback((id: string) => {
+    setActiveProjectId(id);
   }, []);
 
   // If in dedicated Poster Baker mode, render full-screen Poster Baker
@@ -93,8 +143,8 @@ export const App: React.FC = () => {
               key={project.id}
               project={project}
               index={index}
-              onSelect={(p) => setSelectedProject(p)}
-              onVisible={(id) => setActiveProjectId(id)}
+              onSelect={handleSelectProject}
+              onVisible={handleVisibleProject}
             />
           ))}
         </div>
@@ -103,7 +153,17 @@ export const App: React.FC = () => {
       {/* Project Engineering Spec Modal */}
       <ProjectModal
         project={selectedProject}
-        onClose={() => setSelectedProject(null)}
+        onClose={handleCloseProjectModal}
+      />
+
+      <ResumeModal
+        isOpen={isResumeOpen}
+        onClose={() => {
+          setIsResumeOpen(false);
+          if (window.location.hash === '#resume') {
+            window.history.pushState(null, '', window.location.pathname);
+          }
+        }}
       />
 
       {/* Minimal Engineering Footer */}
@@ -115,6 +175,7 @@ export const App: React.FC = () => {
               onClick={() => {
                 window.location.hash = 'baker';
                 setIsBakerOpen(true);
+                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
               }}
               className="hover:text-emerald-500 transition-colors flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 cursor-pointer text-[11px]"
               title="Open 1:1 Exact Model Poster Baker"
@@ -127,6 +188,7 @@ export const App: React.FC = () => {
               onClick={() => {
                 window.location.hash = 'studio';
                 setIsStudioOpen(true);
+                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
               }}
               className="hover:text-blue-500 transition-colors flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 cursor-pointer text-[11px]"
               title="Open Fullscreen 3D CAD Alignment & Kinematics Studio"
@@ -144,9 +206,7 @@ export const App: React.FC = () => {
               <ExternalLink size={11} />
             </a>
             <a
-              href="./Jaden_Fann_Resume.pdf"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="#resume"
               className="hover:text-blue-500 transition-colors"
             >
               RESUME

@@ -49,7 +49,15 @@ export default defineConfig({
   base: './', // Ensures assets load properly on GitHub Pages, Vercel, or custom domains
   server: {
     watch: {
-      ignored: ['**/public/**', '**/dist/**', '**/*.png', '**/*.pdf', '**/*.zip'],
+      ignored: [
+        '**/public/posters/**',
+        '**/dist/**',
+        '**/*.mp4',
+        '**/*.webm',
+        '**/*.pdf',
+        '**/*.zip',
+        '**/*.glb',
+      ],
     },
   },
 });

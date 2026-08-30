@@ -56,6 +56,10 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
   const { theme, setTheme } = useTheme();
   const isDark = theme === 'dark';
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
+
   const modelsList = projectsData.filter((p) => p.modelType);
 
   const [currentIndex, setCurrentIndex] = useState(0);

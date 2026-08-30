@@ -24,7 +24,7 @@ export const QuickNav: React.FC<QuickNavProps> = ({ projects }) => {
 
   return (
     <nav className="fixed right-4 sm:right-6 top-1/2 -translate-y-1/2 z-30 hidden xl:flex flex-col items-end gap-2 font-mono text-[11px] select-none">
-      <div className="p-2 rounded-lg bg-white/80 dark:bg-cad-surface/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center gap-3">
+      <div className="p-2 rounded bg-white/80 dark:bg-cad-surface/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 flex flex-col items-center gap-3">
         <button
           onClick={scrollToTop}
           className="text-slate-400 hover:text-blue-500 transition-colors p-1"

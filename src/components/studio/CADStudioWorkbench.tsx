@@ -200,10 +200,17 @@ function StudioSceneBridge({
                 );
             } else if (anim.type === 'linear-reciprocate') {
               mesh.quaternion.copy(mesh.userData.initialQuat);
-              const ampMeters = ((anim.amplitude || 10) / 100) * dir;
+              // Custom translation distances in both directions (Forward/Positive and Reverse/Negative in cm)
+              const distPosM = ((anim.amplitudePositive !== undefined ? anim.amplitudePositive : (anim.amplitude || 10)) / 100);
+              const distNegM = ((anim.amplitudeNegative !== undefined ? anim.amplitudeNegative : (anim.amplitude || 10)) / 100);
+
+              const centerM = (distPosM - distNegM) / 2;
+              const strokeHalfM = (distPosM + distNegM) / 2;
+              const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
+
               const displacement = axisVec
                 .clone()
-                .multiplyScalar(Math.sin(time * omega + phaseRad) * ampMeters);
+                .multiplyScalar(displacementScalar);
               mesh.position
                 .copy(mesh.userData.initialPos as THREE.Vector3)
                 .add(displacement);
@@ -261,6 +268,10 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
   const [copied, setCopied] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [editingPartIndex, setEditingPartIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
   const [tempPartName, setTempPartName] = useState('');
   const [splitFeedback, setSplitFeedback] = useState<string | null>(null);
   const [splitToleranceRatio, setSplitToleranceRatio] = useState<number>(0.001);
@@ -1768,9 +1779,11 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                           updatePartAnimation(selectedPartIndex, {
                             type: e.target.value as any,
                             axis: activeAnim?.axis || 'x',
-                            speed: activeAnim?.speed || 60,
+                            speed: activeAnim?.speed || (e.target.value === 'linear-reciprocate' ? 2.0 : 60),
                             direction: activeAnim?.direction || 1,
-                            amplitude: activeAnim?.amplitude || 35,
+                            amplitude: activeAnim?.amplitude || (e.target.value === 'linear-reciprocate' ? 10 : 35),
+                            amplitudePositive: activeAnim?.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim?.amplitude || 10),
+                            amplitudeNegative: activeAnim?.amplitudeNegative !== undefined ? activeAnim.amplitudeNegative : (activeAnim?.amplitude || 10),
                             phase: activeAnim?.phase || 0,
                             pivotMode: activeAnim?.pivotMode || 'center-of-mass',
                             pivotX: activeAnim?.pivotX || 0,
@@ -1815,7 +1828,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
 
                         {/* Direction */}
                         <div className="space-y-1.5">
-                          <span className="text-xs font-mono font-semibold text-slate-300">Spin Direction</span>
+                          <span className="text-xs font-mono font-semibold text-slate-300">Motion Direction</span>
                           <div className="flex gap-2">
                             <button
                               onClick={() => updatePartAnimation(selectedPartIndex, { direction: 1 })}
@@ -1840,33 +1853,220 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                           </div>
                         </div>
 
-                        {/* Speed in RPM with Direct Input */}
+                        {/* Speed / Frequency with Direct Input */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-mono">
-                            <span className="text-slate-300 font-semibold">Motion Speed</span>
+                            <span className="text-slate-300 font-semibold">
+                              {activeAnim.type === 'linear-reciprocate' ? 'Stroke Frequency' : 'Motion Speed'}
+                            </span>
                             <div className="flex items-center gap-1">
                               <input
                                 type="number"
-                                min="0"
-                                max="10000"
-                                step="1"
+                                min="0.1"
+                                max={activeAnim.type === 'linear-reciprocate' ? '60' : '10000'}
+                                step={activeAnim.type === 'linear-reciprocate' ? '0.1' : '1'}
                                 value={activeAnim.speed}
                                 onChange={(e) => updatePartAnimation(selectedPartIndex, { speed: parseFloat(e.target.value) || 0 })}
                                 className="w-18 px-2 py-0.5 bg-slate-950 text-xs font-mono text-amber-400 font-bold rounded border border-slate-800 text-right outline-none"
                               />
-                              <span className="text-slate-400 text-[11px]">RPM</span>
+                              <span className="text-slate-400 text-[11px]">
+                                {activeAnim.type === 'linear-reciprocate' ? 'Hz' : 'RPM'}
+                              </span>
                             </div>
                           </div>
                           <input
                             type="range"
-                            min="1"
-                            max="3000"
-                            step="1"
+                            min={activeAnim.type === 'linear-reciprocate' ? '0.2' : '1'}
+                            max={activeAnim.type === 'linear-reciprocate' ? '20' : '3000'}
+                            step={activeAnim.type === 'linear-reciprocate' ? '0.1' : '1'}
                             value={activeAnim.speed}
                             onChange={(e) => updatePartAnimation(selectedPartIndex, { speed: parseFloat(e.target.value) })}
                             className="w-full accent-amber-500 cursor-pointer"
                           />
                         </div>
+
+                        {/* Custom Translation Distances in Both Directions */}
+                        {activeAnim.type === 'linear-reciprocate' && (
+                          <div className="space-y-3 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-mono font-semibold text-amber-400">
+                                Translation Distances (Both Directions)
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400">
+                                Total: {(
+                                  (activeAnim.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim.amplitude || 10)) +
+                                  (activeAnim.amplitudeNegative !== undefined ? activeAnim.amplitudeNegative : (activeAnim.amplitude || 10))
+                                ).toFixed(1)} cm
+                              </span>
+                            </div>
+
+                            {/* Positive / Forward Stroke Distance (+ Axis) */}
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between items-center text-xs font-mono">
+                                <span className="text-slate-300 flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                                  <span>Forward Distance (+{activeAnim.axis.toUpperCase()})</span>
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="200"
+                                    step="0.5"
+                                    value={activeAnim.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim.amplitude || 10)}
+                                    onChange={(e) => {
+                                      const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                      updatePartAnimation(selectedPartIndex, { amplitudePositive: val });
+                                    }}
+                                    className="w-16 px-2 py-0.5 bg-slate-950 text-xs font-mono text-emerald-400 font-bold rounded border border-slate-800 text-right outline-none"
+                                  />
+                                  <span className="text-slate-400 text-[11px]">cm</span>
+                                </div>
+                              </div>
+                              <input
+                                type="range"
+                                min="0"
+                                max="50"
+                                step="0.5"
+                                value={activeAnim.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim.amplitude || 10)}
+                                onChange={(e) =>
+                                  updatePartAnimation(selectedPartIndex, { amplitudePositive: parseFloat(e.target.value) })
+                                }
+                                className="w-full accent-emerald-500 cursor-pointer"
+                              />
+                            </div>
+
+                            {/* Negative / Reverse Stroke Distance (- Axis) */}
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between items-center text-xs font-mono">
+                                <span className="text-slate-300 flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-rose-400" />
+                                  <span>Reverse Distance (-{activeAnim.axis.toUpperCase()})</span>
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="200"
+                                    step="0.5"
+                                    value={activeAnim.amplitudeNegative !== undefined ? activeAnim.amplitudeNegative : (activeAnim.amplitude || 10)}
+                                    onChange={(e) => {
+                                      const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                      updatePartAnimation(selectedPartIndex, { amplitudeNegative: val });
+                                    }}
+                                    className="w-16 px-2 py-0.5 bg-slate-950 text-xs font-mono text-rose-400 font-bold rounded border border-slate-800 text-right outline-none"
+                                  />
+                                  <span className="text-slate-400 text-[11px]">cm</span>
+                                </div>
+                              </div>
+                              <input
+                                type="range"
+                                min="0"
+                                max="50"
+                                step="0.5"
+                                value={activeAnim.amplitudeNegative !== undefined ? activeAnim.amplitudeNegative : (activeAnim.amplitude || 10)}
+                                onChange={(e) =>
+                                  updatePartAnimation(selectedPartIndex, { amplitudeNegative: parseFloat(e.target.value) })
+                                }
+                                className="w-full accent-rose-500 cursor-pointer"
+                              />
+                            </div>
+
+                            {/* Quick Presets */}
+                            <div className="flex gap-1.5 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentPos = activeAnim.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim.amplitude || 10);
+                                  updatePartAnimation(selectedPartIndex, { amplitudePositive: currentPos, amplitudeNegative: currentPos });
+                                }}
+                                className="flex-1 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-mono transition-colors"
+                              >
+                                Symmetric
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentPos = activeAnim.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim.amplitude || 10);
+                                  updatePartAnimation(selectedPartIndex, { amplitudePositive: currentPos || 10, amplitudeNegative: 0 });
+                                }}
+                                className="flex-1 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-mono transition-colors"
+                              >
+                                Forward Only
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentNeg = activeAnim.amplitudeNegative !== undefined ? activeAnim.amplitudeNegative : (activeAnim.amplitude || 10);
+                                  updatePartAnimation(selectedPartIndex, { amplitudePositive: 0, amplitudeNegative: currentNeg || 10 });
+                                }}
+                                className="flex-1 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-mono transition-colors"
+                              >
+                                Reverse Only
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Angle Sweep for Oscillating Rotation */}
+                        {activeAnim.type === 'oscillate-rotation' && (
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs font-mono">
+                              <span className="text-slate-300 font-semibold">Sweep Angle (±)</span>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="360"
+                                  step="1"
+                                  value={activeAnim.amplitude || 35}
+                                  onChange={(e) => updatePartAnimation(selectedPartIndex, { amplitude: parseFloat(e.target.value) || 0 })}
+                                  className="w-16 px-2 py-0.5 bg-slate-950 text-xs font-mono text-amber-400 font-bold rounded border border-slate-800 text-right outline-none"
+                                />
+                                <span className="text-slate-400 text-[11px]">deg</span>
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min="1"
+                              max="180"
+                              step="1"
+                              value={activeAnim.amplitude || 35}
+                              onChange={(e) => updatePartAnimation(selectedPartIndex, { amplitude: parseFloat(e.target.value) })}
+                              className="w-full accent-amber-500 cursor-pointer"
+                            />
+                          </div>
+                        )}
+
+                        {/* Phase Offset for harmonic animations */}
+                        {(activeAnim.type === 'oscillate-rotation' || activeAnim.type === 'linear-reciprocate') && (
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs font-mono">
+                              <span className="text-slate-300 font-semibold">Phase Offset</span>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="360"
+                                  step="5"
+                                  value={activeAnim.phase || 0}
+                                  onChange={(e) => updatePartAnimation(selectedPartIndex, { phase: parseFloat(e.target.value) || 0 })}
+                                  className="w-16 px-2 py-0.5 bg-slate-950 text-xs font-mono text-amber-400 font-bold rounded border border-slate-800 text-right outline-none"
+                                />
+                                <span className="text-slate-400 text-[11px]">deg</span>
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="360"
+                              step="5"
+                              value={activeAnim.phase || 0}
+                              onChange={(e) => updatePartAnimation(selectedPartIndex, { phase: parseFloat(e.target.value) })}
+                              className="w-full accent-amber-500 cursor-pointer"
+                            />
+                          </div>
+                        )}
 
                         {/* Pivot Center Mode */}
                         <div className="space-y-2 border-t border-slate-800 pt-3">

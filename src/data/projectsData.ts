@@ -123,7 +123,7 @@ export const projectsData: Project[] = [
     dateRange: 'Jun 2024 – Sep 2024',
     year: 2024,
     company: 'Inductive Robotics',
-    companyLogo: 'https://www.inductiverobotics.com/images/logo/logo.svg',
+    companyLogo: '/images/logos/inductive-robotics-logo.svg',
     companyUrl: 'https://www.inductiverobotics.com',
     tags: ['Mobile Robotics', 'Clearpath Husky UGV', 'Chassis Modification', 'Battery Subframe', 'Robotic Arm Integration'],
     modelType: 'inductive-robot',
@@ -137,6 +137,15 @@ export const projectsData: Project[] = [
         paragraphs: [
           'Traditional parking lot charging infrastructure is bottlenecked by stationary chargers: once a vehicle finishes charging, the stall remains occupied for the remainder of the workday, leaving other EVs uncharged.',
           'Inductive Robotics conceived an autonomous mobile robotic solution that carries high-capacity EV fast-charging batteries and an articulated robotic arm. The robot autonomously navigates parking structures, charges parked vehicles to target levels, disengages, and moves to the next car, maximizing charging throughput per stall.'
+        ],
+        imagesLayout: 'single-centered',
+        images: [
+          {
+            type: 'image',
+            url: '/images/projects/Inductive Robotics Render No Background.png',
+            title: 'Inductive IR3 Full Autonomous EV Charging Robot CAD Assembly',
+            caption: 'Clearpath Husky UGV chassis with integrated battery subframe, welded pedestal, and articulated charging arm'
+          }
         ]
       },
       {
@@ -173,13 +182,11 @@ export const projectsData: Project[] = [
           'Produced formal manufacturing drawing packages including welded arm pedestal weldments, chassis cutting templates, CNC machined spacers, and sheet metal brackets with standard GD&T tolerances.',
           'Successfully manufactured and assembled the IR3 prototype, demonstrating robust payload stability and mechanical integration during field mobility and charging validation trials.'
         ],
-        imagesLayout: 'grid-2-1',
-        images: [
+        media: [
           {
-            type: 'image',
-            url: './Inductive Robotics Render No Background.png',
-            title: 'Inductive IR3 Full Autonomous EV Charging Robot CAD Assembly',
-            caption: 'Clearpath Husky UGV chassis with integrated battery subframe, welded pedestal, and articulated charging arm'
+            type: 'video',
+            url: '/images/projects/inductive-robot-demo.mp4',
+            title: 'Inductive IR3 Mobile Robot Autonomous Motion & System Test'
           }
         ]
       }
@@ -236,6 +243,15 @@ export const projectsData: Project[] = [
         paragraphs: [
           'Humanoid robotics is a growing field of research and startups which leverage the adaptability of the human body for a wide variety of applications. Given the large corpus of data concerning human activities (videos, images, live sensing, etc.), robots can solve human-level tasks faster through imitation of humans.',
           'However, there’s a hole in the data concerning the force applied by human actions (Eg: how much force is needed to push a button? What is the compensation by the arm when using a certain tool?). Our goal is to augment the existing tools to map human motion with a measurement device for applied force to an object in the grasp of a human-like hand for use in pose estimation (and eventually extend to imitation learning more broadly).'
+        ],
+        imagesLayout: 'single-centered',
+        images: [
+          {
+            type: 'image',
+            url: '/images/projects/robotic-hand-sawyer-arm.jpg',
+            title: 'Sawyer Robot Arm & 5-DOF Hand Assembly',
+            caption: 'Fully assembled 5-DOF humanoid hand end-effector mounted to the Sawyer robotic arm with integrated control and sensing electronics'
+          }
         ]
       },
       {
@@ -268,19 +284,19 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/11556/story-robot-humanoid-hand-mirroring-G6Y5.png',
+            url: '/images/projects/story-robot-humanoid-hand-mirroring-G6Y5.png',
             title: 'Hand Base and Palm Structure',
             caption: '3D-printed structural PLA Hand Base and Palm assembly with servo mounting cavity'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/11556/story-robot-humanoid-hand-mirroring-j1Ij.png',
+            url: '/images/projects/story-robot-humanoid-hand-mirroring-j1Ij.png',
             title: 'Phalanxes and Internal Cable Routing',
             caption: 'Articulated phalanx segments showing internal Dyneema tension cable routing channels'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/11556/story-robot-humanoid-hand-mirroring-3g5c.png',
+            url: '/images/projects/story-robot-humanoid-hand-mirroring-3g5c.png',
             title: 'TPU Compliant Finger Joints',
             caption: 'Flexible 85A TPU elastomer joints engineered for smooth, natural finger flexion'
           }
@@ -296,7 +312,7 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/11556/story-robot-humanoid-hand-mirroring-weNx.JPG',
+            url: '/images/projects/story-robot-humanoid-hand-mirroring-weNx.JPG',
             title: 'Custom Power Regulation PCB',
             caption: 'Custom 2-layer PCB mounted on the back of the hand regulating 12V to 5V, 1.5A for the servo array'
           }
@@ -388,7 +404,7 @@ export const projectsData: Project[] = [
     dateRange: 'Jan 2024 – May 2024',
     year: 2024,
     company: 'Sentien Robotics',
-    companyLogo: 'https://media.licdn.com/dms/image/v2/D560BAQG-jDLP_8B52g/company-logo_200_200/company-logo_200_200/0/1728988379666/sentien_robotics_logo?e=1788998400&v=beta&t=bbhNRf0apD7CQa7Bgrr4AxpBwAPcelxmJsSM7K7XP4w',
+    companyLogo: '/images/logos/sentien-robotics-logo.png',
     companyUrl: 'https://www.sentienrobotics.com',
     tags: ['Parallel Robotics', 'High Speed', 'Controls', 'Tension Dynamics'],
     description: 'Led development of further iterations and testing of cable robot, improving reliability and robustness in high speed and accurate movements.',
@@ -412,13 +428,13 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-drone-catching-cable-robot-iteration-2-NVBD.png',
+            url: '/images/projects/story-high-speed-drone-catching-cable-robot-iteration-2-NVBD.png',
             title: 'Winch & Gantry Frame CAD',
             caption: 'High-speed winch assembly and structural frame mounting'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-drone-catching-cable-robot-iteration-2-bf9X.png',
+            url: '/images/projects/story-high-speed-drone-catching-cable-robot-iteration-2-bf9X.png',
             title: 'Tensioner Mechanism CAD',
             caption: 'Dynamic tensioner assembly for cable slack prevention'
           }
@@ -434,13 +450,13 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-drone-catching-cable-robot-iteration-2-4Ub9.png',
+            url: '/images/projects/story-high-speed-drone-catching-cable-robot-iteration-2-4Ub9.png',
             title: '1D Test Bench CAD',
             caption: '1D prototype test fixture layout'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-drone-catching-cable-robot-iteration-2-cuIc.png',
+            url: '/images/projects/story-high-speed-drone-catching-cable-robot-iteration-2-cuIc.png',
             title: '1D Physical Test Bench',
             caption: 'Physical 1D test bench setup with motor and tension carriage'
           }
@@ -452,19 +468,19 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-cable-robot-iteration-2-1698.png',
+            url: '/images/projects/story-high-speed-cable-robot-iteration-2-1698.png',
             title: 'Winch Plate FEA Stress Plot',
             caption: 'Winch mounting plate Von Mises stress distribution under peak line tension'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-cable-robot-iteration-2-82FZ.png',
+            url: '/images/projects/story-high-speed-cable-robot-iteration-2-82FZ.png',
             title: 'Tensioner Arm FEA',
             caption: 'Tensioner pivot arm deflection and stress analysis'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-cable-robot-iteration-2-ezkm.png',
+            url: '/images/projects/story-high-speed-cable-robot-iteration-2-ezkm.png',
             title: 'Corner Gantry Bracket FEA',
             caption: 'Structural corner bracket safety factor analysis'
           }
@@ -476,19 +492,19 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-drone-catching-cable-robot-iteration-2-fkhn.jpg',
+            url: '/images/projects/story-high-speed-drone-catching-cable-robot-iteration-2-fkhn.jpg',
             title: 'Machined Winch Assembly',
             caption: 'Precision-machined aluminum winch drum and motor coupling'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-drone-catching-cable-robot-iteration-2-swKn.jpg',
+            url: '/images/projects/story-high-speed-drone-catching-cable-robot-iteration-2-swKn.jpg',
             title: '1D Bench in Lab',
             caption: 'Bench testing line tracking and rapid directional reversals'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-drone-catching-cable-robot-iteration-2-Yb6H.jpg',
+            url: '/images/projects/story-high-speed-drone-catching-cable-robot-iteration-2-Yb6H.jpg',
             title: 'Line Tension Testing',
             caption: 'Dynamic line payout and tension measurements'
           }
@@ -511,19 +527,19 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-drone-catching-cable-robot-iteration-2-p4xs.png',
+            url: '/images/projects/story-high-speed-drone-catching-cable-robot-iteration-2-p4xs.png',
             title: 'Full 2D 8x8 Cable Robot Frame CAD',
             caption: '8ft x 8ft 2D planar cable robot full system CAD model'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-cable-robot-iteration-2-JUeS.png',
+            url: '/images/projects/story-high-speed-cable-robot-iteration-2-JUeS.png',
             title: 'Sensorized Tensioner CAD',
             caption: 'Tensioner module integrated with real-time load cell sensor'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10547/story-high-speed-drone-catching-cable-robot-iteration-2-4Cwy.jpg',
+            url: '/images/projects/story-high-speed-drone-catching-cable-robot-iteration-2-4Cwy.jpg',
             title: 'Assembled 8x8 Gantry in Lab',
             caption: 'Full 8ft x 8ft assembled gantry frame and drive modules'
           }
@@ -601,6 +617,13 @@ export const projectsData: Project[] = [
         heading: 'Overview',
         paragraphs: [
           'I designed, manufactured, and prototyped a robot to dribble or bounce a ping-pong ball on a small, 6" square platform regardless of disturbances. The platform had to accelerate fast enough to bounce the ping-pong ball reliably, rotate to control the bounce trajectory, and be rigid enough to reliably predict and control the ball\'s movement. I worked with a team of students at UC Berkeley to integrate the design with electronics and software. My contributions included the entire mechanical design, stepper and servo motor circuitry design and implementation, and stepper motor control code.'
+        ],
+        media: [
+          {
+            type: 'youtube',
+            url: 'https://www.youtube.com/watch?v=tn6nV-CjQjs',
+            title: 'Continuous Autonomous Ping-Pong Bouncing Demonstration'
+          }
         ]
       },
       {
@@ -619,7 +642,7 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10548/story-autonomous-pingpong-dribbling-and-bouncing-robot-cjSf.JPG',
+            url: '/images/projects/story-autonomous-pingpong-dribbling-and-bouncing-robot-cjSf.JPG',
             title: 'Initial Omni-Directional Mecanum Mobile Concept',
             caption: 'CAD model of initial mobile dribbling concept with mecanum drive base'
           }
@@ -635,13 +658,13 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10548/story-autonomous-pingpong-dribbling-and-bouncing-robot-bGhA.png',
+            url: '/images/projects/story-autonomous-pingpong-dribbling-and-bouncing-robot-bGhA.png',
             title: 'Single Motor Linear Stage Prototype',
             caption: 'First iteration stationary frame with single stepper drive'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10548/story-autonomous-pingpong-dribbling-and-bouncing-robot-r6rC.png',
+            url: '/images/projects/story-autonomous-pingpong-dribbling-and-bouncing-robot-r6rC.png',
             title: 'Dual NEMA-23 High-Acceleration Platform',
             caption: 'Upgraded dual NEMA-23 belt-driven linear actuation stage'
           }
@@ -717,13 +740,19 @@ export const projectsData: Project[] = [
         paragraphs: [
           'As a part of the Theoretical & Applied Fluid Dynamics Laboratory, I manufactured and iterated on an autonomous sailboat, to eventually be a part of a drone swarm to conduct wave prediction.'
         ],
-        imagesLayout: 'single-centered',
+        imagesLayout: 'grid-2',
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8940/story-ocean-drone-catamaran-for-taflab-pxlv.png',
+            url: '/images/projects/story-ocean-drone-catamaran-for-taflab-pxlv.png',
             title: 'TAFLab Autonomous Catamaran CAD',
             caption: 'Wave-piercing catamaran hull with rigid wingsail and tail-vane assembly'
+          },
+          {
+            type: 'image',
+            url: '/images/projects/story-ocean-drone-catamaran-for-taflab-ii5C.png',
+            title: 'Autonomous Catamaran System Overview',
+            caption: 'Completed TAFLab autonomous catamaran platform'
           }
         ]
       },
@@ -736,19 +765,19 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8940/story-ocean-drone-catamaran-for-taflab-rgAv.jpg',
+            url: '/images/projects/story-ocean-drone-catamaran-for-taflab-rgAv.jpg',
             title: 'Hull Composite Layup',
             caption: 'Hand-laid fiberglass catamaran hull mold'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8940/story-ocean-drone-catamaran-for-taflab-EoyX.jpg',
+            url: '/images/projects/story-ocean-drone-catamaran-for-taflab-EoyX.jpg',
             title: 'Rigid Wingsail Composite Layup',
             caption: 'Composite layup process for rigid wingsail'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8940/story-ocean-drone-catamaran-for-taflab-WG9n.png',
+            url: '/images/projects/story-ocean-drone-catamaran-for-taflab-WG9n.png',
             title: 'Assembled Catamaran Structure',
             caption: 'Twin hull bridge structure and mast pivot mount'
           }
@@ -762,19 +791,13 @@ export const projectsData: Project[] = [
           'I redesigned the bearing housings to increase the spacing and stability of the mast. This successfully reduced friction enough to enable the smaller baby sail to rotate the mainsail into more optimal sailing orientations. Further testing and iteration led to improvements including rotation constraints and detent mechanisms for additional control.',
           'Through component integration, prototyping, test stand experiments, and on-water trials, I was able to demonstrate reliable control over sailing direction by actuating the main sail with the baby sail system. These upgrades provide a more controllable foundation to facilitate future sensing, automation algorithms, and performance advancements toward an autonomous robotic sailing platform.'
         ],
-        imagesLayout: 'grid-2',
+        imagesLayout: 'single-centered',
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8940/story-ocean-drone-catamaran-for-taflab-f4mc.png',
+            url: '/images/projects/story-ocean-drone-catamaran-for-taflab-f4mc.png',
             title: 'Redesigned Bearing Housing CAD',
             caption: 'Optimized mast bearing spacing and low-friction housing geometry'
-          },
-          {
-            type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8940/story-ocean-drone-catamaran-for-taflab-ii5C.png',
-            title: 'Rudder Actuation Linkage CAD',
-            caption: 'Dual synchronized rudder steering linkage'
           }
         ],
         media: [
@@ -822,7 +845,7 @@ export const projectsData: Project[] = [
     dateRange: 'Aug 2023 – Dec 2023',
     year: 2023,
     company: 'Sentien Robotics',
-    companyLogo: 'https://media.licdn.com/dms/image/v2/D560BAQG-jDLP_8B52g/company-logo_200_200/company-logo_200_200/0/1728988379666/sentien_robotics_logo?e=1788998400&v=beta&t=bbhNRf0apD7CQa7Bgrr4AxpBwAPcelxmJsSM7K7XP4w',
+    companyLogo: '/images/logos/sentien-robotics-logo.png',
     companyUrl: 'https://www.sentienrobotics.com',
     tags: ['High Speed', 'Winch Mechanics', 'Drone Recovery', 'Mechanical Design'],
     description: 'Designed and prototyped a planar cable robot, including a robust winch system running at up to 3000 rpm, to reliably catch midflight automated drones landing at 20 mph.',
@@ -843,13 +866,13 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8937/story-highspeed-cable-robot-to-catch-drones-KKPj.png',
+            url: '/images/projects/story-highspeed-cable-robot-to-catch-drones-KKPj.png',
             title: 'Winch Spooling Concept',
             caption: 'Grooved drum winch concept for single-layer cable lay'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8937/story-highspeed-cable-robot-to-catch-drones-7n3u.png',
+            url: '/images/projects/story-highspeed-cable-robot-to-catch-drones-7n3u.png',
             title: 'Translating Guide Pulley Concept',
             caption: 'Reciprocating guide pulley layout to eliminate cable tangling'
           }
@@ -861,7 +884,7 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8937/story-highspeed-cable-robot-to-catch-drones-Qi0S.JPG',
+            url: '/images/projects/story-highspeed-cable-robot-to-catch-drones-Qi0S.JPG',
             title: 'Winch & Motor Pod Assembly CAD',
             caption: 'Detailed 3D assembly CAD of 3000 RPM winch mechanism with motor pods'
           }
@@ -873,19 +896,19 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8937/story-highspeed-cable-robot-to-catch-drones-tP6Z.png',
+            url: '/images/projects/story-highspeed-cable-robot-to-catch-drones-tP6Z.png',
             title: 'Machined Winch Assembly',
             caption: 'Machined aluminum grooved winch drum and guide rod'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8937/story-highspeed-cable-robot-to-catch-drones-XeDs.jpg',
+            url: '/images/projects/story-highspeed-cable-robot-to-catch-drones-XeDs.jpg',
             title: 'Motor Pod Test Rig',
             caption: 'High-speed motor pod on test frame'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8937/story-highspeed-cable-robot-to-catch-drones-Ffyw.jpg',
+            url: '/images/projects/story-highspeed-cable-robot-to-catch-drones-Ffyw.jpg',
             title: 'Full Frame Cable Rig in Testing',
             caption: 'High-speed cable trajectory intercept test'
           }
@@ -940,7 +963,7 @@ export const projectsData: Project[] = [
     dateRange: 'May 2023 – Aug 2023',
     year: 2023,
     company: 'Raise Robotics',
-    companyLogo: 'https://raiserobotics.ai/wp-content/uploads/2023/05/RaiseRobotics_PictorialMark_BrandColors_Alt.png',
+    companyLogo: '/images/projects/raise-robotics-mark.png',
     companyUrl: 'https://raiserobotics.ai/',
     tags: ['FEA Simulation', 'Structural Analysis', 'Hydraulics', 'Heavy Machinery'],
     description: 'Conducted FEA and dynamic simulation for the development of a stability outrigger system for a 1500 lb construction robot.',
@@ -963,19 +986,19 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8934/story-stability-outrigger-system-simulation-and-development-vqt9.jpg',
+            url: '/images/projects/story-stability-outrigger-system-simulation-and-development-vqt9.jpg',
             title: 'Tracked Base Physical Machine',
             caption: 'Physical tracked construction robot base'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8934/story-stability-outrigger-system-simulation-and-development-utyr.png',
+            url: '/images/projects/story-stability-outrigger-system-simulation-and-development-utyr.png',
             title: 'AutoCAD to Inventor CAD Conversion',
             caption: 'Reconstructed 3D CAD model of tracked drive assembly'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8934/story-stability-outrigger-system-simulation-and-development-uCd0.png',
+            url: '/images/projects/story-stability-outrigger-system-simulation-and-development-uCd0.png',
             title: 'Detailed Tracked Assembly CAD',
             caption: 'Integrated tracked mobile base assembly model'
           }
@@ -993,7 +1016,7 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8934/story-construction-robot-stability-outrigger-simulation-qhd2.png',
+            url: '/images/projects/story-construction-robot-stability-outrigger-simulation-qhd2.png',
             title: 'Full Robot URDF Dynamic Model',
             caption: 'Full 1500 lb robot model with mass matrix and joint constraints for simulation'
           }
@@ -1056,7 +1079,7 @@ export const projectsData: Project[] = [
     dateRange: 'May 2023 – Aug 2023',
     year: 2023,
     company: 'Raise Robotics',
-    companyLogo: 'https://raiserobotics.ai/wp-content/uploads/2023/05/RaiseRobotics_PictorialMark_BrandColors_Alt.png',
+    companyLogo: '/images/projects/raise-robotics-mark.png',
     companyUrl: 'https://raiserobotics.ai/',
     tags: ['Mechatronics', 'Automation', 'CNC Machining', 'Robotic Grippers'],
     description: 'Designed a modular robotic gripper to reliably hold and position 5 lb aluminum brackets during automated construction tasks.',
@@ -1074,13 +1097,13 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/5229/story-modular-bracket-gripper-fztA.png',
+            url: '/images/projects/story-modular-bracket-gripper-fztA.png',
             title: 'J Bracket Gripper Concept',
             caption: 'Gripper engagement with curtain wall J bracket'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/5229/story-modular-bracket-gripper-JDAk.png',
+            url: '/images/projects/story-modular-bracket-gripper-JDAk.png',
             title: 'Placement Positioning CAD',
             caption: 'Gripper positioning bracket against building edge'
           }
@@ -1095,13 +1118,13 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/5229/story-modular-bracket-gripper-tX09.JPG',
+            url: '/images/projects/story-modular-bracket-gripper-tX09.JPG',
             title: 'Waterjet Plate Construction CAD',
             caption: 'Modular 4-plate aluminum construction layout'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/5229/story-modular-bracket-gripper-5iCR.JPG',
+            url: '/images/projects/story-modular-bracket-gripper-5iCR.JPG',
             title: 'Replaceable Rubber Pad Interface',
             caption: 'Modular screw-mounted high-friction rubber pad interface'
           }
@@ -1113,19 +1136,19 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/5229/story-modular-bracket-gripper-xmnr.jpg',
+            url: '/images/projects/story-modular-bracket-gripper-xmnr.jpg',
             title: 'Waterjet Cut Aluminum Plates',
             caption: 'Precision waterjet cut plates ready for deburring and assembly'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/5229/story-modular-bracket-gripper-tKay.jpg',
+            url: '/images/projects/story-modular-bracket-gripper-tKay.jpg',
             title: 'Assembled Gripper Unit',
             caption: 'Assembled modular gripper with pneumatic cylinder linkage'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/5229/story-modular-bracket-gripper-avkm.jpg',
+            url: '/images/projects/story-modular-bracket-gripper-avkm.jpg',
             title: 'J-Bracket Clamp Test',
             caption: 'Retention load and slip test under simulated placement loads'
           }
@@ -1184,13 +1207,13 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8786/story-underwater-torpedo-launcher-fhlL.JPG',
+            url: '/images/projects/story-underwater-torpedo-launcher-fhlL.JPG',
             title: 'RoboSub AUV System CAD',
             caption: 'Autonomous Underwater Vehicle full assembly CAD'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8786/story-autonomous-underwater-robot-HUXm.JPG',
+            url: '/images/projects/story-autonomous-underwater-robot-HUXm.JPG',
             title: 'Physical RoboSub in Water Testing',
             caption: 'RoboSub in pool testing with torpedo launcher and gripper mounted'
           }
@@ -1206,13 +1229,13 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8786/story-autonomous-underwater-robot-1pCg.JPG',
+            url: '/images/projects/story-autonomous-underwater-robot-1pCg.JPG',
             title: 'Torpedo Launcher CAD Assembly',
             caption: 'Dual torpedo release mechanism with single bidirectional servo'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8786/story-autonomous-underwater-robot-sNV5.JPG',
+            url: '/images/projects/story-autonomous-underwater-robot-sNV5.JPG',
             title: 'Assembled Torpedo Launcher',
             caption: '3D-printed and assembled torpedo launcher tubes'
           }
@@ -1227,13 +1250,13 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8786/story-autonomous-underwater-robot-fRJF.JPG',
+            url: '/images/projects/story-autonomous-underwater-robot-fRJF.JPG',
             title: 'Dropper Mechanism CAD',
             caption: 'Reversible servo dual payload release dropper CAD'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8786/story-autonomous-underwater-robot-kgOz.JPG',
+            url: '/images/projects/story-autonomous-underwater-robot-kgOz.JPG',
             title: 'Assembled Dropper Hardware',
             caption: 'Physical dropper module mounted to sub frame'
           }
@@ -1249,13 +1272,13 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8786/story-autonomous-underwater-robot-cb8b.JPG',
+            url: '/images/projects/story-autonomous-underwater-robot-cb8b.JPG',
             title: 'Rack and Pinion Gripper CAD',
             caption: 'Rack and pinion parallel jaw gripper CAD'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8786/story-autonomous-underwater-robot-79bz.JPG',
+            url: '/images/projects/story-autonomous-underwater-robot-79bz.JPG',
             title: 'Assembled Underwater Gripper',
             caption: 'Physical gripper module with custom waterproofing seals'
           }
@@ -1298,7 +1321,7 @@ export const projectsData: Project[] = [
     dateRange: 'Jan 2023 – May 2023',
     year: 2023,
     company: 'Sentien Robotics',
-    companyLogo: 'https://media.licdn.com/dms/image/v2/D560BAQG-jDLP_8B52g/company-logo_200_200/company-logo_200_200/0/1728988379666/sentien_robotics_logo?e=1788998400&v=beta&t=bbhNRf0apD7CQa7Bgrr4AxpBwAPcelxmJsSM7K7XP4w',
+    companyLogo: '/images/logos/sentien-robotics-logo.png',
     companyUrl: 'https://www.sentienrobotics.com',
     tags: ['Mechanism Design', 'Level-Wind', 'Winch Systems', 'Reliability Engineering'],
     description: 'Developed and manufactured an anti-tangle winch for Sentien’s drone fleet, reducing bird nesting and increasing uniform winding distribution.',
@@ -1316,7 +1339,7 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8936/story-developing-antitangle-winch-for-drone-fleet-k1rl.JPG',
+            url: '/images/projects/story-developing-antitangle-winch-for-drone-fleet-k1rl.JPG',
             title: 'Anti-Tangle Winch CAD',
             caption: 'Reciprocating level-wind screw winch assembly CAD'
           }
@@ -1339,13 +1362,13 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8936/story-developing-antitangle-winch-for-drone-fleet-Idz5.png',
+            url: '/images/projects/story-developing-antitangle-winch-for-drone-fleet-Idz5.png',
             title: 'Diamond Reversing Screw Concept',
             caption: 'Double-helical diamond reversing level-wind screw mechanism'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8936/story-developing-antitangle-winch-for-drone-fleet-Uh9U.png',
+            url: '/images/projects/story-developing-antitangle-winch-for-drone-fleet-Uh9U.png',
             title: 'Spool Synchronization Geartrain',
             caption: 'Direct gear drive synchronizing spool rotation to level-wind traverse'
           }
@@ -1363,7 +1386,7 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8936/story-developing-antitangle-winch-for-drone-fleet-t70a.png',
+            url: '/images/projects/story-developing-antitangle-winch-for-drone-fleet-t70a.png',
             title: 'Prototype Winch on Test Stand',
             caption: '3D printed and machined prototype during automated cycle testing'
           }
@@ -1429,7 +1452,7 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://showspace.so/_next/image?url=https%3A%2F%2Fchmqmeyyaiwfybqgcdoy.supabase.co%2Fstorage%2Fv1%2Fobject%2Fpublic%2Fprojects%2F10276%2Fthumbnail-scrubtious-eco-friendly-versatile-bottle-brush-Eh.jpg&w=1920&q=50',
+            url: '/images/projects/thumbnail-scrubtious-eco-friendly-versatile-bottle-brush-Eh.jpg',
             title: 'Scrubtious Product Render',
             caption: 'Scrubtious universal spinning bottle scrubber with replaceable sponge head'
           }
@@ -1441,31 +1464,31 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10276/story-scrubtious-convenient-reusable-bottle-scrubber-41e0.png',
+            url: '/images/projects/story-scrubtious-convenient-reusable-bottle-scrubber-41e0.png',
             title: 'Helical Push-Spin Mechanism CAD',
             caption: 'Helical drive shaft converting downward push stroke to rotary scrub action'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10276/story-scrubtious-convenient-reusable-bottle-scrubber-pOKf.png',
+            url: '/images/projects/story-scrubtious-convenient-reusable-bottle-scrubber-pOKf.png',
             title: 'Tapered Universal Bottle Cap CAD',
             caption: 'Tapered alignment collar fitting bottle openings from 2" to 4" diameter'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10276/story-scrubtious-convenient-reusable-bottle-scrubber-Bf5B.png',
+            url: '/images/projects/story-scrubtious-convenient-reusable-bottle-scrubber-Bf5B.png',
             title: 'Internal Spring Return Assembly',
             caption: 'Internal compression spring return mechanism'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10276/story-scrubtious-convenient-reusable-bottle-scrubber-ohTg.png',
+            url: '/images/projects/story-scrubtious-convenient-reusable-bottle-scrubber-ohTg.png',
             title: 'Sponge Collet Attachment',
             caption: 'Removable sponge holder compatible with standard Scrub Daddy sponges'
           },
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/10276/story-scrubtious-convenient-reusable-bottle-scrubber-9oCy.png',
+            url: '/images/projects/story-scrubtious-convenient-reusable-bottle-scrubber-9oCy.png',
             title: 'Complete Exploded Assembly View',
             caption: 'Exploded CAD view showing all injection moldable components'
           }
@@ -1531,7 +1554,7 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8941/story-first-tech-challenge-robotics-MIPL.png',
+            url: '/images/projects/story-first-tech-challenge-robotics-MIPL.png',
             title: 'Ultimate Goal Robot CAD',
             caption: 'Disc launcher and wobble goal clamp robot CAD'
           }
@@ -1553,7 +1576,7 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8941/story-first-tech-challenge-robotics-TrGT.png',
+            url: '/images/projects/story-first-tech-challenge-robotics-TrGT.png',
             title: 'Skystone Robot CAD',
             caption: 'Mecanum drive intake and stone stacking lift CAD'
           }
@@ -1575,7 +1598,7 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8941/story-first-tech-challenge-robotics-B0yZ.png',
+            url: '/images/projects/story-first-tech-challenge-robotics-B0yZ.png',
             title: 'Rover Ruckus Robot CAD',
             caption: 'Linear rack lander lift and mineral sorting intake CAD'
           }
@@ -1597,7 +1620,7 @@ export const projectsData: Project[] = [
         images: [
           {
             type: 'image',
-            url: 'https://chmqmeyyaiwfybqgcdoy.supabase.co/storage/v1/object/public/projects/8941/story-first-tech-challenge-robotics-K2lX.png',
+            url: '/images/projects/story-first-tech-challenge-robotics-K2lX.png',
             title: 'Relic Recovery Robot CAD',
             caption: 'Glyph stacking claw and relic recovery arm CAD'
           }

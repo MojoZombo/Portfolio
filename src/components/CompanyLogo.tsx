@@ -42,8 +42,8 @@ const DEFAULT_COMPANY_LOGOS: Record<string, string> = {
   raise: raiseLogoImg,
   'raise robotics': raiseLogoImg,
   tesla: teslaLogoImg,
-  inductive: 'https://www.inductiverobotics.com/images/logo/logo.svg',
-  'inductive robotics': 'https://www.inductiverobotics.com/images/logo/logo.svg',
+  inductive: '/images/logos/inductive-robotics-logo.svg',
+  'inductive robotics': '/images/logos/inductive-robotics-logo.svg',
   'first tech challenge': ftcLogoImg,
   ftc: ftcLogoImg,
 };
@@ -138,7 +138,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
 
       return (
         <div
-          className={`${sizeClasses[size]} ${containerBg} p-0.5 rounded-md shadow-sm aspect-square overflow-hidden flex items-center justify-center shrink-0`}
+          className={`${sizeClasses[size]} ${containerBg} p-0.5 rounded-sm aspect-square overflow-hidden flex items-center justify-center shrink-0`}
         >
           <img
             src={effectiveLogoUrl}
@@ -154,7 +154,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
     if (isBerkeley) {
       // UC Berkeley Blue & Gold California script seal
       return (
-        <div className={`${sizeClasses[size]} bg-[#003262] rounded-md aspect-square shadow-sm flex items-center justify-center shrink-0`}>
+        <div className={`${sizeClasses[size]} bg-[#003262] rounded-sm aspect-square flex items-center justify-center shrink-0`}>
           <span className="font-serif font-black text-[#FDB515] text-[11px] leading-none select-none tracking-tight">
             Cal
           </span>
@@ -165,7 +165,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
     if (compLower.includes('sentien')) {
       // Sentien Robotics tech beacon
       return (
-        <div className={`${sizeClasses[size]} bg-white rounded-md p-0.5 aspect-square shadow-sm flex items-center justify-center shrink-0`}>
+        <div className={`${sizeClasses[size]} bg-white rounded-sm p-0.5 aspect-square flex items-center justify-center shrink-0`}>
           <svg viewBox="0 0 24 24" className="w-full h-full text-blue-600 fill-current">
             <polygon points="12 2 2 7 12 12 22 7 12 2" opacity="0.8" />
             <polyline points="2 17 12 22 22 17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -178,7 +178,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
     if (compLower.includes('raise')) {
       // Raise Robotics heavy construction tech
       return (
-        <div className={`${sizeClasses[size]} bg-white rounded-md p-0.5 aspect-square shadow-sm flex items-center justify-center shrink-0`}>
+        <div className={`${sizeClasses[size]} bg-white rounded-sm p-0.5 aspect-square flex items-center justify-center shrink-0`}>
           <svg viewBox="0 0 24 24" className="w-full h-full text-amber-500 fill-current">
             <rect x="3" y="3" width="7" height="7" rx="1" />
             <rect x="14" y="3" width="7" height="7" rx="1" />
@@ -192,7 +192,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
     if (compLower.includes('taflab')) {
       // TAFLab Wave dynamics
       return (
-        <div className={`${sizeClasses[size]} bg-slate-900/40 rounded-md p-0.5 aspect-square flex items-center justify-center shrink-0`}>
+        <div className={`${sizeClasses[size]} bg-slate-900/40 rounded-sm p-0.5 aspect-square flex items-center justify-center shrink-0`}>
           <svg viewBox="0 0 24 24" className="w-full h-full text-cyan-500 fill-none stroke-current stroke-2">
             <path d="M2 12c3-4 6-4 9 0s6 4 9 0" strokeLinecap="round" />
             <path d="M2 17c3-4 6-4 9 0s6 4 9 0" strokeLinecap="round" opacity="0.5" />
@@ -204,7 +204,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
     if (compLower.includes('first') || compLower.includes('ftc')) {
       // FIRST Robotics triangle/circle/square
       return (
-        <div className={`${sizeClasses[size]} bg-white rounded-md p-0.5 aspect-square shadow-sm flex items-center justify-center shrink-0`}>
+        <div className={`${sizeClasses[size]} bg-white rounded-sm p-0.5 aspect-square flex items-center justify-center shrink-0`}>
           <svg viewBox="0 0 24 24" className="w-full h-full text-red-500 fill-current">
             <polygon points="12 3 4 19 20 19" fill="#2563eb" opacity="0.9" />
             <circle cx="12" cy="13" r="3.5" fill="#ef4444" />
@@ -216,7 +216,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
     if (compLower.includes('robosub') || compLower.includes('underwater')) {
       // RoboSub marine icon
       return (
-        <div className={`${sizeClasses[size]} bg-slate-900/40 rounded-md p-0.5 aspect-square flex items-center justify-center shrink-0`}>
+        <div className={`${sizeClasses[size]} bg-slate-900/40 rounded-sm p-0.5 aspect-square flex items-center justify-center shrink-0`}>
           <svg viewBox="0 0 24 24" className="w-full h-full text-emerald-500 fill-none stroke-current stroke-2">
             <circle cx="12" cy="12" r="8" />
             <line x1="12" y1="2" x2="12" y2="6" />
@@ -248,7 +248,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
         title={`Visit ${company} website (${resolvedUrl})`}
-        className={`group inline-flex items-center font-mono font-medium rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-sm backdrop-blur transition-colors cursor-pointer select-none ${badgeSizeClasses[size]} ${className}`}
+        className={`group inline-flex items-center font-mono font-medium rounded bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 backdrop-blur transition-colors cursor-pointer select-none ${badgeSizeClasses[size]} ${className}`}
       >
         {badgeContent}
       </a>
@@ -257,7 +257,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
 
   return (
     <div
-      className={`inline-flex items-center font-mono font-medium rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 shadow-sm backdrop-blur ${badgeSizeClasses[size]} ${className}`}
+      className={`inline-flex items-center font-mono font-medium rounded bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 backdrop-blur ${badgeSizeClasses[size]} ${className}`}
     >
       {badgeContent}
     </div>

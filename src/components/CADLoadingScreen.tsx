@@ -5,27 +5,26 @@ import { motion, AnimatePresence } from 'framer-motion';
 export const CADLoadingScreen: React.FC = () => {
   const { active, progress } = useProgress();
   const [isDone, setIsDone] = useState(false);
-  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
-  // Minimum display time
+  // Guaranteed max 500ms duration so loading screen never hangs or blocks the UI
   useEffect(() => {
     const timer = setTimeout(() => {
-      setMinTimeElapsed(true);
-    }, 450);
+      setIsDone(true);
+    }, 500);
     return () => clearTimeout(timer);
   }, []);
 
-  // When assets are loaded and minimum display time passed, fade out smoothly
+  // When assets are ready before the timeout, fade out smoothly
   useEffect(() => {
-    if ((!active || progress >= 100) && minTimeElapsed) {
+    if (!active || progress >= 100) {
       const exitTimer = setTimeout(() => {
         setIsDone(true);
-      }, 150);
+      }, 100);
       return () => clearTimeout(exitTimer);
     }
-  }, [active, progress, minTimeElapsed]);
+  }, [active, progress]);
 
-  const displayProgress = Math.min(100, Math.round(progress || (minTimeElapsed ? 100 : 35)));
+  const displayProgress = Math.min(100, Math.round(progress || 100));
 
   return (
     <AnimatePresence>

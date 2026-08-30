@@ -25,6 +25,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       root.classList.remove('light');
       root.classList.add('dark');
     }
+    
+    // Clear inline styles that were set by the FOUC prevention script in index.html
+    root.style.backgroundColor = '';
+    document.body.style.backgroundColor = '';
+    
     localStorage.setItem('cad-theme', theme);
   }, [theme]);
 

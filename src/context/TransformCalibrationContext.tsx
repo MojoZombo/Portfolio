@@ -14,7 +14,9 @@ export interface PartAnimationConfig {
   axis: 'x' | 'y' | 'z';
   direction: 1 | -1; // 1 = Clockwise / Forward, -1 = Counter-Clockwise / Reverse
   speed: number;
-  amplitude: number; // in degrees for rotation, or centimeters for linear
+  amplitude: number; // in degrees for rotation, or fallback centimeters for linear
+  amplitudePositive?: number; // Custom translation distance in positive/forward direction (in cm)
+  amplitudeNegative?: number; // Custom translation distance in negative/reverse direction (in cm)
   phase: number; // in degrees
   pivotMode: PivotMode;
   pivotX: number; // in cm
@@ -416,6 +418,8 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
         direction: 1,
         speed: 2.0,
         amplitude: 35,
+        amplitudePositive: 10,
+        amplitudeNegative: 10,
         phase: 0,
         pivotMode: 'center-of-mass',
         pivotX: 0,
