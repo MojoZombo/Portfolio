@@ -204,6 +204,13 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     <div
       ref={containerRef}
       style={{ touchAction: allowZoom ? 'none' : 'pan-y' }}
+      onPointerDownCapture={(e) => {
+        // Prevent OrbitControls from receiving touch events on the main page
+        // so the user can scroll the page instead of rotating the model
+        if (!allowZoom && e.pointerType === 'touch') {
+          e.stopPropagation();
+        }
+      }}
       className={`relative ${className} select-none pointer-events-auto flex items-center justify-center overflow-hidden`}
     >
       {/* 1. LAYER 0: BLUEPRINT (Visible when Inactive) */}
@@ -240,7 +247,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
           }`}
         >
           <Canvas
-            className="grab-cursor"
+            className={allowZoom ? "grab-cursor" : "grab-cursor !touch-pan-y"}
             frameloop={isActive || allowZoom || isHovered ? 'always' : 'demand'}
             dpr={[1, typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1]}
             gl={{
@@ -282,11 +289,11 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               target={[0, 0, 0]}
               enableZoom={allowZoom}
               enablePan={allowZoom}
+              enableRotate={true}
               autoRotate={false}
               minPolarAngle={Math.PI / 6}
               maxPolarAngle={Math.PI / 1.8}
               dampingFactor={0.08}
-              enableRotate={allowZoom}
               touches={{
                 ONE: THREE.TOUCH.ROTATE,
                 TWO: THREE.TOUCH.DOLLY_PAN,
