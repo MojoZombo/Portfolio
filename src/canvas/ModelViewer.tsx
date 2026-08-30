@@ -204,14 +204,14 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     <div
       ref={containerRef}
       style={{ touchAction: allowZoom ? 'none' : 'pan-y' }}
-      className={`relative ${className} select-none pointer-events-auto flex items-center justify-center overflow-visible`}
+      className={`relative ${className} select-none pointer-events-auto flex items-center justify-center overflow-hidden`}
     >
       {/* 1. LAYER 0: BLUEPRINT (Visible when Inactive) */}
       <img
         src={bpPosterPath}
         alt={`${modelType} blueprint`}
         onError={() => setBpFallback(true)}
-        className={`absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0 transition-opacity ${fadeDuration} ease-in-out ${
+        className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-0 transition-opacity ${fadeDuration} ease-in-out ${
           isActive || allowZoom ? 'opacity-0' : 'opacity-100'
         }`}
         loading="lazy"
@@ -223,7 +223,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         src={shadedPosterPath}
         alt={`${modelType} shaded`}
         onError={() => setShadedFallback(true)}
-        className={`absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-10 ${
+        className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-10 ${
           isFadeComplete
             ? 'opacity-0 transition-opacity duration-200 ease-out'
             : `transition-opacity ${fadeDuration} ease-in-out ${showShadedStatic ? 'opacity-100' : 'opacity-0'}`
