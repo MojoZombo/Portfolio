@@ -159,8 +159,8 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
     settings,
   } = useTransformCalibration();
 
-  // Load the CAD assembly from public/models/drone-catch-split-compressed.glb
-  const { scene } = useGLTF('./models/drone-catch-split-compressed.glb');
+  // Load the CAD assembly from public/models/drone-catch-split.glb
+  const { scene } = useGLTF('./models/drone-catch-split.glb');
 
   // Exact matching blueprint colors
   const blueprintLineColor = isDark ? '#94A8C4' : '#1E293B';
@@ -620,4 +620,4 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
 };
 
 // Preload the CAD model
-useGLTF.preload('./models/drone-catch-split-compressed.glb');
+useGLTF.preload('./models/drone-catch-split.glb');
