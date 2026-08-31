@@ -126,16 +126,9 @@ function buildMasterWinchPrototype(sourceScene: THREE.Group) {
         });
       }
 
-      try {
-        // Skip computing edges on floor/ground plane mesh #31
-        if (partsInfo.length !== 32) {
-          const celEdges = new THREE.EdgesGeometry(mesh.geometry, 28);
-          activeEdgesList.push(celEdges);
-          staticEdgesList.push(celEdges);
-        }
-      } catch {
-        // Ignore non-standard geometries
-      }
+      // Skip EdgesGeometry computation for this 8.5MB model to prevent 
+      // massive main-thread lockups and frozen renders.
+      // activeEdgesList and staticEdgesList will remain empty.
     }
   });
 
@@ -166,9 +159,10 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
   const blueprintLineColor = isDark ? '#94A8C4' : '#1E293B';
   const celOutlineColor = isDark ? '#0A0E14' : '#0F172A';
 
-  // Build master prototype on first load
-  if (!masterWinchPrototype) {
+  // Build master prototype on first load or if the GLB source scene changes
+  if (!masterWinchPrototype || masterWinchPrototype.template.userData.sceneUuid !== scene.uuid) {
     masterWinchPrototype = buildMasterWinchPrototype(scene);
+    masterWinchPrototype.template.userData.sceneUuid = scene.uuid;
   }
 
   // Register model defaults, colors and animations with calibration context
@@ -294,7 +288,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
       blueprintEdgeLines: bpLines,
       celEdgeLines: celLines,
     };
-  }, []);
+  }, [scene]);
 
   // Collect kinematic nodes
   useEffect(() => {
