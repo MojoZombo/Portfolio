@@ -1292,6 +1292,8 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
             className="grab-cursor"
             gl={{ antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: true }}
           >
+            <StudioPivotVisualizer selectedPartIndex={selectedPartIndex} activeAnim={activeAnim} />
+
             {isOrthographic ? (
               <OrthographicCamera
                 makeDefault
@@ -2095,6 +2097,26 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                       </h4>
                     </div>
 
+                    {/* Rigid Group Parent */}
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-mono font-semibold text-slate-300">Rigid Group Parent</span>
+                      <select
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300 font-mono"
+                        value={activeAnim?.parentPartIndex ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? undefined : parseInt(e.target.value);
+                          updatePartAnimation(selectedPartIndex, { parentPartIndex: val });
+                        }}
+                      >
+                        <option value="">None (Root)</option>
+                        {availableParts
+                          .filter((p) => p.index !== selectedPartIndex)
+                          .map((p) => (
+                            <option key={p.index} value={p.index}>#{p.index} - {p.name}</option>
+                          ))}
+                      </select>
+                    </div>
+
                     {/* Motion Type */}
                     <div className="space-y-1.5">
                       <span className="text-xs font-mono font-semibold text-slate-300">Animation Type</span>
@@ -2122,10 +2144,105 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                         <option value="continuous-spin">Continuous Spin (Rotary RPM)</option>
                         <option value="oscillate-rotation">Oscillating Rotation (Sweep)</option>
                         <option value="linear-reciprocate">Linear Reciprocating (Stroke)</option>
+                        <option value="multi">Multiple Layers (Multi-Axis)</option>
                       </select>
                     </div>
 
-                    {activeAnim && activeAnim.type !== 'none' && (
+                    {activeAnim && activeAnim.type === 'multi' && (
+                      <div className="space-y-3 mt-4 pt-4 border-t border-slate-700">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-mono font-bold text-blue-400">Animation Layers</span>
+                          <button
+                            onClick={() => {
+                              const currentSubs = activeAnim.subAnimations || [];
+                              updatePartAnimation(selectedPartIndex, {
+                                subAnimations: [...currentSubs, { type: 'continuous-spin', axis: 'z', speed: 10 } as any]
+                              });
+                            }}
+                            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-[10px] font-bold text-white transition-colors"
+                          >
+                            + ADD LAYER
+                          </button>
+                        </div>
+                        <div className="space-y-2">
+                          {activeAnim.subAnimations?.map((subAnim, subIdx) => (
+                            <div key={subIdx} className="p-3 bg-slate-900 rounded-lg border border-slate-700/50 relative">
+                              <button 
+                                onClick={() => {
+                                  const currentSubs = [...(activeAnim.subAnimations || [])];
+                                  currentSubs.splice(subIdx, 1);
+                                  updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
+                                }}
+                                className="absolute top-2 right-2 text-red-500 hover:text-red-400 p-1"
+                              >
+                                ✕
+                              </button>
+                              <div className="text-[10px] font-mono text-slate-400 mb-2">LAYER {subIdx + 1}</div>
+                              
+                              {/* Sub Anim Type */}
+                              <select
+                                className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 mb-3 text-[10px] font-mono"
+                                value={subAnim.type}
+                                onChange={(e) => {
+                                  const currentSubs = [...(activeAnim.subAnimations || [])];
+                                  currentSubs[subIdx] = { ...subAnim, type: e.target.value as any };
+                                  updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
+                                }}
+                              >
+                                <option value="continuous-spin">Continuous Spin (Rotary RPM)</option>
+                                <option value="oscillate-rotation">Oscillating Rotation (Sweep)</option>
+                                <option value="linear-reciprocate">Linear Reciprocating (Stroke)</option>
+                              </select>
+
+                              {/* Sub Axis */}
+                              <div className="flex gap-1 mb-3">
+                                {(['x', 'y', 'z'] as const).map(ax => (
+                                  <button
+                                    key={ax}
+                                    onClick={() => {
+                                      const currentSubs = [...(activeAnim.subAnimations || [])];
+                                      currentSubs[subIdx] = { ...subAnim, axis: ax };
+                                      updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
+                                    }}
+                                    className={`flex-1 py-1 rounded text-[10px] font-bold uppercase ${subAnim.axis === ax ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+                                  >
+                                    {ax}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* Speed & Amplitude */}
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <span className="text-[10px] text-slate-500 block mb-1">Speed/RPM</span>
+                                  <input type="number" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs"
+                                    value={subAnim.speed || 0}
+                                    onChange={(e) => {
+                                      const currentSubs = [...(activeAnim.subAnimations || [])];
+                                      currentSubs[subIdx] = { ...subAnim, speed: parseFloat(e.target.value) || 0 };
+                                      updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
+                                    }} />
+                                </div>
+                                {subAnim.type !== 'continuous-spin' && (
+                                  <div>
+                                    <span className="text-[10px] text-slate-500 block mb-1">Amplitude</span>
+                                    <input type="number" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs"
+                                      value={subAnim.amplitude || 0}
+                                      onChange={(e) => {
+                                        const currentSubs = [...(activeAnim.subAnimations || [])];
+                                        currentSubs[subIdx] = { ...subAnim, amplitude: parseFloat(e.target.value) || 0 };
+                                        updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
+                                      }} />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {activeAnim && activeAnim.type !== 'none' && activeAnim.type !== 'multi' && (
                       <>
                         {/* Axis */}
                         <div className="space-y-1.5">
@@ -3039,3 +3156,50 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     </div>
   );
 };
+function StudioPivotVisualizer({ selectedPartIndex, activeAnim }: { selectedPartIndex: number | null, activeAnim: any }) {
+  const { scene } = useThree();
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  useFrame(() => {
+    if (!meshRef.current || selectedPartIndex === null || !activeAnim || activeAnim.pivotMode !== 'custom') {
+      if (meshRef.current) meshRef.current.visible = false;
+      return;
+    }
+    
+    let targetMesh: THREE.Object3D | null = null;
+    scene.traverse((child) => {
+      if ((child as any).isMesh && (
+        child.userData.cadPartIndex === selectedPartIndex || 
+        child.userData.partIndex === selectedPartIndex || 
+        child.userData.subPartIndex === selectedPartIndex
+      )) {
+        targetMesh = child;
+      }
+    });
+
+    if (targetMesh) {
+      meshRef.current.visible = true;
+      const t = targetMesh as any;
+      const basePos = (t.userData.initialPos as THREE.Vector3) || t.position;
+      const offset = new THREE.Vector3(
+        (activeAnim.pivotX || 0) / 100,
+        (activeAnim.pivotY || 0) / 100,
+        (activeAnim.pivotZ || 0) / 100
+      );
+      
+      meshRef.current.position.copy(basePos).add(offset);
+    } else {
+      meshRef.current.visible = false;
+    }
+  });
+
+  if (selectedPartIndex === null || !activeAnim || activeAnim.pivotMode !== 'custom') return null;
+
+  return (
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[0.015, 16, 16]} />
+      <meshBasicMaterial color="#ef4444" depthTest={false} transparent opacity={0.8} />
+      <axesHelper args={[0.05]} />
+    </mesh>
+  );
+}
