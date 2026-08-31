@@ -86,18 +86,31 @@ function StudioSceneBridge({
     const time = state.clock.getElapsedTime();
     let fallbackIdx = 0;
 
+    const isHelperOrGizmo = (obj: THREE.Object3D) => {
+      let cur: THREE.Object3D | null = obj;
+      while (cur) {
+        if (
+          cur.name.includes('Helper') ||
+          cur.name.includes('Gizmo') ||
+          cur.name.includes('Grid') ||
+          cur.name.includes('Line') ||
+          cur.name.includes('Pivot') ||
+          cur.userData?.isHelper ||
+          cur.userData?.isVisualizer
+        ) {
+          return true;
+        }
+        cur = cur.parent;
+      }
+      return false;
+    };
+
     // Flatten hierarchy: attach all cadMeshes to the model root so they share the exact same coordinate space
     const meshesToFlatten: { mesh: THREE.Mesh; root: THREE.Object3D }[] = [];
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh && !(child instanceof THREE.LineSegments)) {
         const mesh = child as THREE.Mesh;
-        if (
-          !mesh.name.includes('Helper') &&
-          !mesh.name.includes('Gizmo') &&
-          !mesh.name.includes('Grid') &&
-          !mesh.name.includes('Line') &&
-          !mesh.userData.hierarchyFlattened
-        ) {
+        if (!isHelperOrGizmo(mesh) && !mesh.userData.hierarchyFlattened) {
           let root = mesh as THREE.Object3D;
           while (root.parent && root.parent.type !== 'Scene') {
             root = root.parent;
@@ -120,12 +133,7 @@ function StudioSceneBridge({
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh && !(child instanceof THREE.LineSegments)) {
         const mesh = child as THREE.Mesh;
-        if (
-          !mesh.name.includes('Helper') &&
-          !mesh.name.includes('Gizmo') &&
-          !mesh.name.includes('Grid') &&
-          !mesh.name.includes('Line')
-        ) {
+        if (!isHelperOrGizmo(mesh)) {
           const currentIdx =
             mesh.userData.cadPartIndex !== undefined
               ? mesh.userData.cadPartIndex
@@ -3158,11 +3166,11 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
 };
 function StudioPivotVisualizer({ selectedPartIndex, activeAnim }: { selectedPartIndex: number | null, activeAnim: any }) {
   const { scene } = useThree();
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
 
   useFrame(() => {
-    if (!meshRef.current || selectedPartIndex === null || !activeAnim || activeAnim.pivotMode !== 'custom') {
-      if (meshRef.current) meshRef.current.visible = false;
+    if (!groupRef.current || selectedPartIndex === null || !activeAnim || activeAnim.pivotMode !== 'custom') {
+      if (groupRef.current) groupRef.current.visible = false;
       return;
     }
     
@@ -3178,28 +3186,55 @@ function StudioPivotVisualizer({ selectedPartIndex, activeAnim }: { selectedPart
     });
 
     if (targetMesh) {
-      meshRef.current.visible = true;
+      groupRef.current.visible = true;
       const t = targetMesh as any;
-      const basePos = (t.userData.initialPos as THREE.Vector3) || t.position;
+      
+      let com: THREE.Vector3;
+      if (t.userData.centerOfMass) {
+        com = (t.userData.centerOfMass as THREE.Vector3).clone();
+      } else if (t.geometry) {
+        if (!t.geometry.boundingBox) t.geometry.computeBoundingBox();
+        const geomCom = t.geometry.boundingBox ? t.geometry.boundingBox.getCenter(new THREE.Vector3()) : new THREE.Vector3();
+        const initialPos = (t.userData.initialPos as THREE.Vector3) || t.position;
+        const initialQuat = (t.userData.initialQuat as THREE.Quaternion) || t.quaternion;
+        com = initialPos.clone().add(geomCom.clone().applyQuaternion(initialQuat));
+      } else {
+        com = ((t.userData.initialPos as THREE.Vector3) || t.position).clone();
+      }
+
       const offset = new THREE.Vector3(
         (activeAnim.pivotX || 0) / 100,
         (activeAnim.pivotY || 0) / 100,
         (activeAnim.pivotZ || 0) / 100
       );
       
-      meshRef.current.position.copy(basePos).add(offset);
+      const localPivot = com.clone().add(offset);
+
+      // Transform local pivot to world space using the mesh's parent transform (which includes turntable rotation and model transforms)
+      if (t.parent) {
+        t.parent.updateWorldMatrix(true, false);
+        const worldPos = t.parent.localToWorld(localPivot.clone());
+        groupRef.current.position.copy(worldPos);
+        const worldQuat = new THREE.Quaternion();
+        t.parent.getWorldQuaternion(worldQuat);
+        groupRef.current.quaternion.copy(worldQuat);
+      } else {
+        groupRef.current.position.copy(localPivot);
+      }
     } else {
-      meshRef.current.visible = false;
+      groupRef.current.visible = false;
     }
   });
 
   if (selectedPartIndex === null || !activeAnim || activeAnim.pivotMode !== 'custom') return null;
 
   return (
-    <mesh ref={meshRef}>
-      <sphereGeometry args={[0.015, 16, 16]} />
-      <meshBasicMaterial color="#ef4444" depthTest={false} transparent opacity={0.8} />
-      <axesHelper args={[0.05]} />
-    </mesh>
+    <group ref={groupRef} name="StudioPivotVisualizer_Group" userData={{ isHelper: true, isVisualizer: true }}>
+      <mesh name="StudioPivotVisualizer_Sphere" userData={{ isHelper: true, isVisualizer: true }}>
+        <sphereGeometry args={[0.02, 16, 16]} />
+        <meshBasicMaterial color="#ef4444" depthTest={false} transparent opacity={0.85} />
+      </mesh>
+      <axesHelper args={[0.15]} />
+    </group>
   );
 }

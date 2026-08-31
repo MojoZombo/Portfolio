@@ -6,9 +6,9 @@ export const CADPivotGizmo: React.FC = () => {
   const axisThickness = 0.015;
 
   return (
-    <group position={[0, 0, 0]}>
+    <group name="CADPivotGizmo" userData={{ isHelper: true }} position={[0, 0, 0]}>
       {/* Central Pivot Point Sphere */}
-      <mesh>
+      <mesh name="CADPivotGizmo_Sphere" userData={{ isHelper: true }}>
         <sphereGeometry args={[0.06, 16, 16]} />
         <meshBasicMaterial color="#ec4899" depthTest={false} transparent opacity={0.9} />
       </mesh>
@@ -20,13 +20,13 @@ export const CADPivotGizmo: React.FC = () => {
       </Html>
 
       {/* X Axis - Red */}
-      <group position={[axisLength / 2, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <mesh>
+      <group name="CADPivotGizmo_GroupX" userData={{ isHelper: true }} position={[axisLength / 2, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <mesh name="CADPivotGizmo_CylinderX" userData={{ isHelper: true }}>
           <cylinderGeometry args={[axisThickness, axisThickness, axisLength, 8]} />
           <meshBasicMaterial color="#ef4444" depthTest={false} />
         </mesh>
       </group>
-      <mesh position={[axisLength, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+      <mesh name="CADPivotGizmo_ConeX" userData={{ isHelper: true }} position={[axisLength, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
         <coneGeometry args={[0.04, 0.12, 12]} />
         <meshBasicMaterial color="#ef4444" depthTest={false} />
       </mesh>
@@ -35,13 +35,13 @@ export const CADPivotGizmo: React.FC = () => {
       </Html>
 
       {/* Y Axis - Green (UP) */}
-      <group position={[0, axisLength / 2, 0]}>
-        <mesh>
+      <group name="CADPivotGizmo_GroupY" userData={{ isHelper: true }} position={[0, axisLength / 2, 0]}>
+        <mesh name="CADPivotGizmo_CylinderY" userData={{ isHelper: true }}>
           <cylinderGeometry args={[axisThickness, axisThickness, axisLength, 8]} />
           <meshBasicMaterial color="#10b981" depthTest={false} />
         </mesh>
       </group>
-      <mesh position={[0, axisLength, 0]}>
+      <mesh name="CADPivotGizmo_ConeY" userData={{ isHelper: true }} position={[0, axisLength, 0]}>
         <coneGeometry args={[0.04, 0.12, 12]} />
         <meshBasicMaterial color="#10b981" depthTest={false} />
       </mesh>
@@ -50,13 +50,13 @@ export const CADPivotGizmo: React.FC = () => {
       </Html>
 
       {/* Z Axis - Blue */}
-      <group position={[0, 0, axisLength / 2]} rotation={[Math.PI / 2, 0, 0]}>
-        <mesh>
+      <group name="CADPivotGizmo_GroupZ" userData={{ isHelper: true }} position={[0, 0, axisLength / 2]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh name="CADPivotGizmo_CylinderZ" userData={{ isHelper: true }}>
           <cylinderGeometry args={[axisThickness, axisThickness, axisLength, 8]} />
           <meshBasicMaterial color="#3b82f6" depthTest={false} />
         </mesh>
       </group>
-      <mesh position={[0, 0, axisLength]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh name="CADPivotGizmo_ConeZ" userData={{ isHelper: true }} position={[0, 0, axisLength]} rotation={[Math.PI / 2, 0, 0]}>
         <coneGeometry args={[0.04, 0.12, 12]} />
         <meshBasicMaterial color="#3b82f6" depthTest={false} />
       </mesh>
