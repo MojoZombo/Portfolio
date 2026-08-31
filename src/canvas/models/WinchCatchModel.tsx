@@ -26,9 +26,9 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Drone-Catch Winch
-const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
+const DEFAULT_OFFSET: [number, number, number] = [0.00, -1.57, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.00, 38.00, 0.00];
-const DEFAULT_SCALE = 1.20;
+const DEFAULT_SCALE = 1.00;
 
 // Baked Custom Part Color Overrides for Winch
 const DEFAULT_PART_COLORS: Record<number, string> = {
@@ -127,10 +127,12 @@ function buildMasterWinchPrototype(sourceScene: THREE.Group) {
       }
 
       try {
-        // Compute edges once at 28 deg to prevent main thread freeze on dense CAD parts
-        const celEdges = new THREE.EdgesGeometry(mesh.geometry, 28);
-        activeEdgesList.push(celEdges);
-        staticEdgesList.push(celEdges);
+        // Skip computing edges on floor/ground plane mesh #31
+        if (partsInfo.length !== 32) {
+          const celEdges = new THREE.EdgesGeometry(mesh.geometry, 28);
+          activeEdgesList.push(celEdges);
+          staticEdgesList.push(celEdges);
+        }
       } catch {
         // Ignore non-standard geometries
       }
@@ -275,12 +277,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
       }
     });
 
-    // 1. Center the unrotated CAD geometry inside the pivot group
-    const bbox = new THREE.Box3().setFromObject(clone);
-    const center = bbox.getCenter(new THREE.Vector3());
-    clone.position.set(-center.x, -center.y, -center.z);
-
-    // 2. Set initial world rotation and offset on the pivot
+    // Set initial world rotation and offset on the pivot
     pivot.rotation.set(
       (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180,
       (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180,
