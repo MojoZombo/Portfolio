@@ -25,16 +25,223 @@ interface MeshNodeInfo {
 
 const toonGradient = createToonGradientMap();
 
-// Optimal Calibrated Defaults for Ping-Pong Robot
+// Optimal Calibrated Defaults for Ping Pong Robot
 const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.00, 0.00, 0.00];
 const DEFAULT_SCALE = 5.50;
 
-// Default Part Colors for Ping-Pong Robot
-const DEFAULT_PART_COLORS: Record<number, string> = {};
+// Baked Custom Part Color Overrides for Ping Pong Robot
+const DEFAULT_PART_COLORS: Record<number, string> = {
+  55: '#f8fafc', // Mesh_49_8 (Body B)
+  56: '#475569', // Mesh_49_8 (Body C)
+  57: '#059669', // Mesh_49_8 (Body D)
+  58: '#dc2626', // Mesh_49_8 (Body E)
+  59: '#f8fafc', // Mesh_49_8 (Body F)
+  60: '#475569', // Mesh_49_8 (Body G)
+  61: '#059669', // Mesh_49_8 (Body H)
+  62: '#dc2626', // Mesh_49_8 (Body I)
+  63: '#f8fafc', // Mesh_49_8 (Body J)
+  64: '#475569', // Mesh_49_8 (Body K)
+  65: '#059669', // Mesh_49_8 (Body L)
+  66: '#dc2626', // Mesh_49_8 (Body M)
+  67: '#f8fafc', // Mesh_49_8 (Body N)
+  68: '#475569', // Mesh_49_8 (Body O)
+  69: '#059669', // Mesh_49_8 (Body P)
+  70: '#dc2626', // Mesh_49_8 (Body Q)
+  71: '#f8fafc', // Mesh_49_8 (Body R)
+  72: '#475569', // Mesh_49_8 (Body S)
+  73: '#059669', // Mesh_49_8 (Body T)
+  74: '#dc2626', // Mesh_49_8 (Body U)
+  75: '#f8fafc', // Mesh_49_8 (Body V)
+  76: '#475569', // Mesh_49_8 (Body W)
+  77: '#059669', // Mesh_49_8 (Body X)
+  78: '#dc2626', // Mesh_49_8 (Body Y)
+  79: '#f8fafc', // Mesh_49_8 (Body Z)
+  80: '#475569', // Mesh_49_8 (Body [)
+  81: '#059669', // Mesh_49_8 (Body \)
+  82: '#dc2626', // Mesh_49_8 (Body ])
+  83: '#f8fafc', // Mesh_49_8 (Body ^)
+  84: '#475569', // Mesh_49_8 (Body _)
+  85: '#059669', // Mesh_49_8 (Body `)
+  86: '#dc2626', // Mesh_49_8 (Body a)
+  87: '#f8fafc', // Mesh_49_8 (Body b)
+  88: '#475569', // Mesh_49_8 (Body c)
+  89: '#059669', // Mesh_49_8 (Body d)
+  90: '#dc2626', // Mesh_49_8 (Body e)
+};
 
-// Default Kinematics Animations
-const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {};
+// Hidden Parts:
+const DEFAULT_PART_VISIBILITY: Record<number, boolean> = {
+  23: false, // Mesh_49
+  26: false, // Mesh_49_3
+  29: false, // Mesh_49_6
+  37: false, // Mesh_49_14
+  55: false, // Mesh_49_8 (Body B)
+  65: false, // Mesh_49_8 (Body L)
+  69: false, // Mesh_49_8 (Body P)
+};
+
+// Baked Custom Part Kinematics Animations
+const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
+  27: {
+    type: 'linear-reciprocate',
+    axis: 'x',
+    direction: 1,
+    speed: 100,
+    amplitude: 10,
+    amplitudePositive: 1,
+    amplitudeNegative: 0,
+    phase: 0,
+    pivotMode: 'center-of-mass',
+    pivotX: 0,
+    pivotY: 0,
+    pivotZ: 0,
+  },
+  31: {
+    type: 'linear-reciprocate',
+    axis: 'x',
+    direction: 1,
+    speed: 100,
+    amplitude: 10,
+    amplitudePositive: 1,
+    amplitudeNegative: 0,
+    phase: 0,
+    pivotMode: 'center-of-mass',
+    pivotX: 0,
+    pivotY: 0,
+    pivotZ: 0,
+  },
+  34: {
+    type: 'linear-reciprocate',
+    axis: 'x',
+    direction: 1,
+    speed: 100,
+    amplitude: 10,
+    amplitudePositive: 1,
+    amplitudeNegative: 0,
+    phase: 0,
+    pivotMode: 'center-of-mass',
+    pivotX: 0,
+    pivotY: 0,
+    pivotZ: 0,
+  },
+  35: {
+    type: 'linear-reciprocate',
+    axis: 'x',
+    direction: 1,
+    speed: 100,
+    amplitude: 10,
+    amplitudePositive: 1,
+    amplitudeNegative: 0,
+    phase: 0,
+    pivotMode: 'center-of-mass',
+    pivotX: 0,
+    pivotY: 0,
+    pivotZ: 0,
+  },
+  36: {
+    type: 'multi',
+    axis: 'x',
+    direction: 1,
+    speed: 100,
+    amplitude: 10,
+    amplitudePositive: 1,
+    amplitudeNegative: 0,
+    phase: 0,
+    pivotMode: 'center-of-mass',
+    pivotX: 0,
+    pivotY: 0,
+    pivotZ: 0,
+    subAnimations: [
+      {
+        type: 'linear-reciprocate',
+        axis: 'x',
+        direction: 1,
+        speed: 100,
+        amplitude: 10,
+        amplitudePositive: 1,
+        amplitudeNegative: 0,
+        phase: 0,
+        pivotMode: 'center-of-mass',
+        pivotX: 0,
+        pivotY: 0,
+        pivotZ: 0,
+      },
+      {
+        type: 'oscillate-rotation',
+        axis: 'y',
+        direction: 1,
+        speed: 60,
+        amplitude: 2,
+        amplitudePositive: 10,
+        amplitudeNegative: 10,
+        phase: 0,
+        pivotMode: 'center-of-mass',
+        pivotX: 0,
+        pivotY: 0,
+        pivotZ: 0,
+      },
+    ],
+  },
+  38: {
+    type: 'multi',
+    axis: 'z',
+    direction: 1,
+    speed: 60,
+    amplitude: 11,
+    amplitudePositive: 10,
+    amplitudeNegative: 10,
+    phase: 0,
+    pivotMode: 'center-of-mass',
+    pivotX: 0,
+    pivotY: 0,
+    pivotZ: 0,
+    subAnimations: [
+      {
+        type: 'oscillate-rotation',
+        axis: 'z',
+        direction: 1,
+        speed: 60,
+        amplitude: 6,
+        amplitudePositive: 10,
+        amplitudeNegative: 10,
+        phase: 0,
+        pivotMode: 'center-of-mass',
+        pivotX: 0,
+        pivotY: 0,
+        pivotZ: 0,
+      },
+      {
+        type: 'linear-reciprocate',
+        axis: 'x',
+        direction: 1,
+        speed: 100,
+        amplitude: 35,
+        amplitudePositive: 1,
+        amplitudeNegative: 0,
+        phase: 0,
+        pivotMode: 'center-of-mass',
+        pivotX: 0,
+        pivotY: 0,
+        pivotZ: 0,
+      },
+      {
+        type: 'oscillate-rotation',
+        axis: 'y',
+        direction: 1,
+        speed: 60,
+        amplitude: 2,
+        amplitudePositive: 10,
+        amplitudeNegative: 10,
+        phase: 0,
+        pivotMode: 'center-of-mass',
+        pivotX: 0,
+        pivotY: 0,
+        pivotZ: 0,
+      },
+    ],
+  },
+};
 
 // Shared global blueprint materials
 const darkBlueprintMat = new THREE.MeshBasicMaterial({
@@ -66,6 +273,19 @@ function buildMasterPingPongPrototype(sourceScene: THREE.Group) {
   const staticEdgesList: THREE.EdgesGeometry[] = [];
   const activeEdgesList: THREE.EdgesGeometry[] = [];
   const partsInfo: PartColorInfo[] = [];
+
+  // Flatten hierarchy to root template to avoid local-coordinate nesting issues
+  const meshesToFlatten: THREE.Mesh[] = [];
+  template.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh && child.parent !== template) {
+      meshesToFlatten.push(child as THREE.Mesh);
+    }
+  });
+  meshesToFlatten.forEach((mesh) => {
+    mesh.updateWorldMatrix(true, false);
+    template.updateWorldMatrix(true, false);
+    template.attach(mesh);
+  });
 
   template.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
@@ -146,6 +366,7 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
         scale: DEFAULT_SCALE,
         parts: masterPingPongPrototype.partsInfo,
         defaultColors: DEFAULT_PART_COLORS,
+        defaultVisibility: DEFAULT_PART_VISIBILITY,
         defaultAnimations: DEFAULT_PART_ANIMATIONS,
       });
     }
@@ -317,6 +538,7 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
     let partRunningIndex = 0;
 
     toonMaterialsMap.forEach((toonMatOrArray, mesh) => {
+      let isVisible = true;
       if (isShaded) {
         if (Array.isArray(toonMatOrArray)) {
           mesh.material = toonMatOrArray;
@@ -327,6 +549,12 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
             const overrideHex = (isModelCalibrating && settings.colorOverrides?.[currentPartIdx])
               ? settings.colorOverrides[currentPartIdx]
               : (DEFAULT_PART_COLORS[currentPartIdx] || defaultBaked);
+
+            const isPartVisible = isModelCalibrating 
+              ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+              : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+            
+            if (!isPartVisible) isVisible = false;
 
             tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
             tm.emissive.set(isPartSelected ? '#0284c7' : '#000000');
@@ -339,19 +567,36 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
             ? settings.colorOverrides[currentPartIdx]
             : (DEFAULT_PART_COLORS[currentPartIdx] || defaultBaked);
 
+          const isPartVisible = isModelCalibrating 
+            ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+            : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+          
+          if (!isPartVisible) isVisible = false;
+
           mesh.material = toonMatOrArray;
           toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
           toonMatOrArray.emissive.set(isPartSelected ? '#0284c7' : '#000000');
         }
       } else {
         if (Array.isArray(toonMatOrArray)) {
-          mesh.material = toonMatOrArray.map(() => bpMat);
-          partRunningIndex += toonMatOrArray.length;
+          mesh.material = toonMatOrArray.map(() => {
+            const currentPartIdx = partRunningIndex++;
+            const isPartVisible = isModelCalibrating 
+              ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+              : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+            if (!isPartVisible) isVisible = false;
+            return bpMat;
+          });
         } else {
+          const currentPartIdx = partRunningIndex++;
+          const isPartVisible = isModelCalibrating 
+            ? settings.visibilityOverrides?.[currentPartIdx] !== false 
+            : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+          if (!isPartVisible) isVisible = false;
           mesh.material = bpMat;
-          partRunningIndex += 1;
         }
       }
+      mesh.visible = isVisible;
     });
   }, [
     centeredScene,
@@ -365,6 +610,7 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
     blueprintLineColor,
     celOutlineColor,
     isModelCalibrating ? settings.colorOverrides : null,
+    isModelCalibrating ? settings.visibilityOverrides : null,
   ]);
 
   const localTimeRef = useRef(0);
@@ -418,65 +664,135 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
     }
 
     const time = localTimeRef.current;
-    if (meshNodesRef.current.length > 0) {
-      meshNodesRef.current.forEach((node) => {
-        const anim = isModelCalibrating ? settings.animationOverrides[node.index] : null;
+    if (isAnimating) {
+      const computedTransforms = new Map<
+        number,
+        { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion }
+      >();
 
-        if (!anim || anim.type === 'none') {
-          node.mesh.position.copy(node.initialPos);
-          node.mesh.rotation.copy(node.initialRot);
-          return;
+      const nodeMap = new Map<number, MeshNodeInfo>();
+      meshNodesRef.current.forEach((n) => nodeMap.set(n.index, n));
+
+      const solveKinematics = (
+        partIdx: number,
+        visited = new Set<number>()
+      ): { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion } | null => {
+        if (computedTransforms.has(partIdx)) {
+          return computedTransforms.get(partIdx)!;
+        }
+        if (visited.has(partIdx)) {
+          const n = nodeMap.get(partIdx);
+          if (!n) return null;
+          return {
+            pos: n.initialPos.clone(),
+            quat: n.initialQuat.clone(),
+            deltaPos: new THREE.Vector3(),
+            deltaQuat: new THREE.Quaternion(),
+          };
+        }
+        visited.add(partIdx);
+
+        const node = nodeMap.get(partIdx);
+        if (!node) return null;
+
+        const anim: PartAnimationConfig | undefined = isModelCalibrating
+          ? settings.animationOverrides[node.index]
+          : DEFAULT_PART_ANIMATIONS[node.index];
+
+        const parentIdx = anim?.parentPartIndex;
+        let basePos = node.initialPos.clone();
+        let baseQuat = node.initialQuat.clone();
+        let parentDeltaQuat = new THREE.Quaternion();
+
+        if (parentIdx !== undefined && parentIdx !== null && parentIdx !== partIdx && nodeMap.has(parentIdx)) {
+          const parentResult = solveKinematics(parentIdx, visited);
+          const parentNode = nodeMap.get(parentIdx);
+          if (parentResult && parentNode) {
+            parentDeltaQuat = parentResult.deltaQuat;
+            const relOffset = node.initialPos.clone().sub(parentNode.initialPos);
+            basePos = parentResult.pos.clone().add(relOffset.clone().applyQuaternion(parentDeltaQuat));
+            baseQuat = parentDeltaQuat.clone().multiply(node.initialQuat);
+          }
         }
 
-        const phaseRad = (anim.phase * Math.PI) / 180;
-        const axisVec = new THREE.Vector3(
-          anim.axis === 'x' ? 1 : 0,
-          anim.axis === 'y' ? 1 : 0,
-          anim.axis === 'z' ? 1 : 0
-        );
-        const dir = anim.direction ?? 1;
-        const omega = (anim.speed * Math.PI * 2) / 60;
+        let currentPos = basePos.clone();
+          let currentQuat = baseQuat.clone();
+          let accumulatedDeltaQuat = parentDeltaQuat.clone();
+          if (anim && anim.type !== 'none') {
+            const applyAnim = (animConfig: any) => {
+            if (!animConfig || animConfig.type === 'none') return;
+            if (animConfig.type === 'multi' && Array.isArray(animConfig.subAnimations)) {
+              animConfig.subAnimations.forEach(applyAnim);
+              return;
+            }
 
-        const pivotMode = anim.pivotMode || 'center-of-mass';
-        let pivot = node.centerOfMass.clone();
+            const phaseRad = ((animConfig.phase || 0) * Math.PI) / 180;
+            const rawAxis = new THREE.Vector3(
+              animConfig.axis === 'x' ? 1 : 0,
+              animConfig.axis === 'y' ? 1 : 0,
+              animConfig.axis === 'z' ? 1 : 0
+            );
+            const axisVec = rawAxis.clone().applyQuaternion(accumulatedDeltaQuat);
+            const dir = animConfig.direction ?? 1;
+            const omega = ((animConfig.speed || 0) * Math.PI * 2) / 60;
 
-        if (pivotMode === 'origin') {
-          pivot.set(0, 0, 0);
-        } else if (pivotMode === 'custom') {
-          pivot.add(
-            new THREE.Vector3(
-              (anim.pivotX || 0) / 100,
-              (anim.pivotY || 0) / 100,
-              (anim.pivotZ || 0) / 100
-            )
-          );
+            if (animConfig.type === 'continuous-spin' || animConfig.type === 'oscillate-rotation') {
+              const pivotMode = animConfig.pivotMode || 'center-of-mass';
+              let pivot = basePos.clone().add(node.centerOfMass.clone().sub(node.initialPos).applyQuaternion(accumulatedDeltaQuat));
+
+              const translationDelta = currentPos.clone().sub(basePos);
+              pivot.add(translationDelta);
+
+              if (pivotMode === 'origin') {
+                pivot.copy(basePos).add(translationDelta);
+              } else if (pivotMode === 'custom') {
+                pivot.add(
+                  new THREE.Vector3(
+                    (animConfig.pivotX || 0) / 100,
+                    (animConfig.pivotY || 0) / 100,
+                    (animConfig.pivotZ || 0) / 100
+                  ).applyQuaternion(accumulatedDeltaQuat)
+                  );
+              }
+
+              const angle =
+                animConfig.type === 'continuous-spin'
+                  ? time * omega * dir
+                  : Math.sin(time * omega + phaseRad) *
+                    (((animConfig.amplitude || 30) * Math.PI) / 180) *
+                    dir;
+
+              const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
+              currentQuat = qDelta.clone().multiply(currentQuat);
+              currentPos.sub(pivot).applyQuaternion(qDelta).add(pivot);
+                accumulatedDeltaQuat = qDelta.clone().multiply(accumulatedDeltaQuat);
+
+            } else if (animConfig.type === 'linear-reciprocate') {
+              const distPosM = ((animConfig.amplitudePositive !== undefined ? animConfig.amplitudePositive : (animConfig.amplitude || 10)) / 100);
+              const distNegM = ((animConfig.amplitudeNegative !== undefined ? animConfig.amplitudeNegative : (animConfig.amplitude || 10)) / 100);
+              const centerM = (distPosM - distNegM) / 2;
+              const strokeHalfM = (distPosM + distNegM) / 2;
+              const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
+              const displacement = axisVec.clone().multiplyScalar(displacementScalar);
+              currentPos.add(displacement);
+            }
+          };
+
+          applyAnim(anim);
         }
 
-        if (anim.type === 'continuous-spin' || anim.type === 'oscillate-rotation') {
-          const angle =
-            anim.type === 'continuous-spin'
-              ? time * omega * dir
-              : Math.sin(time * omega + phaseRad) *
-                (((anim.amplitude || 30) * Math.PI) / 180) *
-                dir;
+        node.mesh.position.copy(currentPos);
+        node.mesh.quaternion.copy(currentQuat);
 
-          const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
-          node.mesh.quaternion.copy(qDelta).multiply(node.initialQuat);
-          node.mesh.position
-            .copy(pivot)
-            .add(node.initialPos.clone().sub(pivot).applyQuaternion(qDelta));
-        } else if (anim.type === 'linear-reciprocate') {
-          node.mesh.quaternion.copy(node.initialQuat);
-          const distPosM = ((anim.amplitudePositive !== undefined ? anim.amplitudePositive : (anim.amplitude || 10)) / 100);
-          const distNegM = ((anim.amplitudeNegative !== undefined ? anim.amplitudeNegative : (anim.amplitude || 10)) / 100);
-          const centerM = (distPosM - distNegM) / 2;
-          const strokeHalfM = (distPosM + distNegM) / 2;
-          const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
-          const displacement = axisVec
-            .clone()
-            .multiplyScalar(displacementScalar);
-          node.mesh.position.copy(node.initialPos).add(displacement);
-        }
+        const deltaPos = currentPos.clone().sub(node.initialPos);
+        const deltaQuat = currentQuat.clone().multiply(node.initialQuat.clone().invert());
+        const result = { pos: currentPos, quat: currentQuat, deltaPos, deltaQuat };
+        computedTransforms.set(partIdx, result);
+        return result;
+      };
+
+      nodeMap.forEach((_, pIdx) => {
+        solveKinematics(pIdx);
       });
     }
   });

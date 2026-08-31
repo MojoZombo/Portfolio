@@ -88,8 +88,21 @@ function buildMasterWinchPrototype(sourceScene: THREE.Group) {
   const activeEdgesList: THREE.EdgesGeometry[] = [];
   const partsInfo: PartColorInfo[] = [];
 
+  // Flatten hierarchy to root template to avoid local-coordinate nesting issues
+  const meshesToFlatten: THREE.Mesh[] = [];
   template.traverse((child) => {
-    if ((child as THREE.Mesh).isMesh) {
+    if ((child as THREE.Mesh).isMesh && child.parent !== template) {
+      meshesToFlatten.push(child as THREE.Mesh);
+    }
+  });
+  meshesToFlatten.forEach((mesh) => {
+    mesh.updateWorldMatrix(true, false);
+    template.updateWorldMatrix(true, false);
+    template.attach(mesh);
+  });
+
+  template.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh && !(child instanceof THREE.LineSegments)) {
       const mesh = child as THREE.Mesh;
       originalMaterials.push(mesh.material);
 
@@ -114,11 +127,10 @@ function buildMasterWinchPrototype(sourceScene: THREE.Group) {
       }
 
       try {
-        const bpEdges = new THREE.EdgesGeometry(mesh.geometry, 8);
-        staticEdgesList.push(bpEdges);
-
+        // Compute edges once at 28 deg to prevent main thread freeze on dense CAD parts
         const celEdges = new THREE.EdgesGeometry(mesh.geometry, 28);
         activeEdgesList.push(celEdges);
+        staticEdgesList.push(celEdges);
       } catch {
         // Ignore non-standard geometries
       }
@@ -208,7 +220,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
     let runningPartIdx = 0;
     let meshIdx = 0;
     clone.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
+      if ((child as THREE.Mesh).isMesh && !(child instanceof THREE.LineSegments)) {
         const mesh = child as THREE.Mesh;
         const currentPartStart = runningPartIdx;
         const currentMeshIdx = meshIdx;
@@ -292,7 +304,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
     const list: MeshNodeInfo[] = [];
     let idx = 0;
     centeredScene.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
+      if ((child as THREE.Mesh).isMesh && !(child instanceof THREE.LineSegments)) {
         const mesh = child as THREE.Mesh;
         if (!mesh.geometry.boundingBox) {
           mesh.geometry.computeBoundingBox();
@@ -434,7 +446,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
       if (groupRef.current) {
         groupRef.current.scale.setScalar(DEFAULT_SCALE);
       }
-      if (meshNodesRef.current.length > 0) {
+      if (isAnimating && meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
           node.mesh.rotation.copy(node.initialRot);
@@ -462,69 +474,137 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
       }
     }
 
-    // 3. Execute Live Kinematics Animations around Center of Mass / Custom Pivot
+    // 3. Execute Live Kinematics Animations with Hierarchical Forward Kinematics
     const time = localTimeRef.current;
-    if (meshNodesRef.current.length > 0) {
-      meshNodesRef.current.forEach((node) => {
-        const anim = isModelCalibrating
+    if (isAnimating && meshNodesRef.current.length > 0) {
+      const computedTransforms = new Map<
+        number,
+        { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion }
+      >();
+
+      const nodeMap = new Map<number, MeshNodeInfo>();
+      meshNodesRef.current.forEach((n) => nodeMap.set(n.index, n));
+
+      const solveKinematics = (
+        partIdx: number,
+        visited = new Set<number>()
+      ): { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion } | null => {
+        if (computedTransforms.has(partIdx)) {
+          return computedTransforms.get(partIdx)!;
+        }
+        if (visited.has(partIdx)) {
+          const n = nodeMap.get(partIdx);
+          if (!n) return null;
+          return {
+            pos: n.initialPos.clone(),
+            quat: n.initialQuat.clone(),
+            deltaPos: new THREE.Vector3(),
+            deltaQuat: new THREE.Quaternion(),
+          };
+        }
+        visited.add(partIdx);
+
+        const node = nodeMap.get(partIdx);
+        if (!node) return null;
+
+        const anim: PartAnimationConfig | undefined = isModelCalibrating
           ? (settings.animationOverrides[node.index] || DEFAULT_PART_ANIMATIONS[node.index])
           : DEFAULT_PART_ANIMATIONS[node.index];
 
-        if (!anim || anim.type === 'none') {
-          node.mesh.position.copy(node.initialPos);
-          node.mesh.rotation.copy(node.initialRot);
-          return;
+        const parentIdx = anim?.parentPartIndex;
+        let basePos = node.initialPos.clone();
+        let baseQuat = node.initialQuat.clone();
+        let parentDeltaQuat = new THREE.Quaternion();
+
+        if (parentIdx !== undefined && parentIdx !== null && parentIdx !== partIdx && nodeMap.has(parentIdx)) {
+          const parentResult = solveKinematics(parentIdx, visited);
+          const parentNode = nodeMap.get(parentIdx);
+          if (parentResult && parentNode) {
+            parentDeltaQuat = parentResult.deltaQuat;
+            const relOffset = node.initialPos.clone().sub(parentNode.initialPos);
+            basePos = parentResult.pos.clone().add(relOffset.clone().applyQuaternion(parentDeltaQuat));
+            baseQuat = parentDeltaQuat.clone().multiply(node.initialQuat);
+          }
         }
 
-        const phaseRad = (anim.phase * Math.PI) / 180;
-        const axisVec = new THREE.Vector3(
-          anim.axis === 'x' ? 1 : 0,
-          anim.axis === 'y' ? 1 : 0,
-          anim.axis === 'z' ? 1 : 0
-        );
-        const dir = anim.direction ?? 1;
-        const omega = (anim.speed * Math.PI * 2) / 60;
+        let currentPos = basePos.clone();
+          let currentQuat = baseQuat.clone();
+          let accumulatedDeltaQuat = parentDeltaQuat.clone();
+          if (anim && anim.type !== 'none') {
+            const applyAnim = (animConfig: any) => {
+            if (!animConfig || animConfig.type === 'none') return;
+            if (animConfig.type === 'multi' && Array.isArray(animConfig.subAnimations)) {
+              animConfig.subAnimations.forEach(applyAnim);
+              return;
+            }
 
-        const pivotMode = anim.pivotMode || 'center-of-mass';
-        let pivot = node.centerOfMass.clone();
+            const phaseRad = ((animConfig.phase || 0) * Math.PI) / 180;
+            const rawAxis = new THREE.Vector3(
+              animConfig.axis === 'x' ? 1 : 0,
+              animConfig.axis === 'y' ? 1 : 0,
+              animConfig.axis === 'z' ? 1 : 0
+            );
+            const axisVec = rawAxis.clone().applyQuaternion(accumulatedDeltaQuat);
+            const dir = animConfig.direction ?? 1;
+            const omega = ((animConfig.speed || 0) * Math.PI * 2) / 60;
 
-        if (pivotMode === 'origin') {
-          pivot.set(0, 0, 0);
-        } else if (pivotMode === 'custom') {
-          pivot.add(
-            new THREE.Vector3(
-              (anim.pivotX || 0) / 100,
-              (anim.pivotY || 0) / 100,
-              (anim.pivotZ || 0) / 100
-            )
-          );
+            if (animConfig.type === 'continuous-spin' || animConfig.type === 'oscillate-rotation') {
+              const pivotMode = animConfig.pivotMode || 'center-of-mass';
+              let pivot = basePos.clone().add(node.centerOfMass.clone().sub(node.initialPos).applyQuaternion(accumulatedDeltaQuat));
+
+              const translationDelta = currentPos.clone().sub(basePos);
+              pivot.add(translationDelta);
+
+              if (pivotMode === 'origin') {
+                pivot.copy(basePos).add(translationDelta);
+              } else if (pivotMode === 'custom') {
+                pivot.add(
+                  new THREE.Vector3(
+                    (animConfig.pivotX || 0) / 100,
+                    (animConfig.pivotY || 0) / 100,
+                    (animConfig.pivotZ || 0) / 100
+                  ).applyQuaternion(accumulatedDeltaQuat)
+                  );
+              }
+
+              const angle =
+                animConfig.type === 'continuous-spin'
+                  ? time * omega * dir
+                  : Math.sin(time * omega + phaseRad) *
+                    (((animConfig.amplitude || 30) * Math.PI) / 180) *
+                    dir;
+
+              const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
+              currentQuat = qDelta.clone().multiply(currentQuat);
+              currentPos.sub(pivot).applyQuaternion(qDelta).add(pivot);
+                accumulatedDeltaQuat = qDelta.clone().multiply(accumulatedDeltaQuat);
+
+            } else if (animConfig.type === 'linear-reciprocate') {
+              const distPosM = ((animConfig.amplitudePositive !== undefined ? animConfig.amplitudePositive : (animConfig.amplitude || 10)) / 100);
+              const distNegM = ((animConfig.amplitudeNegative !== undefined ? animConfig.amplitudeNegative : (animConfig.amplitude || 10)) / 100);
+              const centerM = (distPosM - distNegM) / 2;
+              const strokeHalfM = (distPosM + distNegM) / 2;
+              const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
+              const displacement = axisVec.clone().multiplyScalar(displacementScalar);
+              currentPos.add(displacement);
+            }
+          };
+
+          applyAnim(anim);
         }
 
-        if (anim.type === 'continuous-spin' || anim.type === 'oscillate-rotation') {
-          const angle =
-            anim.type === 'continuous-spin'
-              ? time * omega * dir
-              : Math.sin(time * omega + phaseRad) *
-                (((anim.amplitude || 30) * Math.PI) / 180) *
-                dir;
+        node.mesh.position.copy(currentPos);
+        node.mesh.quaternion.copy(currentQuat);
 
-          const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
-          node.mesh.quaternion.copy(qDelta).multiply(node.initialQuat);
-          node.mesh.position
-            .copy(pivot)
-            .add(node.initialPos.clone().sub(pivot).applyQuaternion(qDelta));
-        } else if (anim.type === 'linear-reciprocate') {
-          node.mesh.quaternion.copy(node.initialQuat);
-          const distPosM = ((anim.amplitudePositive !== undefined ? anim.amplitudePositive : (anim.amplitude || 10)) / 100);
-          const distNegM = ((anim.amplitudeNegative !== undefined ? anim.amplitudeNegative : (anim.amplitude || 10)) / 100);
-          const centerM = (distPosM - distNegM) / 2;
-          const strokeHalfM = (distPosM + distNegM) / 2;
-          const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
-          const displacement = axisVec
-            .clone()
-            .multiplyScalar(displacementScalar);
-          node.mesh.position.copy(node.initialPos).add(displacement);
-        }
+        const deltaPos = currentPos.clone().sub(node.initialPos);
+        const deltaQuat = currentQuat.clone().multiply(node.initialQuat.clone().invert());
+        const result = { pos: currentPos, quat: currentQuat, deltaPos, deltaQuat };
+        computedTransforms.set(partIdx, result);
+        return result;
+      };
+
+      nodeMap.forEach((_, pIdx) => {
+        solveKinematics(pIdx);
       });
     }
   });

@@ -423,6 +423,19 @@ function buildMasterCableRobot2Prototype(sourceScene: THREE.Group) {
   const activeEdgesList: THREE.EdgesGeometry[] = [];
   const partsInfo: PartColorInfo[] = [];
 
+  // Flatten hierarchy to root template to avoid local-coordinate nesting issues
+  const meshesToFlatten: THREE.Mesh[] = [];
+  template.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh && child.parent !== template) {
+      meshesToFlatten.push(child as THREE.Mesh);
+    }
+  });
+  meshesToFlatten.forEach((mesh) => {
+    mesh.updateWorldMatrix(true, false);
+    template.updateWorldMatrix(true, false);
+    template.attach(mesh);
+  });
+
   template.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       const mesh = child as THREE.Mesh;
@@ -731,7 +744,7 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
       if (groupRef.current) {
         groupRef.current.scale.setScalar(DEFAULT_SCALE);
       }
-      if (meshNodesRef.current.length > 0) {
+      if (isAnimating && meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
           node.mesh.rotation.copy(node.initialRot);
@@ -761,7 +774,7 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
 
     // 3. Execute Live Kinematics Animations around Center of Mass / Custom Pivot
     const time = localTimeRef.current;
-    if (meshNodesRef.current.length > 0) {
+    if (isAnimating && meshNodesRef.current.length > 0) {
       meshNodesRef.current.forEach((node) => {
         const anim = isModelCalibrating
           ? (settings.animationOverrides[node.index] || DEFAULT_PART_ANIMATIONS[node.index])

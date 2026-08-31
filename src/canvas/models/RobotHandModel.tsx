@@ -40,6 +40,9 @@ const DEFAULT_PART_COLORS: Record<number, string> = {
   26: '#475569',
 };
 
+// Baked Custom Part Animations
+const DEFAULT_PART_ANIMATIONS: Record<number, any> = {};
+
 // Shared global blueprint materials
 const darkBlueprintMat = new THREE.MeshBasicMaterial({
   color: new THREE.Color('#233247'),
@@ -70,6 +73,19 @@ function buildMasterCADPrototype(sourceScene: THREE.Group) {
   const staticEdgesList: THREE.EdgesGeometry[] = [];
   const activeEdgesList: THREE.EdgesGeometry[] = [];
   const partsInfo: PartColorInfo[] = [];
+
+  // Flatten hierarchy to root template to avoid local-coordinate nesting issues
+  const meshesToFlatten: THREE.Mesh[] = [];
+  template.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh && child.parent !== template) {
+      meshesToFlatten.push(child as THREE.Mesh);
+    }
+  });
+  meshesToFlatten.forEach((mesh) => {
+    mesh.updateWorldMatrix(true, false);
+    template.updateWorldMatrix(true, false);
+    template.attach(mesh);
+  });
 
   template.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
@@ -377,7 +393,7 @@ export const RobotHandModel: React.FC<ModelProps> = ({ isActive = false, isRotat
       if (groupRef.current) {
         groupRef.current.scale.setScalar(DEFAULT_SCALE);
       }
-      if (meshNodesRef.current.length > 0) {
+      if (isAnimating && meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
           node.mesh.rotation.copy(node.initialRot);
@@ -407,9 +423,11 @@ export const RobotHandModel: React.FC<ModelProps> = ({ isActive = false, isRotat
 
     // 3. Execute Live Kinematics Animations around Center of Mass / Custom Pivot
     const time = localTimeRef.current;
-    if (meshNodesRef.current.length > 0) {
+    if (isAnimating && meshNodesRef.current.length > 0) {
       meshNodesRef.current.forEach((node) => {
-        const anim = isModelCalibrating ? settings.animationOverrides[node.index] : null;
+        const anim = isModelCalibrating
+          ? (settings.animationOverrides[node.index] || DEFAULT_PART_ANIMATIONS[node.index])
+          : DEFAULT_PART_ANIMATIONS[node.index];
 
         if (!anim || anim.type === 'none') {
           node.mesh.position.copy(node.initialPos);

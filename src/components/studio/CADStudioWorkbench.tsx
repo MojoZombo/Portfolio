@@ -86,8 +86,39 @@ function StudioSceneBridge({
     const time = state.clock.getElapsedTime();
     let fallbackIdx = 0;
 
+    // Flatten hierarchy: attach all cadMeshes to the model root so they share the exact same coordinate space
+    const meshesToFlatten: { mesh: THREE.Mesh; root: THREE.Object3D }[] = [];
     scene.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
+      if ((child as THREE.Mesh).isMesh && !(child instanceof THREE.LineSegments)) {
+        const mesh = child as THREE.Mesh;
+        if (
+          !mesh.name.includes('Helper') &&
+          !mesh.name.includes('Gizmo') &&
+          !mesh.name.includes('Grid') &&
+          !mesh.name.includes('Line') &&
+          !mesh.userData.hierarchyFlattened
+        ) {
+          let root = mesh as THREE.Object3D;
+          while (root.parent && root.parent.type !== 'Scene') {
+            root = root.parent;
+          }
+          if (mesh.parent !== root) {
+            meshesToFlatten.push({ mesh, root });
+          }
+        }
+      }
+    });
+    
+    meshesToFlatten.forEach(({ mesh, root }) => {
+      // Must update matrices before attaching to preserve world transform mathematically
+      mesh.updateWorldMatrix(true, false);
+      root.updateWorldMatrix(true, false);
+      root.attach(mesh);
+      mesh.userData.hierarchyFlattened = true;
+    });
+
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh && !(child instanceof THREE.LineSegments)) {
         const mesh = child as THREE.Mesh;
         if (
           !mesh.name.includes('Helper') &&
@@ -157,67 +188,225 @@ function StudioSceneBridge({
             }
           }
 
-          // 4. Kinematics Animation (Rotation around true Center of Mass with ZERO axis drift)
+          // 4. Kinematics Animation (Hierarchical Forward Kinematics)
           const anim = animationOverrides[currentIdx];
-          if (anim && anim.type !== 'none') {
-            const axisVec = new THREE.Vector3(
-              anim.axis === 'x' ? 1 : 0,
-              anim.axis === 'y' ? 1 : 0,
-              anim.axis === 'z' ? 1 : 0
-            );
-            const dir = anim.direction ?? 1;
-            const omega = (anim.speed * Math.PI * 2) / 60;
-            const phaseRad = ((anim.phase || 0) * Math.PI) / 180;
+          const parentIdx = anim?.parentPartIndex;
+          
+          let basePos = mesh.userData.initialPos.clone();
+          let baseQuat = mesh.userData.initialQuat.clone();
+          let parentDeltaQuat = new THREE.Quaternion();
 
-            const pivotMode = anim.pivotMode || 'center-of-mass';
-            let pivotPoint = (mesh.userData.centerOfMass as THREE.Vector3).clone();
-            if (pivotMode === 'origin') {
-              pivotPoint.set(0, 0, 0);
-            } else if (pivotMode === 'custom') {
-              pivotPoint.add(
-                new THREE.Vector3(
-                  (anim.pivotX || 0) / 100,
-                  (anim.pivotY || 0) / 100,
-                  (anim.pivotZ || 0) / 100
-                )
-              );
+          // Quick recursive resolver for this frame
+          const solveKinematics = (
+            pIdx: number,
+            visited = new Set<number>()
+          ): { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion } | null => {
+            if (visited.has(pIdx)) {
+              return null; // loop protection
+            }
+            visited.add(pIdx);
+
+            let pMesh: THREE.Mesh | undefined;
+            scene.traverse((child) => {
+              if ((child as THREE.Mesh).isMesh) {
+                const cm = child as THREE.Mesh;
+                if (cm.userData.partIndex === pIdx || cm.userData.cadPartIndex === pIdx) {
+                  pMesh = cm;
+                }
+              }
+            });
+            if (!pMesh || !pMesh!.userData.initialPos) return null;
+
+            const pAnim = animationOverrides[pIdx];
+            const pParentIdx = pAnim?.parentPartIndex;
+            
+            let pBasePos = pMesh!.userData.initialPos.clone();
+            let pBaseQuat = pMesh!.userData.initialQuat.clone();
+            let pParentDeltaQuat = new THREE.Quaternion();
+
+            if (pParentIdx !== undefined && pParentIdx !== null && pParentIdx !== pIdx) {
+              const parentResult = solveKinematics(pParentIdx, visited);
+              if (parentResult) {
+                pParentDeltaQuat = parentResult.deltaQuat;
+                
+                // Find parent mesh to get its initialPos
+                let parentInitialPos = new THREE.Vector3();
+                scene.traverse((child) => {
+                  if ((child as THREE.Mesh).isMesh) {
+                    const cm = child as THREE.Mesh;
+                    if (cm.userData.partIndex === pParentIdx || cm.userData.cadPartIndex === pParentIdx) {
+                      parentInitialPos = cm.userData.initialPos.clone();
+                    }
+                  }
+                });
+
+                const relOffset = pMesh!.userData.initialPos.clone().sub(parentInitialPos);
+                pBasePos = parentResult.pos.clone().add(relOffset.applyQuaternion(pParentDeltaQuat));
+                pBaseQuat = pParentDeltaQuat.clone().multiply(pMesh!.userData.initialQuat);
+              }
             }
 
-            if (anim.type === 'continuous-spin' || anim.type === 'oscillate-rotation') {
-              const angle =
-                anim.type === 'continuous-spin'
-                  ? time * omega * dir
-                  : Math.sin(time * omega + phaseRad) *
-                    (((anim.amplitude || 30) * Math.PI) / 180) *
-                    dir;
+            let cPos = pBasePos.clone();
+            let cQuat = pBaseQuat.clone();
+            let pAccDeltaQuat = pParentDeltaQuat.clone();
 
-              const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
-              mesh.quaternion.copy(qDelta).multiply(mesh.userData.initialQuat);
-              mesh.position
-                .copy(pivotPoint)
-                .add(
-                  (mesh.userData.initialPos as THREE.Vector3)
-                    .clone()
-                    .sub(pivotPoint)
-                    .applyQuaternion(qDelta)
+            if (pAnim && pAnim.type !== 'none') {
+              const applyPAnim = (animConfig: any) => {
+                if (!animConfig || animConfig.type === 'none') return;
+                if (animConfig.type === 'multi' && Array.isArray(animConfig.subAnimations)) {
+                  animConfig.subAnimations.forEach(applyPAnim);
+                  return;
+                }
+                const phaseRad = ((animConfig.phase || 0) * Math.PI) / 180;
+                const rawAxis = new THREE.Vector3(
+                  animConfig.axis === 'x' ? 1 : 0,
+                  animConfig.axis === 'y' ? 1 : 0,
+                  animConfig.axis === 'z' ? 1 : 0
                 );
-            } else if (anim.type === 'linear-reciprocate') {
-              mesh.quaternion.copy(mesh.userData.initialQuat);
-              // Custom translation distances in both directions (Forward/Positive and Reverse/Negative in cm)
-              const distPosM = ((anim.amplitudePositive !== undefined ? anim.amplitudePositive : (anim.amplitude || 10)) / 100);
-              const distNegM = ((anim.amplitudeNegative !== undefined ? anim.amplitudeNegative : (anim.amplitude || 10)) / 100);
+                const axisVec = rawAxis.clone().applyQuaternion(pAccDeltaQuat);
+                const dir = animConfig.direction ?? 1;
+                const omega = ((animConfig.speed || 0) * Math.PI * 2) / 60;
 
-              const centerM = (distPosM - distNegM) / 2;
-              const strokeHalfM = (distPosM + distNegM) / 2;
-              const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
+                if (animConfig.type === 'continuous-spin' || animConfig.type === 'oscillate-rotation') {
+                  const pivotMode = animConfig.pivotMode || 'center-of-mass';
+                  let pivot = pBasePos.clone().add(
+                    pMesh!.userData.centerOfMass.clone().sub(pMesh!.userData.initialPos).applyQuaternion(pAccDeltaQuat)
+                  );
+                  const translationDelta = cPos.clone().sub(pBasePos);
+                  pivot.add(translationDelta);
 
-              const displacement = axisVec
-                .clone()
-                .multiplyScalar(displacementScalar);
-              mesh.position
-                .copy(mesh.userData.initialPos as THREE.Vector3)
-                .add(displacement);
+                  if (pivotMode === 'origin') {
+                    pivot.copy(pBasePos).add(translationDelta);
+                  } else if (pivotMode === 'custom') {
+                    pivot.add(
+                      new THREE.Vector3(
+                        (animConfig.pivotX || 0) / 100,
+                        (animConfig.pivotY || 0) / 100,
+                        (animConfig.pivotZ || 0) / 100
+                      ).applyQuaternion(pAccDeltaQuat)
+                    );
+                  }
+                  
+                  const angle =
+                    animConfig.type === 'continuous-spin'
+                      ? time * omega * dir
+                      : Math.sin(time * omega + phaseRad) *
+                        (((animConfig.amplitude || 30) * Math.PI) / 180) *
+                        dir;
+                  const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
+                  cQuat = qDelta.clone().multiply(cQuat);
+                  cPos.sub(pivot).applyQuaternion(qDelta).add(pivot);
+                  pAccDeltaQuat = qDelta.clone().multiply(pAccDeltaQuat);
+                } else if (animConfig.type === 'linear-reciprocate') {
+                  const distPosM = ((animConfig.amplitudePositive !== undefined ? animConfig.amplitudePositive : (animConfig.amplitude || 10)) / 100);
+                  const distNegM = ((animConfig.amplitudeNegative !== undefined ? animConfig.amplitudeNegative : (animConfig.amplitude || 10)) / 100);
+                  const centerM = (distPosM - distNegM) / 2;
+                  const strokeHalfM = (distPosM + distNegM) / 2;
+                  const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
+                  const displacement = axisVec.clone().multiplyScalar(displacementScalar);
+                  cPos.add(displacement);
+                }
+              };
+              applyPAnim(pAnim);
             }
+
+            return {
+              pos: cPos,
+              quat: cQuat,
+              deltaPos: cPos.clone().sub(pMesh!.userData.initialPos),
+              deltaQuat: cQuat.clone().multiply(pMesh!.userData.initialQuat.clone().invert())
+            };
+          };
+
+          if (parentIdx !== undefined && parentIdx !== null && parentIdx !== currentIdx) {
+            const parentResult = solveKinematics(parentIdx);
+            if (parentResult) {
+              parentDeltaQuat = parentResult.deltaQuat;
+              let parentInitialPos = new THREE.Vector3();
+              scene.traverse((child) => {
+                if ((child as THREE.Mesh).isMesh) {
+                  const cm = child as THREE.Mesh;
+                  if (cm.userData.partIndex === parentIdx || cm.userData.cadPartIndex === parentIdx) {
+                    parentInitialPos = cm.userData.initialPos.clone();
+                  }
+                }
+              });
+              const relOffset = mesh.userData.initialPos.clone().sub(parentInitialPos);
+              basePos = parentResult.pos.clone().add(relOffset.applyQuaternion(parentDeltaQuat));
+              baseQuat = parentDeltaQuat.clone().multiply(mesh.userData.initialQuat);
+            }
+          }
+
+          let currentPos = basePos.clone();
+          let currentQuat = baseQuat.clone();
+          let accumulatedDeltaQuat = parentDeltaQuat.clone();
+
+          if (anim && anim.type !== 'none') {
+            const applyAnim = (animConfig: any) => {
+              if (!animConfig || animConfig.type === 'none') return;
+              if (animConfig.type === 'multi' && Array.isArray(animConfig.subAnimations)) {
+                animConfig.subAnimations.forEach(applyAnim);
+                return;
+              }
+
+              const phaseRad = ((animConfig.phase || 0) * Math.PI) / 180;
+              const rawAxis = new THREE.Vector3(
+                animConfig.axis === 'x' ? 1 : 0,
+                animConfig.axis === 'y' ? 1 : 0,
+                animConfig.axis === 'z' ? 1 : 0
+              );
+              const axisVec = rawAxis.clone().applyQuaternion(accumulatedDeltaQuat);
+              const dir = animConfig.direction ?? 1;
+              const omega = ((animConfig.speed || 0) * Math.PI * 2) / 60;
+
+              if (animConfig.type === 'continuous-spin' || animConfig.type === 'oscillate-rotation') {
+                const pivotMode = animConfig.pivotMode || 'center-of-mass';
+                let pivotPoint = basePos.clone().add(
+                  mesh.userData.centerOfMass.clone().sub(mesh.userData.initialPos).applyQuaternion(accumulatedDeltaQuat)
+                );
+
+                const translationDelta = currentPos.clone().sub(basePos);
+                pivotPoint.add(translationDelta);
+
+                if (pivotMode === 'origin') {
+                  pivotPoint.copy(basePos).add(translationDelta);
+                } else if (pivotMode === 'custom') {
+                  const customOffset = new THREE.Vector3(
+                    (animConfig.pivotX || 0) / 100,
+                    (animConfig.pivotY || 0) / 100,
+                    (animConfig.pivotZ || 0) / 100
+                  ).applyQuaternion(accumulatedDeltaQuat);
+                  pivotPoint.add(customOffset);
+                }
+
+                const angle =
+                  animConfig.type === 'continuous-spin'
+                    ? time * omega * dir
+                    : Math.sin(time * omega + phaseRad) *
+                      (((animConfig.amplitude || 30) * Math.PI) / 180) *
+                      dir;
+
+                const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
+                currentQuat = qDelta.clone().multiply(currentQuat);
+                currentPos.sub(pivotPoint).applyQuaternion(qDelta).add(pivotPoint);
+                
+                accumulatedDeltaQuat = qDelta.clone().multiply(accumulatedDeltaQuat);
+              } else if (animConfig.type === 'linear-reciprocate') {
+                const distPosM = ((animConfig.amplitudePositive !== undefined ? animConfig.amplitudePositive : (animConfig.amplitude || 10)) / 100);
+                const distNegM = ((animConfig.amplitudeNegative !== undefined ? animConfig.amplitudeNegative : (animConfig.amplitude || 10)) / 100);
+                const centerM = (distPosM - distNegM) / 2;
+                const strokeHalfM = (distPosM + distNegM) / 2;
+                const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
+                const displacement = axisVec.clone().multiplyScalar(displacementScalar);
+                currentPos.add(displacement);
+              }
+            };
+            
+            applyAnim(anim);
+            
+            mesh.position.copy(currentPos);
+            mesh.quaternion.copy(currentQuat);
+          
           }
 
           fallbackIdx++;
@@ -492,43 +681,63 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     const rotRadY = (settings.rotY * Math.PI) / 180;
     const rotRadZ = (settings.rotZ * Math.PI) / 180;
 
-    let output = `// Optimal CAD Alignment Settings for [${activeModelId}]:\n`;
-    output += `const offset: [number, number, number] = [${settings.offsetX.toFixed(2)}, ${settings.offsetY.toFixed(2)}, ${settings.offsetZ.toFixed(2)}];\n`;
-    output += `const rotation: [number, number, number] = [${rotRadX.toFixed(3)}, ${rotRadY.toFixed(3)}, ${rotRadZ.toFixed(3)}]; // [${settings.rotX}°, ${settings.rotY}°, ${settings.rotZ}°]\n`;
-    output += `const scale = ${settings.scale.toFixed(2)};\n`;
+    let output = `// Optimal CAD Alignment Settings for [${activeModelId}]:
+`;
+    output += `const offset: [number, number, number] = [${settings.offsetX.toFixed(2)}, ${settings.offsetY.toFixed(2)}, ${settings.offsetZ.toFixed(2)}];
+`;
+    output += `const rotation: [number, number, number] = [${rotRadX.toFixed(3)}, ${rotRadY.toFixed(3)}, ${rotRadZ.toFixed(3)}]; // [${settings.rotX}°, ${settings.rotY}°, ${settings.rotZ}°]
+`;
+    output += `const scale = ${settings.scale.toFixed(2)};
+`;
 
     if (Object.keys(settings.colorOverrides).length > 0) {
-      output += `\n// Custom Part Color Overrides:\n`;
-      output += `const partColorOverrides: Record<number, string> = {\n`;
+      output += `
+// Custom Part Color Overrides:
+`;
+      output += `const partColorOverrides: Record<number, string> = {
+`;
       for (const [idxStr, color] of Object.entries(settings.colorOverrides)) {
         const idx = parseInt(idxStr);
         const name = availableParts.find((p) => p.index === idx)?.name || `Part #${idx}`;
-        output += `  ${idx}: '${color}', // ${name}\n`;
+        output += `  ${idx}: '${color}', // ${name}
+`;
       }
-      output += `};\n`;
+      output += `};
+`;
     }
 
     if (Object.keys(settings.visibilityOverrides).length > 0) {
-      output += `\n// Hidden Parts:\n`;
-      output += `const partVisibilityOverrides: Record<number, boolean> = {\n`;
+      output += `
+// Hidden Parts:
+`;
+      output += `const partVisibilityOverrides: Record<number, boolean> = {
+`;
       for (const [idxStr, isVisible] of Object.entries(settings.visibilityOverrides)) {
         if (isVisible === false) {
           const idx = parseInt(idxStr);
           const name = availableParts.find((p) => p.index === idx)?.name || `Part #${idx}`;
-          output += `  ${idx}: false, // ${name}\n`;
+          output += `  ${idx}: false, // ${name}
+`;
         }
       }
-      output += `};\n`;
+      output += `};
+`;
     }
 
     if (Object.keys(settings.animationOverrides).length > 0) {
-      output += `\n// Custom Part Animations:\n`;
-      output += `const partAnimationOverrides = ${JSON.stringify(settings.animationOverrides, null, 2)};\n`;
+      output += `
+// Custom Part Animations:
+`;
+      output += `const partAnimationOverrides = ${JSON.stringify(settings.animationOverrides, null, 2)};
+`;
     }
 
     if (activeModelId === 'cable-robot-2') {
-      output += `\n// CDPR 4-Cable Robot Kinematics Config:\n`;
-      output += `const cdprConfig = ${JSON.stringify(settings.cdprConfig, null, 2)};\n`;
+      output += `
+// CDPR 4-Cable Robot Kinematics Config:
+`;
+      output += `const cdprConfig = ${JSON.stringify(settings.cdprConfig, null, 2)};
+`;
     }
 
     return output;

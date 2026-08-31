@@ -6,7 +6,7 @@ export interface PartColorInfo {
   color: string;
 }
 
-export type AnimationType = 'none' | 'continuous-spin' | 'oscillate-rotation' | 'linear-reciprocate';
+export type AnimationType = 'none' | 'continuous-spin' | 'oscillate-rotation' | 'linear-reciprocate' | 'multi';
 export type PivotMode = 'center-of-mass' | 'custom' | 'origin';
 
 export interface PartAnimationConfig {
@@ -20,8 +20,10 @@ export interface PartAnimationConfig {
   phase: number; // in degrees
   pivotMode: PivotMode;
   pivotX: number; // in cm
-  pivotY: number;
-  pivotZ: number;
+  pivotY: number; // in cm
+  pivotZ: number; // in cm
+  parentPartIndex?: number | null; // Attached parent link for kinematic rigid grouping
+  subAnimations?: PartAnimationConfig[]; // Used when type is 'multi'
 }
 
 export interface CDPRConfig {
@@ -230,8 +232,96 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
     offset: [0.00, 0.00, 0.00],
     rotation: [0, 0, 0],
     scale: 5.50,
-    defaultColors: {},
-    defaultAnimations: {},
+    defaultColors: {
+      55: '#f8fafc',
+      56: '#475569',
+      57: '#059669',
+      58: '#dc2626',
+      59: '#f8fafc',
+      60: '#475569',
+      61: '#059669',
+      62: '#dc2626',
+      63: '#f8fafc',
+      64: '#475569',
+      65: '#059669',
+      66: '#dc2626',
+      67: '#f8fafc',
+      68: '#475569',
+      69: '#059669',
+      70: '#dc2626',
+      71: '#f8fafc',
+      72: '#475569',
+      73: '#059669',
+      74: '#dc2626',
+      75: '#f8fafc',
+      76: '#475569',
+      77: '#059669',
+      78: '#dc2626',
+      79: '#f8fafc',
+      80: '#475569',
+      81: '#059669',
+      82: '#dc2626',
+      83: '#f8fafc',
+      84: '#475569',
+      85: '#059669',
+      86: '#dc2626',
+      87: '#f8fafc',
+      88: '#475569',
+      89: '#059669',
+      90: '#dc2626',
+    },
+    defaultVisibility: {
+      23: false,
+      26: false,
+      29: false,
+      37: false,
+      55: false,
+      65: false,
+      69: false,
+    },
+    defaultAnimations: {
+      27: { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+      31: { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+      34: { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+      35: { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+      36: {
+        type: 'multi',
+        axis: 'x',
+        direction: 1,
+        speed: 100,
+        amplitude: 10,
+        amplitudePositive: 1,
+        amplitudeNegative: 0,
+        phase: 0,
+        pivotMode: 'center-of-mass',
+        pivotX: 0,
+        pivotY: 0,
+        pivotZ: 0,
+        subAnimations: [
+          { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+          { type: 'oscillate-rotation', axis: 'y', direction: 1, speed: 60, amplitude: 2, amplitudePositive: 10, amplitudeNegative: 10, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+        ],
+      },
+      38: {
+        type: 'multi',
+        axis: 'z',
+        direction: 1,
+        speed: 60,
+        amplitude: 11,
+        amplitudePositive: 10,
+        amplitudeNegative: 10,
+        phase: 0,
+        pivotMode: 'center-of-mass',
+        pivotX: 0,
+        pivotY: 0,
+        pivotZ: 0,
+        subAnimations: [
+          { type: 'oscillate-rotation', axis: 'z', direction: 1, speed: 60, amplitude: 6, amplitudePositive: 10, amplitudeNegative: 10, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+          { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 35, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+          { type: 'oscillate-rotation', axis: 'y', direction: 1, speed: 60, amplitude: 2, amplitudePositive: 10, amplitudeNegative: 10, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+        ],
+      },
+    },
   },
   'drone-catch': {
     modelId: 'drone-catch',
@@ -385,6 +475,7 @@ interface TransformCalibrationContextType {
   updatePartColor: (partIndex: number, color: string) => void;
   updatePartVisibility: (partIndex: number, isVisible: boolean) => void;
   updatePartAnimation: (partIndex: number, config: Partial<PartAnimationConfig>) => void;
+  setPartParent: (partIndex: number, parentIndex: number | null) => void;
   updatePartName: (partIndex: number, name: string) => void;
   updateCDPRConfig: (config: Partial<CDPRConfig>) => void;
   resetPartAnimation: (partIndex: number) => void;
@@ -485,11 +576,11 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
   const updatePartAnimation = (partIndex: number, config: Partial<PartAnimationConfig>) => {
     setSettings((prev) => {
       const activeDefaults = modelRegistry[activeModelId];
-      const fallback = activeDefaults?.defaultAnimations?.[partIndex] || {
+      const fallback: PartAnimationConfig = activeDefaults?.defaultAnimations?.[partIndex] || {
         type: 'none',
         axis: 'z',
         direction: 1,
-        speed: 2.0,
+        speed: 60,
         amplitude: 35,
         amplitudePositive: 10,
         amplitudeNegative: 10,
@@ -500,14 +591,22 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
         pivotZ: 0,
       };
       const current = prev.animationOverrides[partIndex] || fallback;
+      const updated = { ...current, ...config };
+      if (config.type && config.type !== 'multi' && !('subAnimations' in config)) {
+        delete updated.subAnimations;
+      }
       return {
         ...prev,
         animationOverrides: {
           ...prev.animationOverrides,
-          [partIndex]: { ...current, ...config },
+          [partIndex]: updated,
         },
       };
     });
+  };
+
+  const setPartParent = (partIndex: number, parentIndex: number | null) => {
+    updatePartAnimation(partIndex, { parentPartIndex: parentIndex });
   };
 
   const resetPartAnimation = (partIndex: number) => {
@@ -624,6 +723,7 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
         updatePartColor,
         updatePartVisibility,
         updatePartAnimation,
+        setPartParent,
         updatePartName,
         updateCDPRConfig,
         resetPartAnimation,
