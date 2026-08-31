@@ -85,7 +85,7 @@ const DEFAULT_PART_VISIBILITY: Record<number, boolean> = {
 const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   27: {
     type: 'linear-reciprocate',
-    axis: 'x',
+    axis: 'y',
     direction: 1,
     speed: 100,
     amplitude: 10,
@@ -99,7 +99,7 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   },
   31: {
     type: 'linear-reciprocate',
-    axis: 'x',
+    axis: 'y',
     direction: 1,
     speed: 100,
     amplitude: 10,
@@ -113,7 +113,7 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   },
   34: {
     type: 'linear-reciprocate',
-    axis: 'x',
+    axis: 'y',
     direction: 1,
     speed: 100,
     amplitude: 10,
@@ -127,7 +127,7 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   },
   35: {
     type: 'linear-reciprocate',
-    axis: 'x',
+    axis: 'y',
     direction: 1,
     speed: 100,
     amplitude: 10,
@@ -155,7 +155,7 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
     subAnimations: [
       {
         type: 'linear-reciprocate',
-        axis: 'x',
+        axis: 'y',
         direction: 1,
         speed: 100,
         amplitude: 10,
@@ -169,7 +169,7 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
       },
       {
         type: 'oscillate-rotation',
-        axis: 'y',
+        axis: 'x',
         direction: 1,
         speed: 60,
         amplitude: 2,
@@ -199,7 +199,7 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
     subAnimations: [
       {
         type: 'oscillate-rotation',
-        axis: 'z',
+        axis: 'x',
         direction: 1,
         speed: 60,
         amplitude: 6,
@@ -213,7 +213,7 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
       },
       {
         type: 'linear-reciprocate',
-        axis: 'x',
+        axis: 'y',
         direction: 1,
         speed: 100,
         amplitude: 35,
@@ -227,7 +227,7 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
       },
       {
         type: 'oscillate-rotation',
-        axis: 'y',
+        axis: 'z',
         direction: 1,
         speed: 60,
         amplitude: 2,

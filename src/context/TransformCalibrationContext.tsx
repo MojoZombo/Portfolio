@@ -280,10 +280,10 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
       69: false,
     },
     defaultAnimations: {
-      27: { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
-      31: { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
-      34: { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
-      35: { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+      27: { type: 'linear-reciprocate', axis: 'y', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+      31: { type: 'linear-reciprocate', axis: 'y', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+      34: { type: 'linear-reciprocate', axis: 'y', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+      35: { type: 'linear-reciprocate', axis: 'y', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
       36: {
         type: 'multi',
         axis: 'x',
@@ -298,8 +298,8 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
         pivotY: 0,
         pivotZ: 0,
         subAnimations: [
-          { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
-          { type: 'oscillate-rotation', axis: 'y', direction: 1, speed: 60, amplitude: 2, amplitudePositive: 10, amplitudeNegative: 10, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+          { type: 'linear-reciprocate', axis: 'y', direction: 1, speed: 100, amplitude: 10, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+          { type: 'oscillate-rotation', axis: 'x', direction: 1, speed: 60, amplitude: 2, amplitudePositive: 10, amplitudeNegative: 10, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
         ],
       },
       38: {
@@ -316,9 +316,9 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
         pivotY: 0,
         pivotZ: 0,
         subAnimations: [
-          { type: 'oscillate-rotation', axis: 'z', direction: 1, speed: 60, amplitude: 6, amplitudePositive: 10, amplitudeNegative: 10, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
-          { type: 'linear-reciprocate', axis: 'x', direction: 1, speed: 100, amplitude: 35, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
-          { type: 'oscillate-rotation', axis: 'y', direction: 1, speed: 60, amplitude: 2, amplitudePositive: 10, amplitudeNegative: 10, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+          { type: 'oscillate-rotation', axis: 'x', direction: 1, speed: 60, amplitude: 6, amplitudePositive: 10, amplitudeNegative: 10, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+          { type: 'linear-reciprocate', axis: 'y', direction: 1, speed: 100, amplitude: 35, amplitudePositive: 1, amplitudeNegative: 0, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
+          { type: 'oscillate-rotation', axis: 'z', direction: 1, speed: 60, amplitude: 2, amplitudePositive: 10, amplitudeNegative: 10, phase: 0, pivotMode: 'center-of-mass', pivotX: 0, pivotY: 0, pivotZ: 0 },
         ],
       },
     },
