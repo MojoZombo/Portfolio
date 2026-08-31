@@ -26,9 +26,9 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Drone-Catch Winch
-const DEFAULT_OFFSET: [number, number, number] = [0.00, -1.57, 0.00];
+const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.00, 38.00, 0.00];
-const DEFAULT_SCALE = 1.00;
+const DEFAULT_SCALE = 1.20;
 
 // Baked Custom Part Color Overrides for Winch
 const DEFAULT_PART_COLORS: Record<number, string> = {
@@ -109,7 +109,7 @@ function buildMasterWinchPrototype(sourceScene: THREE.Group) {
       if (Array.isArray(mesh.material)) {
         mesh.material.forEach((m) => {
           const stdMat = m as THREE.MeshStandardMaterial;
-          const defaultBakedColor = (stdMat?.color ? `#${stdMat.color.getHexString()}` : '#d6d1c8');
+          const defaultBakedColor = DEFAULT_PART_COLORS[partsInfo.length] || (stdMat?.color ? `#${stdMat.color.getHexString()}` : '#d6d1c8');
           partsInfo.push({
             index: partsInfo.length,
             name: m.name ? m.name.replace(/_\d+$/, '') : `Winch Sub-assembly ${partsInfo.length + 1}`,
@@ -118,7 +118,7 @@ function buildMasterWinchPrototype(sourceScene: THREE.Group) {
         });
       } else {
         const stdMat = mesh.material as THREE.MeshStandardMaterial;
-        const defaultBakedColor = (stdMat?.color ? `#${stdMat.color.getHexString()}` : '#d6d1c8');
+        const defaultBakedColor = DEFAULT_PART_COLORS[partsInfo.length] || (stdMat?.color ? `#${stdMat.color.getHexString()}` : '#d6d1c8');
         partsInfo.push({
           index: partsInfo.length,
           name: mesh.name || `Winch Part ${partsInfo.length + 1}`,

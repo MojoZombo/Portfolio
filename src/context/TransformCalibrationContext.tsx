@@ -458,9 +458,9 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
   },
   'drone-catch': {
     modelId: 'drone-catch',
-    offset: [0.00, -1.57, 0.00],
+    offset: [0.00, 0.00, 0.00],
     rotation: [0, 38, 0],
-    scale: 1.00,
+    scale: 1.20,
     defaultColors: {
       0: '#64748b',
       1: '#d97706',
