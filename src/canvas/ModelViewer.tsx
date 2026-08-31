@@ -160,12 +160,13 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         setShouldMountWebGL(true);
       }, 60); 
     } else if (!isActive) {
-      // Fast unmount when scrolling away
+      // Unmount WebGL ONLY after the exit slide animation completely finishes (550ms)
+      // Destroying the WebGL context blocks the thread and causes UI freezing if done mid-slide!
       timer = setTimeout(() => {
         setShouldMountWebGL(false);
         setIsCanvasReady(false);
         setIsFadeComplete(false);
-      }, 150);
+      }, 600);
     }
     return () => clearTimeout(timer);
   }, [isActive, isSettled, isWindowScrolling, allowZoom]);
