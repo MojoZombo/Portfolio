@@ -478,8 +478,8 @@ function buildMasterCableRobot2Prototype(sourceScene: THREE.Group) {
 
 export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotating = true, isAnimating = true }) => {
   const groupRef = useRef<THREE.Group>(null);
+  const pivotRef = useRef<THREE.Group | null>(null);
   const cloneRef = useRef<THREE.Group | null>(null);
-  const centerRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const meshNodesRef = useRef<MeshNodeInfo[]>([]);
   const currentSpeedRef = useRef(0);
   const { theme } = useTheme();
@@ -533,22 +533,27 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
   // Create permanent scene instance ONCE (100% stable, zero re-cloning on scroll)
   const { centeredScene, toonMaterialsMap, blueprintEdgeLines, celEdgeLines } = useMemo(() => {
     const root = new THREE.Group();
-    const clone = scene.clone(true);
+    const pivot = new THREE.Group();
+    pivotRef.current = pivot;
+
+    const clone = masterCableRobot2Prototype!.template.clone(true);
     cloneRef.current = clone;
 
-    const rotXRad = (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180;
-    const rotYRad = (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180;
-    const rotZRad = (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180;
+    // 1. Center the unrotated CAD geometry inside the pivot group
+    const bbox = new THREE.Box3().setFromObject(clone);
+    const center = bbox.getCenter(new THREE.Vector3());
+    clone.position.set(-center.x, -center.y, -center.z);
 
-    clone.rotation.set(rotXRad, rotYRad, rotZRad);
-    root.add(clone);
+    // 2. Set initial world rotation and offset on the pivot
+    pivot.rotation.set(
+      (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180,
+      (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180,
+      (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180
+    );
+    pivot.position.set(DEFAULT_OFFSET[0], DEFAULT_OFFSET[1], DEFAULT_OFFSET[2]);
 
-    const bbox = new THREE.Box3().setFromObject(root);
-    const center = new THREE.Vector3();
-    bbox.getCenter(center);
-    centerRef.current = center;
-
-    clone.position.sub(center).add(new THREE.Vector3(...DEFAULT_OFFSET));
+    pivot.add(clone);
+    root.add(pivot);
 
     const toonMap = new Map<THREE.Mesh, THREE.MeshToonMaterial | THREE.MeshToonMaterial[]>();
     const bpLines: THREE.LineSegments[] = [];
@@ -728,15 +733,13 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
       localTimeRef.current += delta;
     }
     // Dynamically adjust calibration transforms in frame loop without scene re-cloning
-    if (isModelCalibrating && cloneRef.current) {
-      cloneRef.current.rotation.set(
+    if (isModelCalibrating && pivotRef.current) {
+      pivotRef.current.position.set(settings.offsetX, settings.offsetY, settings.offsetZ);
+      pivotRef.current.rotation.set(
         (settings.rotX * Math.PI) / 180,
         (settings.rotY * Math.PI) / 180,
         (settings.rotZ * Math.PI) / 180
       );
-      cloneRef.current.position
-        .copy(new THREE.Vector3(settings.offsetX, settings.offsetY, settings.offsetZ))
-        .sub(centerRef.current);
     }
 
     // 1. If static blueprint mode, keep strictly still in rest position and return

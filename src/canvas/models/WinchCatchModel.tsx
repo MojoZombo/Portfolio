@@ -351,10 +351,11 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
     let partRunningIndex = 0;
 
     toonMaterialsMap.forEach((toonMatOrArray, mesh) => {
-      let isVisible = true;
+      let isMeshVisible = true;
       if (isShaded) {
         if (Array.isArray(toonMatOrArray)) {
           mesh.material = toonMatOrArray;
+          let anySubVisible = false;
           toonMatOrArray.forEach((tm) => {
             const currentPartIdx = partRunningIndex++;
             const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
@@ -367,11 +368,12 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
               ? settings.visibilityOverrides?.[currentPartIdx] !== false 
               : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
             
-            if (!isPartVisible) isVisible = false;
-
+            if (isPartVisible) anySubVisible = true;
+            tm.visible = isPartVisible;
             tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
             tm.emissive.set(isPartSelected ? '#0284c7' : '#000000');
           });
+          isMeshVisible = anySubVisible;
         } else {
           const currentPartIdx = partRunningIndex++;
           const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
@@ -384,32 +386,34 @@ export const WinchCatchModel: React.FC<ModelProps> = ({ isActive = false, isRota
             ? settings.visibilityOverrides?.[currentPartIdx] !== false 
             : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
           
-          if (!isPartVisible) isVisible = false;
-
+          isMeshVisible = isPartVisible;
           mesh.material = toonMatOrArray;
+          toonMatOrArray.visible = isPartVisible;
           toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
           toonMatOrArray.emissive.set(isPartSelected ? '#0284c7' : '#000000');
         }
       } else {
         if (Array.isArray(toonMatOrArray)) {
+          let anySubVisible = false;
           mesh.material = toonMatOrArray.map(() => {
             const currentPartIdx = partRunningIndex++;
             const isPartVisible = isModelCalibrating 
               ? settings.visibilityOverrides?.[currentPartIdx] !== false 
               : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
-            if (!isPartVisible) isVisible = false;
+            if (isPartVisible) anySubVisible = true;
             return bpMat;
           });
+          isMeshVisible = anySubVisible;
         } else {
           const currentPartIdx = partRunningIndex++;
           const isPartVisible = isModelCalibrating 
             ? settings.visibilityOverrides?.[currentPartIdx] !== false 
             : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
-          if (!isPartVisible) isVisible = false;
+          isMeshVisible = isPartVisible;
           mesh.material = bpMat;
         }
       }
-      mesh.visible = isVisible;
+      mesh.visible = isMeshVisible;
     });
   }, [
     isActive,

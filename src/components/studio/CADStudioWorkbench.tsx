@@ -104,31 +104,6 @@ function StudioSceneBridge({
       return false;
     };
 
-    // Flatten hierarchy: attach all cadMeshes to the model root so they share the exact same coordinate space
-    const meshesToFlatten: { mesh: THREE.Mesh; root: THREE.Object3D }[] = [];
-    scene.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh && !(child instanceof THREE.LineSegments)) {
-        const mesh = child as THREE.Mesh;
-        if (!isHelperOrGizmo(mesh) && !mesh.userData.hierarchyFlattened) {
-          let root = mesh as THREE.Object3D;
-          while (root.parent && root.parent.type !== 'Scene') {
-            root = root.parent;
-          }
-          if (mesh.parent !== root) {
-            meshesToFlatten.push({ mesh, root });
-          }
-        }
-      }
-    });
-    
-    meshesToFlatten.forEach(({ mesh, root }) => {
-      // Must update matrices before attaching to preserve world transform mathematically
-      mesh.updateWorldMatrix(true, false);
-      root.updateWorldMatrix(true, false);
-      root.attach(mesh);
-      mesh.userData.hierarchyFlattened = true;
-    });
-
     // Collect all CAD meshes into an indexed map for instant O(1) recursive lookups
     const meshMap = new Map<number, THREE.Mesh>();
     let partFallbackIdx = 0;
