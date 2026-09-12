@@ -325,7 +325,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               setIsAnimationPlaying(next);
               setIsRotating(next);
             }}
-            className="group px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700/80 bg-white hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-900 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white backdrop-blur-sm cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
+            className="group px-3 py-1.5 rounded bg-white hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-900 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white backdrop-blur-sm cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
             title={isAnimationPlaying ? 'Pause 3D animation and rotation' : 'Play 3D animation and rotation'}
           >
             {isAnimationPlaying ? (
@@ -346,7 +346,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                 setIsAnimationPlaying(true);
                 setIsRotating(true);
               }}
-              className="group px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700/80 bg-white hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-900 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white backdrop-blur-sm cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
+              className="group px-3 py-1.5 rounded bg-white hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-900 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white backdrop-blur-sm cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
               title="Reset 3D model zoom and position"
             >
               <RotateCcw size={12} className="text-blue-600 dark:text-blue-400 group-hover:text-white" />

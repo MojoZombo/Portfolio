@@ -138,7 +138,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                   <button
                     type="button"
                     onClick={() => setIs3DFullscreen(true)}
-                    className="group flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700/80 bg-white hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-900 dark:hover:bg-blue-500 dark:hover:text-white dark:text-slate-200 text-xs font-mono font-medium pointer-events-auto cursor-pointer"
+                    className="group flex items-center gap-1.5 px-3 py-1.5 rounded bg-white hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-900 dark:hover:bg-blue-500 dark:hover:text-white dark:text-slate-200 text-xs font-mono font-medium pointer-events-auto cursor-pointer"
                     title="Open Fullscreen 3D Model Inspector"
                   >
                     <Maximize2 size={13} className="text-blue-600 dark:text-blue-400 group-hover:text-white" />
@@ -407,7 +407,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 py-1">
                     {project.specs.map((spec, idx) => (
-                      <div key={idx} className="bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/40 dark:border-slate-800/60 p-2.5 rounded-lg flex flex-col justify-between">
+                      <div key={idx} className="bg-slate-100/70 dark:bg-slate-800/60 p-2.5 rounded-lg flex flex-col justify-between">
                         <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
                           {spec.label}
                         </span>
@@ -445,7 +445,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                   </h3>
                   <ul className="space-y-2.5 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
                     {project.keyChallenges.map((challenge, idx) => (
-                      <li key={idx} className="bg-slate-100/60 dark:bg-slate-800/60 border border-slate-200/40 dark:border-slate-800/60 p-3 rounded-lg leading-relaxed flex items-start gap-2.5">
+                      <li key={idx} className="bg-slate-100/60 dark:bg-slate-800/60 p-3 rounded-lg leading-relaxed flex items-start gap-2.5">
                         <span className="text-blue-500 dark:text-blue-400 font-bold select-none">•</span>
                         <span>{challenge}</span>
                       </li>
@@ -527,7 +527,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
           >
             {/* Floating Top Header Bar */}
             <div className="absolute top-4 left-4 right-4 sm:left-6 sm:right-6 flex items-center justify-between z-30 pointer-events-none">
-              <div className="flex items-center gap-2.5 bg-white text-slate-900 dark:bg-slate-900/90 dark:text-white border border-slate-200 dark:border-slate-800 px-3.5 py-1.5 rounded pointer-events-auto">
+              <div className="flex items-center gap-2.5 bg-white text-slate-900 dark:bg-slate-900/90 dark:text-white px-3.5 py-1.5 rounded pointer-events-auto">
                 <h3 className="text-sm sm:text-base font-bold tracking-tight font-mono">
                   {project.title}
                 </h3>
@@ -537,7 +537,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                 <button
                   type="button"
                   onClick={() => setIs3DFullscreen(false)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono font-medium text-slate-700 bg-white hover:bg-blue-600 hover:text-white dark:text-slate-200 dark:bg-slate-900/90 dark:hover:bg-blue-500 dark:hover:text-white border border-slate-200 dark:border-slate-800 cursor-pointer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono font-medium text-slate-700 bg-white hover:bg-blue-600 hover:text-white dark:text-slate-200 dark:bg-slate-900/90 dark:hover:bg-blue-500 dark:hover:text-white cursor-pointer"
                 >
                   <Minimize2 size={13} className="text-blue-500 dark:text-blue-400" />
                   <span>Exit Fullscreen</span>

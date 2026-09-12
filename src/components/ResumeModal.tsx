@@ -51,7 +51,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
           className="relative z-10 w-full max-w-4xl h-[95vh] flex flex-col bg-white dark:bg-[#0c121e] rounded-2xl shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100"
         >
           {/* Header Title Bar */}
-          <div className="px-6 py-4 flex items-center justify-between bg-slate-100/70 dark:bg-slate-950 shrink-0 border-b border-slate-200 dark:border-slate-800">
+          <div className="px-6 py-4 flex items-center justify-between bg-slate-100/70 dark:bg-slate-950 shrink-0">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
                 Resume
@@ -63,7 +63,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
               <a
                 href="./Jaden_Fann_Resume.pdf"
                 download="Jaden_Fann_Resume.pdf"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium border border-slate-300 dark:border-slate-700 bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer"
               >
                 <span>Download</span>
                 <Download size={12} />
@@ -72,7 +72,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
                 href="./Jaden_Fann_Resume.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium border border-slate-300 dark:border-slate-700 bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer"
               >
                 <span>Open PDF</span>
                 <ExternalLink size={12} />

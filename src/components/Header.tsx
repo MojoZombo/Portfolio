@@ -65,7 +65,7 @@ export const Header: React.FC = () => {
 
             <button
               onClick={toggleTheme}
-              className="p-2 rounded bg-slate-200 hover:bg-blue-600 text-slate-900 hover:text-white border border-slate-300 dark:border-slate-700/80 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer"
+              className="p-2 rounded bg-slate-200 hover:bg-blue-600 text-slate-900 hover:text-white dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer"
               title="Toggle Light / Dark Mode"
             >
               {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
