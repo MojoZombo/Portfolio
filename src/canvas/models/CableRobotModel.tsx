@@ -630,7 +630,7 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
             color: new THREE.Color('#94A8C4'),
             linewidth: 1.35,
             transparent: true,
-            opacity: 0.9,
+            opacity: 1.0,
           });
           const bpLine = new THREE.LineSegments(masterCableRobot2Prototype.staticEdgesList[meshIndex], bpLineMat);
           mesh.add(bpLine);
@@ -642,7 +642,7 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
             color: new THREE.Color('#0A0E14'),
             linewidth: 1.5,
             transparent: true,
-            opacity: 0.75,
+            opacity: 1.0,
           });
           const celLine = new THREE.LineSegments(masterCableRobot2Prototype.activeEdgesList[meshIndex], celLineMat);
           mesh.add(celLine);

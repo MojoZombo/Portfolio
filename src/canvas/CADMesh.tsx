@@ -72,7 +72,7 @@ export const CADMesh: React.FC<CADMeshProps> = ({
           color: new THREE.Color(isActive ? celOutlineColor : blueprintLineColor),
           linewidth: isActive ? 1.5 : 1.35,
           transparent: true,
-          opacity: isActive ? 0.75 : 0.85,
+          opacity: 1.0,
         });
         edgeLine = new THREE.LineSegments(edgesGeom, lineMat);
         meshRef.current.add(edgeLine);
@@ -83,7 +83,7 @@ export const CADMesh: React.FC<CADMeshProps> = ({
 
     if (edgeLine && edgeLine.material instanceof THREE.LineBasicMaterial) {
       edgeLine.material.color.set(isActive ? celOutlineColor : blueprintLineColor);
-      edgeLine.material.opacity = isActive ? 0.75 : 0.85;
+      edgeLine.material.opacity = 1.0;
     }
   }, [isActive, isDark, celOutlineColor, blueprintLineColor, outlineThreshold]);
 

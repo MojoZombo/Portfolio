@@ -209,7 +209,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [shadedFallback, setShadedFallback] = useState(false);
 
   // Cache-busting version query parameter to force browsers to load fresh baked posters
-  const POSTER_VERSION = '20260912-v2';
+  const POSTER_VERSION = '20260912-v3';
 
   const bpPosterPath = `${
     bpFallback
@@ -271,7 +271,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
           <Canvas
             className={allowZoom ? "grab-cursor" : "grab-cursor !touch-pan-y"}
             frameloop={isActive || allowZoom || isHovered ? 'always' : 'demand'}
-            dpr={3}
+            dpr={1.6}
             gl={{
               antialias: true,
               alpha: true,

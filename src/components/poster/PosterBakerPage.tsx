@@ -210,7 +210,7 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-500">
       {/* Top Navbar */}
-      <header className="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={onExit}
@@ -230,7 +230,7 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
 
         <div className="flex items-center gap-2.5 font-mono text-xs">
           {/* Active Theme Selector */}
-          <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <div className="flex bg-slate-950 p-1 rounded-xl">
             <button
               onClick={() => setTheme('dark')}
               className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 font-bold ${
@@ -254,7 +254,7 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
           {/* Download ZIP Button */}
           <button
             onClick={handleDownloadZip}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold cursor-pointer transition-all shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold cursor-pointer transition-all shadow-sm"
           >
             <Download size={13} />
             <span>Download ZIP ({Object.keys(savedPosters).length})</span>
@@ -267,14 +267,14 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold cursor-pointer transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
           >
             {isBakingAll ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
-            <span>⚡ 1-Click Auto-Bake All (44 Posters)</span>
+            <span>⚡ 1-Click Auto-Bake All ({modelsList.length * 4} Posters)</span>
           </button>
         </div>
       </header>
 
       {/* Real-Time Progress Banner */}
       {bakeStatus && (
-        <div className="bg-emerald-950 border-b border-emerald-500/40 px-6 py-2.5 flex items-center justify-center gap-2 font-mono text-xs text-emerald-200 shadow-md">
+        <div className="bg-emerald-950 px-6 py-2.5 flex items-center justify-center gap-2 font-mono text-xs text-emerald-200 shadow-md">
           <Sparkles size={14} className="animate-spin text-emerald-400 shrink-0" />
           <span className="font-semibold">{bakeStatus}</span>
         </div>
@@ -284,8 +284,8 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 w-full flex-1 flex flex-col gap-6">
         
         {/* Stage Controller Card */}
-        <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-5 shadow-2xl flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div className="bg-slate-900/90 rounded-2xl p-5 shadow-2xl flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3">
             <div>
               <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400 font-bold">
                 Model #{currentIndex + 1} of {modelsList.length}
@@ -300,7 +300,7 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
 
             {/* Mode Selector & Quick Navigation */}
             <div className="flex items-center gap-2">
-              <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-mono">
+              <div className="flex bg-slate-950 p-1 rounded-xl text-xs font-mono">
                 <button
                   onClick={() => setCurrentMode('shaded')}
                   className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer font-bold ${
@@ -323,7 +323,7 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
                 </button>
               </div>
 
-              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl">
                 <button
                   onClick={() => setCurrentIndex((prev) => (prev > 0 ? prev - 1 : modelsList.length - 1))}
                   disabled={isBakingAll}
@@ -346,14 +346,14 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
 
           {/* Central 3D Stage Viewport (EXACT 1:1 Live Website max-w-2xl and h-[490px]) */}
           <div className="w-full flex items-center justify-center">
-            <div className="w-full max-w-2xl h-[490px] rounded-xl bg-slate-950 border border-slate-800 relative overflow-hidden flex items-center justify-center shadow-2xl">
+            <div className="w-full max-w-2xl h-[490px] rounded-xl bg-slate-950 relative overflow-hidden flex items-center justify-center shadow-2xl">
               {/* Subtle Drafting Backdrop Grid */}
               <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] opacity-30 pointer-events-none" />
 
               <Canvas
                 className="grab-cursor w-full h-full"
                 frameloop="always"
-                dpr={3}
+                dpr={1.6}
                 gl={{
                   antialias: true,
                   alpha: true,
@@ -445,10 +445,10 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
                 <div
                   key={p.id}
                   onClick={() => setCurrentIndex(idx)}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
+                  className={`p-3.5 rounded-xl transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
                     isCurrent
-                      ? 'bg-blue-950/60 border-blue-500 shadow-md ring-2 ring-blue-500/30'
-                      : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                      ? 'bg-blue-950/80 shadow-md ring-2 ring-blue-500/40'
+                      : 'bg-slate-900/70 hover:bg-slate-800'
                   }`}
                 >
                   <div>

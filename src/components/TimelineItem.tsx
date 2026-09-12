@@ -66,7 +66,9 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   const [isActive, setIsActive] = useState(index === 0);
   const isActiveRef = useRef(index === 0);
   const [isSettled, setIsSettled] = useState(index === 0);
-  const [isDesktop, setIsDesktop] = useState(true);
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+  );
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -160,11 +162,11 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           initial={false}
           animate={{
             opacity: isActive ? 1 : 0,
-            x: isDesktop ? (isActive ? 0 : textShiftX) : (isActive ? 0 : -20),
-            y: isDesktop ? (isActive ? 0 : textShiftY) : (isActive ? 0 : -8),
+            x: isDesktop ? (isActive ? 0 : textShiftX) : 0,
+            y: isDesktop ? (isActive ? 0 : textShiftY) : (isActive ? 0 : 28),
             pointerEvents: isActive ? 'auto' : 'none',
           }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           className="w-full md:w-5/12 md:absolute md:left-4 lg:left-8 z-20"
         >
           <div className="space-y-2.5 p-0">
