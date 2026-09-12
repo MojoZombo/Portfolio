@@ -6,7 +6,7 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { projectsData } from '../../data/projectsData';
 import { ModelRenderer } from '../../canvas/ModelRenderer';
 import { useTheme } from '../../context/ThemeContext';
-import { useTransformCalibration, SplitPartRecord, AxisAlignment, PartColorInfo, TransformSettings } from '../../context/TransformCalibrationContext';
+import { useTransformCalibration, SplitPartRecord, AxisAlignment, PartColorInfo, TransformSettings, PartAnimationConfig, AnimationType } from '../../context/TransformCalibrationContext';
 import { CADCuttingPlaneGizmo } from '../../canvas/CADCuttingPlaneGizmo';
 import { separateDisconnectedIslands, sliceGeometryByPlane, computeGeometryCenterOfMass, getAssemblyRoot } from '../../utils/meshSplitter';
 import {
@@ -37,6 +37,8 @@ import {
   ChevronUp,
   ChevronDown,
   GripVertical,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 interface StudioProps {
@@ -326,8 +328,8 @@ function StudioSceneBridge({
             pivotOffset = rawPivotOffset.clone().applyQuaternion(pBaseQuat);
           } else {
             // 'model': Calibrated model frame (matches mesh.parent coordinate frame)
-            axisVec = orientedAxis.clone().applyQuaternion(pAccDeltaQuat);
-            pivotOffset = rawPivotOffset.clone().applyQuaternion(pAccDeltaQuat);
+            axisVec = orientedAxis.clone().applyQuaternion(pParentDeltaQuat);
+            pivotOffset = rawPivotOffset.clone().applyQuaternion(pParentDeltaQuat);
           }
 
           const dir = animConfig.direction ?? 1;
@@ -353,12 +355,13 @@ function StudioSceneBridge({
             pMesh.userData.hingePivot = pivot.clone();
             pMesh.userData.hingeAxis = axisVec.clone();
 
-            const angle =
-              animConfig.type === 'continuous-spin'
-                ? time * omega * dir
-                : Math.sin(time * omega + phaseRad) *
-                  (((animConfig.amplitude || 30) * Math.PI) / 180) *
-                  dir;
+            const angle = !isPlaying
+              ? 0
+              : animConfig.type === 'continuous-spin'
+              ? time * omega * dir
+              : Math.sin(time * omega + phaseRad) *
+                (((animConfig.amplitude || 30) * Math.PI) / 180) *
+                dir;
             const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
             cQuat = qDelta.clone().multiply(cQuat);
             cPos.sub(pivot).applyQuaternion(qDelta).add(pivot);
@@ -476,7 +479,13 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
   const [isSolo, setIsSolo] = useState(false);
   const [isDraggingGizmo, setIsDraggingGizmo] = useState(false);
   const [gizmoControlMode, setGizmoControlMode] = useState<'translate' | 'rotate'>('translate');
+  const [activeLayerIndex, setActiveLayerIndex] = useState<number>(0);
+  const [collapsedLayers, setCollapsedLayers] = useState<Record<number, boolean>>({});
   const orbitControlsRef = useRef<any>(null);
+
+  useEffect(() => {
+    setActiveLayerIndex(0);
+  }, [selectedPartIndex]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -726,6 +735,172 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     if (selectedPartIndex === null) return null;
     return availableParts.find((p) => p.index === selectedPartIndex) || null;
   }, [selectedPartIndex, availableParts]);
+
+  // Multi-layer simultaneous animation helpers
+  const handleAddOrConvertToMulti = () => {
+    if (selectedPartIndex === null) return;
+    if (!activeAnim || activeAnim.type === 'none') {
+      const defaultLayer1: PartAnimationConfig = {
+        type: 'linear-reciprocate',
+        axis: 'z',
+        axisAlignment: 'model',
+        axisRotX: 0,
+        axisRotY: 0,
+        axisRotZ: 0,
+        direction: 1,
+        speed: 2.0,
+        amplitude: 10,
+        amplitudePositive: 10,
+        amplitudeNegative: 10,
+        phase: 0,
+        pivotMode: 'center-of-mass',
+        pivotX: 0,
+        pivotY: 0,
+        pivotZ: 0,
+      };
+      const defaultLayer2: PartAnimationConfig = {
+        type: 'continuous-spin',
+        axis: 'z',
+        axisAlignment: 'model',
+        axisRotX: 0,
+        axisRotY: 0,
+        axisRotZ: 0,
+        direction: 1,
+        speed: 60,
+        amplitude: 35,
+        amplitudePositive: 10,
+        amplitudeNegative: 10,
+        phase: 0,
+        pivotMode: 'center-of-mass',
+        pivotX: 0,
+        pivotY: 0,
+        pivotZ: 0,
+      };
+      updatePartAnimation(selectedPartIndex, {
+        type: 'multi',
+        subAnimations: [defaultLayer1, defaultLayer2],
+      });
+      setActiveLayerIndex(1);
+      return;
+    }
+
+    if (activeAnim.type !== 'multi') {
+      const currentLayer1: PartAnimationConfig = {
+        type: activeAnim.type,
+        axis: activeAnim.axis || 'z',
+        axisAlignment: activeAnim.axisAlignment || 'model',
+        axisRotX: activeAnim.axisRotX || 0,
+        axisRotY: activeAnim.axisRotY || 0,
+        axisRotZ: activeAnim.axisRotZ || 0,
+        direction: activeAnim.direction ?? 1,
+        speed: activeAnim.speed || (activeAnim.type === 'linear-reciprocate' ? 2.0 : 60),
+        amplitude: activeAnim.amplitude || (activeAnim.type === 'linear-reciprocate' ? 10 : 35),
+        amplitudePositive: activeAnim.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim.amplitude || 10),
+        amplitudeNegative: activeAnim.amplitudeNegative !== undefined ? activeAnim.amplitudeNegative : (activeAnim.amplitude || 10),
+        phase: activeAnim.phase || 0,
+        pivotMode: activeAnim.pivotMode || 'center-of-mass',
+        pivotX: activeAnim.pivotX || 0,
+        pivotY: activeAnim.pivotY || 0,
+        pivotZ: activeAnim.pivotZ || 0,
+      };
+
+      const complementaryType: AnimationType = activeAnim.type === 'linear-reciprocate' ? 'continuous-spin' : 'linear-reciprocate';
+      const newLayer2: PartAnimationConfig = {
+        type: complementaryType,
+        axis: activeAnim.axis || 'z',
+        axisAlignment: 'model',
+        axisRotX: 0,
+        axisRotY: 0,
+        axisRotZ: 0,
+        direction: 1,
+        speed: complementaryType === 'linear-reciprocate' ? 2.0 : 60,
+        amplitude: complementaryType === 'linear-reciprocate' ? 10 : 35,
+        amplitudePositive: 10,
+        amplitudeNegative: 10,
+        phase: 0,
+        pivotMode: 'center-of-mass',
+        pivotX: 0,
+        pivotY: 0,
+        pivotZ: 0,
+      };
+
+      updatePartAnimation(selectedPartIndex, {
+        type: 'multi',
+        subAnimations: [currentLayer1, newLayer2],
+      });
+      setActiveLayerIndex(1);
+    } else {
+      const currentSubs = activeAnim.subAnimations || [];
+      const lastSub = currentSubs[currentSubs.length - 1];
+      const complementaryType: AnimationType = lastSub?.type === 'linear-reciprocate' ? 'continuous-spin' : 'linear-reciprocate';
+      const newLayer: PartAnimationConfig = {
+        type: complementaryType,
+        axis: lastSub?.axis || 'z',
+        axisAlignment: 'model',
+        axisRotX: 0,
+        axisRotY: 0,
+        axisRotZ: 0,
+        direction: 1,
+        speed: complementaryType === 'linear-reciprocate' ? 2.0 : 60,
+        amplitude: complementaryType === 'linear-reciprocate' ? 10 : 35,
+        amplitudePositive: 10,
+        amplitudeNegative: 10,
+        phase: 0,
+        pivotMode: 'center-of-mass',
+        pivotX: 0,
+        pivotY: 0,
+        pivotZ: 0,
+      };
+      updatePartAnimation(selectedPartIndex, {
+        subAnimations: [...currentSubs, newLayer],
+      });
+      setActiveLayerIndex(currentSubs.length);
+    }
+  };
+
+  const handleUpdateSubAnimation = (subIdx: number, updates: Partial<PartAnimationConfig>) => {
+    if (selectedPartIndex === null || !activeAnim?.subAnimations) return;
+    const currentSubs = [...activeAnim.subAnimations];
+    currentSubs[subIdx] = { ...currentSubs[subIdx], ...updates };
+    updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
+  };
+
+  const handleRemoveSubAnimation = (subIdx: number) => {
+    if (selectedPartIndex === null || !activeAnim?.subAnimations) return;
+    const currentSubs = [...activeAnim.subAnimations];
+    currentSubs.splice(subIdx, 1);
+    if (currentSubs.length === 0) {
+      resetPartAnimation(selectedPartIndex);
+    } else {
+      updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
+      if (activeLayerIndex >= currentSubs.length) {
+        setActiveLayerIndex(Math.max(0, currentSubs.length - 1));
+      }
+    }
+  };
+
+  const handleDuplicateSubAnimation = (subIdx: number) => {
+    if (selectedPartIndex === null || !activeAnim?.subAnimations) return;
+    const target = activeAnim.subAnimations[subIdx];
+    if (!target) return;
+    const clone = { ...target };
+    const currentSubs = [...activeAnim.subAnimations];
+    currentSubs.splice(subIdx + 1, 0, clone);
+    updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
+    setActiveLayerIndex(subIdx + 1);
+  };
+
+  const handleMoveSubAnimation = (subIdx: number, direction: 'up' | 'down') => {
+    if (selectedPartIndex === null || !activeAnim?.subAnimations) return;
+    const currentSubs = [...activeAnim.subAnimations];
+    const targetIdx = direction === 'up' ? subIdx - 1 : subIdx + 1;
+    if (targetIdx < 0 || targetIdx >= currentSubs.length) return;
+    const temp = currentSubs[subIdx];
+    currentSubs[subIdx] = currentSubs[targetIdx];
+    currentSubs[targetIdx] = temp;
+    updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
+    setActiveLayerIndex(targetIdx);
+  };
 
   // Code generator with custom names and comments
   const generatedCode = useMemo(() => {
@@ -1458,11 +1633,20 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
           >
             <InteractiveStudioPivotGizmo
               selectedPartIndex={selectedPartIndex}
-              activeAnim={activeAnim}
+              activeAnim={
+                activeAnim?.type === 'multi' && activeAnim.subAnimations?.length
+                  ? activeAnim.subAnimations[activeLayerIndex] || activeAnim.subAnimations[0]
+                  : activeAnim
+              }
               gizmoMode={gizmoControlMode}
               modelSettings={settings}
               onUpdatePivot={(update) => {
-                updatePartAnimation(selectedPartIndex!, update);
+                if (activeAnim?.type === 'multi' && activeAnim.subAnimations) {
+                  const targetIdx = activeLayerIndex < activeAnim.subAnimations.length ? activeLayerIndex : 0;
+                  handleUpdateSubAnimation(targetIdx, update);
+                } else {
+                  updatePartAnimation(selectedPartIndex!, update);
+                }
               }}
               onDragStart={() => {
                 setIsPlaying(false);
@@ -2321,128 +2505,42 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                       <span className="text-xs font-mono font-semibold text-slate-300">Animation Type</span>
                       <select
                         value={activeAnim?.type || 'none'}
-                        onChange={(e) =>
-                          updatePartAnimation(selectedPartIndex, {
-                            type: e.target.value as any,
-                            axis: activeAnim?.axis || 'x',
-                            speed: activeAnim?.speed || (e.target.value === 'linear-reciprocate' ? 2.0 : 60),
-                            direction: activeAnim?.direction || 1,
-                            amplitude: activeAnim?.amplitude || (e.target.value === 'linear-reciprocate' ? 10 : 35),
-                            amplitudePositive: activeAnim?.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim?.amplitude || 10),
-                            amplitudeNegative: activeAnim?.amplitudeNegative !== undefined ? activeAnim.amplitudeNegative : (activeAnim?.amplitude || 10),
-                            phase: activeAnim?.phase || 0,
-                            pivotMode: activeAnim?.pivotMode || 'center-of-mass',
-                            pivotX: activeAnim?.pivotX || 0,
-                            pivotY: activeAnim?.pivotY || 0,
-                            pivotZ: activeAnim?.pivotZ || 0,
-                          })
-                        }
+                        onChange={(e) => {
+                          const newType = e.target.value as AnimationType;
+                          if (newType === 'multi') {
+                            handleAddOrConvertToMulti();
+                          } else if (newType === 'none') {
+                            resetPartAnimation(selectedPartIndex);
+                          } else {
+                            updatePartAnimation(selectedPartIndex, {
+                              type: newType,
+                              axis: activeAnim?.axis || 'x',
+                              speed: activeAnim?.speed || (newType === 'linear-reciprocate' ? 2.0 : 60),
+                              direction: activeAnim?.direction || 1,
+                              amplitude: activeAnim?.amplitude || (newType === 'linear-reciprocate' ? 10 : 35),
+                              amplitudePositive: activeAnim?.amplitudePositive !== undefined ? activeAnim.amplitudePositive : (activeAnim?.amplitude || 10),
+                              amplitudeNegative: activeAnim?.amplitudeNegative !== undefined ? activeAnim.amplitudeNegative : (activeAnim?.amplitude || 10),
+                              phase: activeAnim?.phase || 0,
+                              pivotMode: activeAnim?.pivotMode || 'center-of-mass',
+                              pivotX: activeAnim?.pivotX || 0,
+                              pivotY: activeAnim?.pivotY || 0,
+                              pivotZ: activeAnim?.pivotZ || 0,
+                            });
+                          }
+                        }}
                         className="w-full px-3 py-2 bg-slate-950 text-xs font-mono text-white rounded-lg border border-slate-800 outline-none cursor-pointer"
                       >
                         <option value="none">No Motion (Static)</option>
                         <option value="continuous-spin">Continuous Spin (Rotary RPM)</option>
                         <option value="oscillate-rotation">Oscillating Rotation (Sweep)</option>
                         <option value="linear-reciprocate">Linear Reciprocating (Stroke)</option>
-                        <option value="multi">Multiple Layers (Multi-Axis)</option>
+                        <option value="multi">Multiple Layers (Multi-Axis Compound)</option>
                       </select>
                     </div>
 
-                    {activeAnim && activeAnim.type === 'multi' && (
-                      <div className="space-y-3 mt-4 pt-4 border-t border-slate-700">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-mono font-bold text-blue-400">Animation Layers</span>
-                          <button
-                            onClick={() => {
-                              const currentSubs = activeAnim.subAnimations || [];
-                              updatePartAnimation(selectedPartIndex, {
-                                subAnimations: [...currentSubs, { type: 'continuous-spin', axis: 'z', speed: 10 } as any]
-                              });
-                            }}
-                            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-[10px] font-bold text-white transition-colors"
-                          >
-                            + ADD LAYER
-                          </button>
-                        </div>
-                        <div className="space-y-2">
-                          {activeAnim.subAnimations?.map((subAnim, subIdx) => (
-                            <div key={subIdx} className="p-3 bg-slate-900 rounded-lg border border-slate-700/50 relative">
-                              <button 
-                                onClick={() => {
-                                  const currentSubs = [...(activeAnim.subAnimations || [])];
-                                  currentSubs.splice(subIdx, 1);
-                                  updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
-                                }}
-                                className="absolute top-2 right-2 text-red-500 hover:text-red-400 p-1"
-                              >
-                                ✕
-                              </button>
-                              <div className="text-[10px] font-mono text-slate-400 mb-2">LAYER {subIdx + 1}</div>
-                              
-                              {/* Sub Anim Type */}
-                              <select
-                                className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 mb-3 text-[10px] font-mono"
-                                value={subAnim.type}
-                                onChange={(e) => {
-                                  const currentSubs = [...(activeAnim.subAnimations || [])];
-                                  currentSubs[subIdx] = { ...subAnim, type: e.target.value as any };
-                                  updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
-                                }}
-                              >
-                                <option value="continuous-spin">Continuous Spin (Rotary RPM)</option>
-                                <option value="oscillate-rotation">Oscillating Rotation (Sweep)</option>
-                                <option value="linear-reciprocate">Linear Reciprocating (Stroke)</option>
-                              </select>
-
-                              {/* Sub Axis */}
-                              <div className="flex gap-1 mb-3">
-                                {(['x', 'y', 'z'] as const).map(ax => (
-                                  <button
-                                    key={ax}
-                                    onClick={() => {
-                                      const currentSubs = [...(activeAnim.subAnimations || [])];
-                                      currentSubs[subIdx] = { ...subAnim, axis: ax };
-                                      updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
-                                    }}
-                                    className={`flex-1 py-1 rounded text-[10px] font-bold uppercase ${subAnim.axis === ax ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-                                  >
-                                    {ax}
-                                  </button>
-                                ))}
-                              </div>
-
-                              {/* Speed & Amplitude */}
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <span className="text-[10px] text-slate-500 block mb-1">Speed/RPM</span>
-                                  <input type="number" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs"
-                                    value={subAnim.speed || 0}
-                                    onChange={(e) => {
-                                      const currentSubs = [...(activeAnim.subAnimations || [])];
-                                      currentSubs[subIdx] = { ...subAnim, speed: parseFloat(e.target.value) || 0 };
-                                      updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
-                                    }} />
-                                </div>
-                                {subAnim.type !== 'continuous-spin' && (
-                                  <div>
-                                    <span className="text-[10px] text-slate-500 block mb-1">Amplitude</span>
-                                    <input type="number" className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs"
-                                      value={subAnim.amplitude || 0}
-                                      onChange={(e) => {
-                                        const currentSubs = [...(activeAnim.subAnimations || [])];
-                                        currentSubs[subIdx] = { ...subAnim, amplitude: parseFloat(e.target.value) || 0 };
-                                        updatePartAnimation(selectedPartIndex, { subAnimations: currentSubs });
-                                      }} />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
+                    {/* Master Playback & Solo Controls */}
                     {activeAnim && activeAnim.type !== 'none' && (
-                      <div className="flex items-center gap-2 p-2 bg-slate-950/80 rounded-xl border border-slate-800 mb-3">
+                      <div className="flex items-center gap-2 p-2 bg-slate-950/80 rounded-xl border border-slate-800">
                         <button
                           type="button"
                           onClick={() => setIsPlaying(!isPlaying)}
@@ -2471,8 +2569,568 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                       </div>
                     )}
 
+                    {/* COMPOUND / MULTI-ANIMATION LAYERS INSPECTOR */}
+                    {activeAnim && activeAnim.type === 'multi' && (
+                      <div className="space-y-3.5 pt-1">
+                        <div className="flex justify-between items-center bg-slate-900/90 p-2.5 rounded-xl border border-blue-500/30">
+                          <div className="space-y-0.5">
+                            <span className="text-xs font-mono font-bold text-blue-400 flex items-center gap-1.5">
+                              <Layers size={14} />
+                              <span>Simultaneous Layers ({(activeAnim.subAnimations || []).length})</span>
+                            </span>
+                            <p className="text-[10px] font-mono text-slate-400">
+                              Runs all motions concurrently (e.g. translate + rotate)
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleAddOrConvertToMulti}
+                            className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-[11px] font-mono font-bold text-white transition-colors flex items-center gap-1 shadow cursor-pointer"
+                          >
+                            <Plus size={12} />
+                            <span>Add Layer</span>
+                          </button>
+                        </div>
+
+                        <div className="space-y-3">
+                          {activeAnim.subAnimations?.map((subAnim, subIdx) => {
+                            const isCollapsed = collapsedLayers[subIdx] === true;
+                            const isActiveGizmo = activeLayerIndex === subIdx;
+                            const subAxis = subAnim.axis || 'z';
+                            const axisBg = subAxis === 'x' ? 'text-red-400' : subAxis === 'y' ? 'text-green-400' : 'text-blue-400';
+                            const typeName =
+                              subAnim.type === 'linear-reciprocate'
+                                ? 'Linear Stroke'
+                                : subAnim.type === 'continuous-spin'
+                                ? 'Continuous Spin'
+                                : 'Oscillating Sweep';
+
+                            return (
+                              <div
+                                key={subIdx}
+                                className={`rounded-xl border transition-all ${
+                                  isActiveGizmo
+                                    ? 'bg-slate-900 border-blue-500/60 shadow-lg shadow-blue-950/40'
+                                    : 'bg-slate-900/70 border-slate-800'
+                                }`}
+                              >
+                                {/* Card Header */}
+                                <div className="p-2.5 flex items-center justify-between gap-2 border-b border-slate-800/80">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className="flex flex-col">
+                                      <button
+                                        type="button"
+                                        disabled={subIdx === 0}
+                                        onClick={() => handleMoveSubAnimation(subIdx, 'up')}
+                                        className="text-slate-500 hover:text-white disabled:opacity-20 cursor-pointer p-0.5"
+                                        title="Move Layer Up"
+                                      >
+                                        <ChevronUp size={11} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={subIdx === (activeAnim.subAnimations?.length || 1) - 1}
+                                        onClick={() => handleMoveSubAnimation(subIdx, 'down')}
+                                        className="text-slate-500 hover:text-white disabled:opacity-20 cursor-pointer p-0.5"
+                                        title="Move Layer Down"
+                                      >
+                                        <ChevronDown size={11} />
+                                      </button>
+                                    </div>
+                                    <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono font-bold text-slate-300 shrink-0">
+                                      #{subIdx + 1}
+                                    </span>
+                                    <span className="text-xs font-mono font-bold text-white truncate">
+                                      {typeName}
+                                    </span>
+                                    <span className={`text-[10px] font-mono font-bold uppercase ${axisBg} shrink-0`}>
+                                      [{subAxis}]
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveLayerIndex(subIdx)}
+                                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                                        isActiveGizmo
+                                          ? 'bg-blue-600 text-white shadow'
+                                          : 'bg-slate-800 text-slate-400 hover:text-white'
+                                      }`}
+                                      title={isActiveGizmo ? 'Active 3D Viewport Gizmo' : 'Click to target with 3D Gizmo'}
+                                    >
+                                      <Crosshair size={10} />
+                                      <span>{isActiveGizmo ? 'Gizmo Active' : 'Gizmo'}</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDuplicateSubAnimation(subIdx)}
+                                      className="p-1 text-slate-400 hover:text-white cursor-pointer transition-colors"
+                                      title="Duplicate Layer"
+                                    >
+                                      <Copy size={12} />
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveSubAnimation(subIdx)}
+                                      className="p-1 text-red-400 hover:text-red-300 cursor-pointer transition-colors"
+                                      title="Delete Layer"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setCollapsedLayers((prev) => ({ ...prev, [subIdx]: !prev[subIdx] }))}
+                                      className="p-1 text-slate-400 hover:text-white cursor-pointer transition-colors"
+                                      title={isCollapsed ? 'Expand Layer' : 'Collapse Layer'}
+                                    >
+                                      {isCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Card Body (Expanded) */}
+                                {!isCollapsed && (
+                                  <div className="p-3 space-y-3">
+                                    {/* Sub Anim Type */}
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] font-mono font-semibold text-slate-400">Layer Motion Type</span>
+                                      <select
+                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono cursor-pointer"
+                                        value={subAnim.type}
+                                        onChange={(e) => {
+                                          const newT = e.target.value as AnimationType;
+                                          handleUpdateSubAnimation(subIdx, {
+                                            type: newT,
+                                            speed: subAnim.speed || (newT === 'linear-reciprocate' ? 2.0 : 60),
+                                            amplitude: subAnim.amplitude || (newT === 'linear-reciprocate' ? 10 : 35),
+                                          });
+                                        }}
+                                      >
+                                        <option value="continuous-spin">Continuous Spin (Rotary RPM)</option>
+                                        <option value="oscillate-rotation">Oscillating Rotation (Sweep)</option>
+                                        <option value="linear-reciprocate">Linear Reciprocating (Stroke)</option>
+                                      </select>
+                                    </div>
+
+                                    {/* Motion Axis */}
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] font-mono font-semibold text-slate-400">Motion Axis</span>
+                                      <div className="flex gap-1.5">
+                                        {(['x', 'y', 'z'] as const).map((ax) => (
+                                          <button
+                                            key={ax}
+                                            type="button"
+                                            onClick={() => handleUpdateSubAnimation(subIdx, { axis: ax })}
+                                            className={`flex-1 py-1 rounded text-[11px] font-mono font-bold uppercase transition-all cursor-pointer ${
+                                              (subAnim.axis || 'z') === ax
+                                                ? ax === 'x' ? 'bg-red-600 text-white' : ax === 'y' ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'
+                                                : 'bg-slate-800 text-slate-400 hover:text-white'
+                                            }`}
+                                          >
+                                            {ax}-Axis
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {/* Reference Frame */}
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between items-center text-[10px] font-mono">
+                                        <span className="text-slate-400 font-semibold">Reference Frame</span>
+                                        <span className="text-slate-500">
+                                          {(subAnim.axisAlignment || 'model') === 'model' ? 'Assembly Model' : subAnim.axisAlignment === 'part' ? 'Part Transform' : 'Global World'}
+                                        </span>
+                                      </div>
+                                      <div className="flex gap-1.5">
+                                        {[
+                                          { id: 'model', label: 'Assembly' },
+                                          { id: 'part', label: 'Part' },
+                                          { id: 'global', label: 'Global' },
+                                        ].map((f) => (
+                                          <button
+                                            key={f.id}
+                                            type="button"
+                                            onClick={() => handleUpdateSubAnimation(subIdx, { axisAlignment: f.id as any })}
+                                            className={`flex-1 py-1 rounded text-[10px] font-mono transition-all cursor-pointer ${
+                                              (subAnim.axisAlignment || 'model') === f.id
+                                                ? 'bg-indigo-600 text-white font-bold'
+                                                : 'bg-slate-800 text-slate-400 hover:text-white'
+                                            }`}
+                                          >
+                                            {f.label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {/* Direction */}
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] font-mono font-semibold text-slate-400">Direction</span>
+                                      <div className="flex gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUpdateSubAnimation(subIdx, { direction: 1 })}
+                                          className={`flex-1 py-1 rounded text-[10px] font-mono transition-all cursor-pointer ${
+                                            (subAnim.direction ?? 1) === 1 ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-slate-400'
+                                          }`}
+                                        >
+                                          Forward / CW (+1)
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUpdateSubAnimation(subIdx, { direction: -1 })}
+                                          className={`flex-1 py-1 rounded text-[10px] font-mono transition-all cursor-pointer ${
+                                            subAnim.direction === -1 ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-slate-400'
+                                          }`}
+                                        >
+                                          Reverse / CCW (-1)
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Speed / Frequency */}
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between items-center text-[10px] font-mono">
+                                        <span className="text-slate-400 font-semibold">
+                                          {subAnim.type === 'linear-reciprocate' ? 'Stroke Frequency' : 'Motion Speed'}
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                          <input
+                                            type="number"
+                                            min="0.1"
+                                            max={subAnim.type === 'linear-reciprocate' ? '60' : '10000'}
+                                            step={subAnim.type === 'linear-reciprocate' ? '0.1' : '1'}
+                                            value={subAnim.speed || 0}
+                                            onChange={(e) => handleUpdateSubAnimation(subIdx, { speed: parseFloat(e.target.value) || 0 })}
+                                            className="w-16 px-1.5 py-0.5 bg-slate-950 text-xs font-mono text-amber-400 font-bold rounded border border-slate-800 text-right outline-none"
+                                          />
+                                          <span className="text-slate-400 text-[10px]">
+                                            {subAnim.type === 'linear-reciprocate' ? 'Hz' : 'RPM'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <input
+                                        type="range"
+                                        min={subAnim.type === 'linear-reciprocate' ? '0.2' : '1'}
+                                        max={subAnim.type === 'linear-reciprocate' ? '20' : '3000'}
+                                        step={subAnim.type === 'linear-reciprocate' ? '0.1' : '1'}
+                                        value={subAnim.speed || 0}
+                                        onChange={(e) => handleUpdateSubAnimation(subIdx, { speed: parseFloat(e.target.value) || 0 })}
+                                        className="w-full accent-amber-500 cursor-pointer"
+                                      />
+                                    </div>
+
+                                    {/* Linear Reciprocating Distances */}
+                                    {subAnim.type === 'linear-reciprocate' && (
+                                      <div className="space-y-2 bg-slate-950/70 p-2.5 rounded-lg border border-slate-800">
+                                        <div className="flex justify-between items-center text-[10px] font-mono">
+                                          <span className="font-semibold text-amber-400">Stroke Distances</span>
+                                          <span className="text-slate-400">
+                                            Total: {(
+                                              (subAnim.amplitudePositive !== undefined ? subAnim.amplitudePositive : (subAnim.amplitude || 10)) +
+                                              (subAnim.amplitudeNegative !== undefined ? subAnim.amplitudeNegative : (subAnim.amplitude || 10))
+                                            ).toFixed(1)} cm
+                                          </span>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <div className="flex justify-between items-center text-[10px] font-mono">
+                                            <span className="text-slate-300 flex items-center gap-1">
+                                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                              <span>Forward (+{(subAnim.axis || 'z').toUpperCase()})</span>
+                                            </span>
+                                            <div className="flex items-center gap-1">
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max="200"
+                                                step="0.5"
+                                                value={subAnim.amplitudePositive !== undefined ? subAnim.amplitudePositive : (subAnim.amplitude || 10)}
+                                                onChange={(e) => handleUpdateSubAnimation(subIdx, { amplitudePositive: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                                className="w-14 px-1 py-0.5 bg-slate-950 text-[11px] font-mono text-emerald-400 font-bold rounded border border-slate-800 text-right outline-none"
+                                              />
+                                              <span className="text-slate-400 text-[10px]">cm</span>
+                                            </div>
+                                          </div>
+                                          <input
+                                            type="range"
+                                            min="0"
+                                            max="50"
+                                            step="0.5"
+                                            value={subAnim.amplitudePositive !== undefined ? subAnim.amplitudePositive : (subAnim.amplitude || 10)}
+                                            onChange={(e) => handleUpdateSubAnimation(subIdx, { amplitudePositive: parseFloat(e.target.value) })}
+                                            className="w-full accent-emerald-500 cursor-pointer"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <div className="flex justify-between items-center text-[10px] font-mono">
+                                            <span className="text-slate-300 flex items-center gap-1">
+                                              <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                              <span>Reverse (-{(subAnim.axis || 'z').toUpperCase()})</span>
+                                            </span>
+                                            <div className="flex items-center gap-1">
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max="200"
+                                                step="0.5"
+                                                value={subAnim.amplitudeNegative !== undefined ? subAnim.amplitudeNegative : (subAnim.amplitude || 10)}
+                                                onChange={(e) => handleUpdateSubAnimation(subIdx, { amplitudeNegative: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                                className="w-14 px-1 py-0.5 bg-slate-950 text-[11px] font-mono text-rose-400 font-bold rounded border border-slate-800 text-right outline-none"
+                                              />
+                                              <span className="text-slate-400 text-[10px]">cm</span>
+                                            </div>
+                                          </div>
+                                          <input
+                                            type="range"
+                                            min="0"
+                                            max="50"
+                                            step="0.5"
+                                            value={subAnim.amplitudeNegative !== undefined ? subAnim.amplitudeNegative : (subAnim.amplitude || 10)}
+                                            onChange={(e) => handleUpdateSubAnimation(subIdx, { amplitudeNegative: parseFloat(e.target.value) })}
+                                            className="w-full accent-rose-500 cursor-pointer"
+                                          />
+                                        </div>
+                                        <div className="flex gap-1 pt-0.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const val = subAnim.amplitudePositive !== undefined ? subAnim.amplitudePositive : (subAnim.amplitude || 10);
+                                              handleUpdateSubAnimation(subIdx, { amplitudePositive: val, amplitudeNegative: val });
+                                            }}
+                                            className="flex-1 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[9px] font-mono cursor-pointer"
+                                          >
+                                            Symmetric
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const val = subAnim.amplitudePositive !== undefined ? subAnim.amplitudePositive : (subAnim.amplitude || 10);
+                                              handleUpdateSubAnimation(subIdx, { amplitudePositive: val || 10, amplitudeNegative: 0 });
+                                            }}
+                                            className="flex-1 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[9px] font-mono cursor-pointer"
+                                          >
+                                            Forward Only
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const val = subAnim.amplitudeNegative !== undefined ? subAnim.amplitudeNegative : (subAnim.amplitude || 10);
+                                              handleUpdateSubAnimation(subIdx, { amplitudePositive: 0, amplitudeNegative: val || 10 });
+                                            }}
+                                            className="flex-1 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[9px] font-mono cursor-pointer"
+                                          >
+                                            Reverse Only
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Oscillating Sweep Angle */}
+                                    {subAnim.type === 'oscillate-rotation' && (
+                                      <div className="space-y-1">
+                                        <div className="flex justify-between items-center text-[10px] font-mono">
+                                          <span className="text-slate-400 font-semibold">Sweep Angle (±)</span>
+                                          <div className="flex items-center gap-1">
+                                            <input
+                                              type="number"
+                                              min="1"
+                                              max="360"
+                                              step="1"
+                                              value={subAnim.amplitude || 35}
+                                              onChange={(e) => handleUpdateSubAnimation(subIdx, { amplitude: parseFloat(e.target.value) || 0 })}
+                                              className="w-14 px-1 py-0.5 bg-slate-950 text-xs font-mono text-amber-400 font-bold rounded border border-slate-800 text-right outline-none"
+                                            />
+                                            <span className="text-slate-400 text-[10px]">deg</span>
+                                          </div>
+                                        </div>
+                                        <input
+                                          type="range"
+                                          min="1"
+                                          max="180"
+                                          step="1"
+                                          value={subAnim.amplitude || 35}
+                                          onChange={(e) => handleUpdateSubAnimation(subIdx, { amplitude: parseFloat(e.target.value) || 0 })}
+                                          className="w-full accent-amber-500 cursor-pointer"
+                                        />
+                                      </div>
+                                    )}
+
+                                    {/* Phase Offset */}
+                                    {(subAnim.type === 'oscillate-rotation' || subAnim.type === 'linear-reciprocate') && (
+                                      <div className="space-y-1">
+                                        <div className="flex justify-between items-center text-[10px] font-mono">
+                                          <span className="text-slate-400 font-semibold">Phase Offset</span>
+                                          <div className="flex items-center gap-1">
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="360"
+                                              step="5"
+                                              value={subAnim.phase || 0}
+                                              onChange={(e) => handleUpdateSubAnimation(subIdx, { phase: parseFloat(e.target.value) || 0 })}
+                                              className="w-14 px-1 py-0.5 bg-slate-950 text-xs font-mono text-amber-400 font-bold rounded border border-slate-800 text-right outline-none"
+                                            />
+                                            <span className="text-slate-400 text-[10px]">deg</span>
+                                          </div>
+                                        </div>
+                                        <input
+                                          type="range"
+                                          min="0"
+                                          max="360"
+                                          step="5"
+                                          value={subAnim.phase || 0}
+                                          onChange={(e) => handleUpdateSubAnimation(subIdx, { phase: parseFloat(e.target.value) || 0 })}
+                                          className="w-full accent-amber-500 cursor-pointer"
+                                        />
+                                      </div>
+                                    )}
+
+                                    {/* Axis Custom Rotation Offsets in 3D */}
+                                    <div className="space-y-1.5 p-2 bg-slate-950/60 rounded-lg border border-slate-800">
+                                      <div className="flex justify-between items-center text-[10px] font-mono">
+                                        <span className="font-semibold text-slate-400 flex items-center gap-1">
+                                          <RotateCw size={11} className="text-purple-400" />
+                                          <span>Axis Tilt Angles</span>
+                                        </span>
+                                        <span className="text-purple-300">
+                                          {subAnim.axisRotX || 0}°, {subAnim.axisRotY || 0}°, {subAnim.axisRotZ || 0}°
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-1.5">
+                                        {[
+                                          { key: 'axisRotX', label: 'Pitch X', color: 'text-red-400' },
+                                          { key: 'axisRotY', label: 'Yaw Y', color: 'text-green-400' },
+                                          { key: 'axisRotZ', label: 'Roll Z', color: 'text-blue-400' },
+                                        ].map((axisField) => {
+                                          const val = (subAnim as any)[axisField.key] || 0;
+                                          return (
+                                            <div key={axisField.key} className="space-y-0.5">
+                                              <span className={`text-[9px] font-mono ${axisField.color}`}>{axisField.label}</span>
+                                              <div className="flex items-center bg-slate-800 rounded border border-slate-700">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleUpdateSubAnimation(subIdx, { [axisField.key]: ((val - 15 + 360) % 360) })}
+                                                  className="px-1 py-0.5 text-slate-400 hover:text-white text-[9px] cursor-pointer"
+                                                >
+                                                  -
+                                                </button>
+                                                <input
+                                                  type="number"
+                                                  value={val}
+                                                  onChange={(e) => handleUpdateSubAnimation(subIdx, { [axisField.key]: parseFloat(e.target.value) || 0 })}
+                                                  className="w-full bg-transparent text-center text-[10px] font-mono text-white focus:outline-none"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleUpdateSubAnimation(subIdx, { [axisField.key]: ((val + 15) % 360) })}
+                                                  className="px-1 py-0.5 text-slate-400 hover:text-white text-[9px] cursor-pointer"
+                                                >
+                                                  +
+                                                </button>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+
+                                    {/* Pivot Axis Center */}
+                                    <div className="space-y-1.5 border-t border-slate-800/80 pt-2">
+                                      <span className="text-[10px] font-mono font-semibold text-slate-400">Pivot Axis Center</span>
+                                      <div className="flex gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUpdateSubAnimation(subIdx, { pivotMode: 'center-of-mass' })}
+                                          className={`flex-1 py-1 rounded text-[10px] font-mono transition-all cursor-pointer ${
+                                            (subAnim.pivotMode || 'center-of-mass') === 'center-of-mass'
+                                              ? 'bg-emerald-600 text-white font-bold'
+                                              : 'bg-slate-800 text-slate-400'
+                                          }`}
+                                        >
+                                          Center of Mass
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUpdateSubAnimation(subIdx, { pivotMode: 'custom' })}
+                                          className={`flex-1 py-1 rounded text-[10px] font-mono transition-all cursor-pointer ${
+                                            subAnim.pivotMode === 'custom'
+                                              ? 'bg-blue-600 text-white font-bold'
+                                              : 'bg-slate-800 text-slate-400'
+                                          }`}
+                                        >
+                                          Custom Offset
+                                        </button>
+                                      </div>
+
+                                      {subAnim.pivotMode === 'custom' && (
+                                        <div className="space-y-2 bg-slate-950/60 p-2 rounded-lg border border-slate-800 mt-1">
+                                          {['pivotX', 'pivotY', 'pivotZ'].map((pKey, i) => {
+                                            const label = ['Pivot X (cm)', 'Pivot Y (cm)', 'Pivot Z (cm)'][i];
+                                            const val = (subAnim as any)[pKey] || 0;
+                                            return (
+                                              <div key={pKey} className="space-y-1">
+                                                <div className="flex justify-between items-center text-[9px] font-mono">
+                                                  <span className="text-slate-400">{label}</span>
+                                                  <input
+                                                    type="number"
+                                                    step="0.5"
+                                                    value={val}
+                                                    onChange={(e) => handleUpdateSubAnimation(subIdx, { [pKey]: parseFloat(e.target.value) || 0 })}
+                                                    className="w-14 px-1 py-0.5 bg-slate-950 text-[10px] font-mono text-white rounded border border-slate-800 text-right outline-none"
+                                                  />
+                                                </div>
+                                                <input
+                                                  type="range"
+                                                  min="-100"
+                                                  max="100"
+                                                  step="0.5"
+                                                  value={val}
+                                                  onChange={(e) => handleUpdateSubAnimation(subIdx, { [pKey]: parseFloat(e.target.value) || 0 })}
+                                                  className="w-full accent-blue-500 cursor-pointer"
+                                                />
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* SINGLE ANIMATION CONTROLS (with instant compound addition button) */}
                     {activeAnim && activeAnim.type !== 'none' && activeAnim.type !== 'multi' && (
                       <>
+                        {/* Compound Motion Conversion Prompt */}
+                        <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-blue-950/60 to-purple-950/60 rounded-xl border border-blue-500/30">
+                          <div className="space-y-0.5">
+                            <span className="text-[11px] font-mono font-bold text-white flex items-center gap-1.5">
+                              <Layers size={13} className="text-blue-400" />
+                              <span>Simultaneous Motion</span>
+                            </span>
+                            <p className="text-[10px] font-mono text-slate-400">
+                              Combine translation + rotation concurrently
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleAddOrConvertToMulti}
+                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1 shadow transition-colors cursor-pointer"
+                          >
+                            <Plus size={12} />
+                            <span>+ Add Layer</span>
+                          </button>
+                        </div>
+
                         {/* Axis */}
                         <div className="space-y-1.5">
                           <span className="text-xs font-mono font-semibold text-slate-300">Rotation / Motion Axis</span>
@@ -3113,13 +3771,18 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                           </div>
                         )}
 
-                        <button
-                          onClick={() => resetPartAnimation(selectedPartIndex)}
-                          className="w-full py-1.5 rounded-lg text-xs font-mono text-red-400 bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 transition-colors cursor-pointer"
-                        >
-                          Remove Animation from this Part
-                        </button>
                       </>
+                    )}
+
+                    {/* Global Part Motion Reset (available for both single and multi animations) */}
+                    {activeAnim && activeAnim.type !== 'none' && (
+                      <button
+                        type="button"
+                        onClick={() => resetPartAnimation(selectedPartIndex)}
+                        className="w-full py-2 rounded-lg text-xs font-mono font-bold text-red-400 bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 transition-colors cursor-pointer"
+                      >
+                        Remove All Motion from this Part
+                      </button>
                     )}
                   </div>
                 )}
