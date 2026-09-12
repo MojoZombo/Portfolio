@@ -960,13 +960,24 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
   // Frame loop
   const localTimeRef = useRef(0);
 
+  useEffect(() => {
+    if (!isModelCalibrating && (!isActive || !isRotating)) {
+      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+      currentSpeedRef.current = 0;
+    }
+    if (!isModelCalibrating && (!isActive || !isAnimating)) {
+      localTimeRef.current = 0;
+      if (meshNodesRef.current.length > 0) {
+        meshNodesRef.current.forEach((node) => {
+          node.mesh.position.copy(node.initialPos);
+          node.mesh.rotation.copy(node.initialRot);
+        });
+      }
+    }
+  }, [isActive, isRotating, isAnimating, isModelCalibrating]);
+
   useFrame((_state, delta) => {
     delta = Math.min(delta, 0.035);
-    if (isAnimating && (isActive || isModelCalibrating)) {
-      localTimeRef.current += delta;
-    } else if (!isActive && !isModelCalibrating) {
-      localTimeRef.current = 0;
-    }
     // Always apply transform calibration directly to pivot
     if (pivotRef.current) {
       const offsetX = isModelCalibrating ? settings.offsetX : DEFAULT_OFFSET[0];
@@ -980,17 +991,29 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
       pivotRef.current.position.set(offsetX, offsetY, offsetZ);
     }
 
-    if (!isActive && !isModelCalibrating) {
-      if (groupRef.current) {
-        groupRef.current.scale.setScalar(DEFAULT_SCALE);
-      }
-      if (isAnimating && meshNodesRef.current.length > 0) {
+    if (!isModelCalibrating && (!isActive || !isRotating)) {
+      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+      currentSpeedRef.current = 0;
+    }
+    if (!isModelCalibrating && (!isActive || !isAnimating)) {
+      localTimeRef.current = 0;
+      if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
           node.mesh.rotation.copy(node.initialRot);
         });
       }
+    }
+
+    if (!isActive && !isModelCalibrating) {
+      if (groupRef.current) {
+        groupRef.current.scale.setScalar(DEFAULT_SCALE);
+      }
       return;
+    }
+
+    if (isAnimating && (isActive || isModelCalibrating)) {
+      localTimeRef.current += delta;
     }
 
     const baseScale = isModelCalibrating ? settings.scale : DEFAULT_SCALE;
@@ -1003,11 +1026,9 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
     const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed : 0);
     currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
-    if (groupRef.current) {
+    if (groupRef.current && (isRotating || isModelCalibrating)) {
       if (currentSpeedRef.current > 0.001) {
         groupRef.current.rotation.y += delta * currentSpeedRef.current;
-      } else if (!isActive && !isModelCalibrating) {
-        groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, 0, 4.0, delta);
       }
     }
 

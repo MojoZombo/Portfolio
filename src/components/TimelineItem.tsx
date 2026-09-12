@@ -65,7 +65,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   const itemRef = useRef<HTMLDivElement | null>(null);
   const [isActive, setIsActive] = useState(index === 0);
   const isActiveRef = useRef(index === 0);
-  const [isSettled, setIsSettled] = useState(false);
+  const [isSettled, setIsSettled] = useState(index === 0);
   const [isDesktop, setIsDesktop] = useState(true);
 
   useEffect(() => {

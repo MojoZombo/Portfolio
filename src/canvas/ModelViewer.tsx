@@ -171,6 +171,16 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     return () => clearTimeout(timer);
   }, [isActive, isSettled, isWindowScrolling, allowZoom]);
 
+  // Reset camera view, zoom status, and controls whenever model becomes inactive
+  useEffect(() => {
+    if (!isActive && !allowZoom) {
+      setResetTrigger((prev) => prev + 1);
+      setIsRotating(true);
+      setIsAnimationPlaying(true);
+      setIsZoomedIn(false);
+    }
+  }, [isActive, allowZoom]);
+
   // Duration for transitions: fast elegant fade in
   const fadeDuration = isActive || allowZoom ? 'duration-300' : 'duration-150';
 

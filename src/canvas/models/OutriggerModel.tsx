@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CADMesh } from '../CADMesh';
@@ -17,32 +17,54 @@ export const OutriggerModel: React.FC<ModelProps> = ({ isActive = false, isRotat
 
   const localTimeRef = useRef(0);
 
-  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
-    if (isAnimating) {
-      localTimeRef.current += delta;
+  useEffect(() => {
+    if (!isActive || !isRotating) {
+      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+      currentSpeedRef.current = 0;
     }
+    if (!isActive || !isAnimating) {
+      localTimeRef.current = 0;
+      if (pistonRef.current) pistonRef.current.position.y = -0.3;
+    }
+  }, [isActive, isRotating, isAnimating]);
+
+  useFrame((_state, delta) => {
+    delta = Math.min(delta, 0.035);
+
+    if (!isActive || !isRotating) {
+      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+      currentSpeedRef.current = 0;
+    }
+    if (!isActive || !isAnimating) {
+      localTimeRef.current = 0;
+      if (pistonRef.current) pistonRef.current.position.y = -0.3;
+    }
+
+    if (!isActive) {
+      if (groupRef.current) groupRef.current.scale.setScalar(1.25);
+      return;
+    }
+
     if (groupRef.current) {
       groupRef.current.scale.setScalar(1.25);
     }
 
-    const targetSpeed = isActive && isRotating && isAnimating ? 0.2 : 0;
+    if (isAnimating) {
+      localTimeRef.current += delta;
+    }
+    const time = localTimeRef.current;
+
+    const targetSpeed = isRotating && isAnimating ? 0.2 : 0;
     currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
-    if (groupRef.current) {
+    if (groupRef.current && isRotating) {
       if (currentSpeedRef.current > 0.001) {
         groupRef.current.rotation.y += delta * currentSpeedRef.current;
-      } else if (!isActive) {
-        groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, 0, 4.0, delta);
       }
     }
 
     if (pistonRef.current) {
-      if (isActive) {
-        const t = localTimeRef.current;
-        pistonRef.current.position.y = -0.3 + Math.sin(t * 1.5) * 0.15;
-      } else {
-        pistonRef.current.position.y = -0.3;
-      }
+      pistonRef.current.position.y = isAnimating ? -0.3 + Math.sin(time * 1.5) * 0.15 : -0.3;
     }
   });
 

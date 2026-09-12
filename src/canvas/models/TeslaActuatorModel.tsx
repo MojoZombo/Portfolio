@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CADMesh } from '../CADMesh';
@@ -21,31 +21,58 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
   const currentSpeedRef = useRef(0);
   const localTimeRef = useRef(0);
 
-  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
-    if (isAnimating) {
-      localTimeRef.current += delta;
+  useEffect(() => {
+    if (!isActive || !isRotating) {
+      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+      currentSpeedRef.current = 0;
     }
-    const time = localTimeRef.current;
+    if (!isActive || !isAnimating) {
+      localTimeRef.current = 0;
+      if (stage1Ref.current) stage1Ref.current.position.y = 0;
+      if (stage2Ref.current) stage2Ref.current.position.y = 0;
+    }
+  }, [isActive, isRotating, isAnimating]);
+
+  useFrame((_state, delta) => {
+    delta = Math.min(delta, 0.035);
+
+    if (!isActive || !isRotating) {
+      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+      currentSpeedRef.current = 0;
+    }
+    if (!isActive || !isAnimating) {
+      localTimeRef.current = 0;
+      if (stage1Ref.current) stage1Ref.current.position.y = 0;
+      if (stage2Ref.current) stage2Ref.current.position.y = 0;
+    }
+
+    if (!isActive) {
+      if (groupRef.current) groupRef.current.scale.setScalar(1.25);
+      return;
+    }
 
     if (groupRef.current) {
       groupRef.current.scale.setScalar(1.25);
     }
 
-    const targetSpeed = isActive && isRotating && isAnimating ? 0.2 : 0;
+    if (isAnimating) {
+      localTimeRef.current += delta;
+    }
+    const time = localTimeRef.current;
+
+    const targetSpeed = isRotating && isAnimating ? 0.2 : 0;
     currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
-    if (groupRef.current) {
+    if (groupRef.current && isRotating) {
       groupRef.current.rotation.x = 0;
       groupRef.current.rotation.z = 0;
       if (currentSpeedRef.current > 0.001) {
         groupRef.current.rotation.y += delta * currentSpeedRef.current;
-      } else if (!isActive) {
-        groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, 0, 4.0, delta);
       }
     }
 
     // Kinematic Extension (Starts smoothly from 0 at rest)
-    const stroke = isActive && isAnimating ? (-Math.cos(time * 1.6) * 0.5 + 0.5) * 0.45 : 0;
+    const stroke = isAnimating ? (-Math.cos(time * 1.6) * 0.5 + 0.5) * 0.45 : 0;
 
     if (stage1Ref.current) {
       stage1Ref.current.position.y = stroke * 0.5;

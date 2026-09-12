@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CADMesh } from '../CADMesh';
@@ -25,26 +25,61 @@ export const InductiveRobotModel: React.FC<ModelProps> = ({
   const currentSpeedRef = useRef(0);
   const localTimeRef = useRef(0);
 
-  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
-    if (isAnimating) {
-      localTimeRef.current += delta;
+  useEffect(() => {
+    if (!isActive || !isRotating) {
+      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+      currentSpeedRef.current = 0;
     }
-    const time = localTimeRef.current;
+    if (!isActive || !isAnimating) {
+      localTimeRef.current = 0;
+      if (armBaseRef.current) armBaseRef.current.rotation.y = 0;
+      if (armUpperRef.current) armUpperRef.current.rotation.z = 0;
+      if (wheelFL.current) wheelFL.current.rotation.x = 0;
+      if (wheelFR.current) wheelFR.current.rotation.x = 0;
+      if (wheelRL.current) wheelRL.current.rotation.x = 0;
+      if (wheelRR.current) wheelRR.current.rotation.x = 0;
+    }
+  }, [isActive, isRotating, isAnimating]);
+
+  useFrame((_state, delta) => {
+    delta = Math.min(delta, 0.035);
+
+    if (!isActive || !isRotating) {
+      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+      currentSpeedRef.current = 0;
+    }
+    if (!isActive || !isAnimating) {
+      localTimeRef.current = 0;
+      if (armBaseRef.current) armBaseRef.current.rotation.y = 0;
+      if (armUpperRef.current) armUpperRef.current.rotation.z = 0;
+      if (wheelFL.current) wheelFL.current.rotation.x = 0;
+      if (wheelFR.current) wheelFR.current.rotation.x = 0;
+      if (wheelRL.current) wheelRL.current.rotation.x = 0;
+      if (wheelRR.current) wheelRR.current.rotation.x = 0;
+    }
+
+    if (!isActive) {
+      if (groupRef.current) groupRef.current.scale.setScalar(1.2);
+      return;
+    }
 
     if (groupRef.current) {
       groupRef.current.scale.setScalar(1.2);
     }
 
-    const targetSpeed = isActive && isRotating && isAnimating ? 0.275 : 0;
+    if (isAnimating) {
+      localTimeRef.current += delta;
+    }
+    const time = localTimeRef.current;
+
+    const targetSpeed = isRotating && isAnimating ? 0.275 : 0;
     currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
-    if (groupRef.current) {
+    if (groupRef.current && isRotating) {
       groupRef.current.rotation.x = 0;
       groupRef.current.rotation.z = 0;
       if (currentSpeedRef.current > 0.001) {
         groupRef.current.rotation.y += delta * currentSpeedRef.current;
-      } else if (!isActive) {
-        groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, 0, 4.0, delta);
       }
     }
 

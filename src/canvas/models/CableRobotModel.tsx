@@ -732,10 +732,23 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
 
   const localTimeRef = useRef(0);
 
-  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
-    if (isAnimating) {
-      localTimeRef.current += delta;
+  useEffect(() => {
+    if (!isModelCalibrating && (!isActive || !isRotating)) {
+      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+      currentSpeedRef.current = 0;
     }
+    if (!isModelCalibrating && (!isActive || !isAnimating)) {
+      localTimeRef.current = 0;
+      if (meshNodesRef.current.length > 0) {
+        meshNodesRef.current.forEach((node) => {
+          node.mesh.position.copy(node.initialPos);
+          node.mesh.rotation.copy(node.initialRot);
+        });
+      }
+    }
+  }, [isActive, isRotating, isAnimating, isModelCalibrating]);
+
+  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
     // Dynamically adjust calibration transforms in frame loop without scene re-cloning
     if (isModelCalibrating && pivotRef.current) {
       pivotRef.current.position.set(settings.offsetX, settings.offsetY, settings.offsetZ);
@@ -746,18 +759,30 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
       );
     }
 
-    // 1. If static blueprint mode, keep strictly still in rest position and return
-    if (!isActive && !isModelCalibrating) {
-      if (groupRef.current) {
-        groupRef.current.scale.setScalar(DEFAULT_SCALE);
-      }
-      if (isAnimating && meshNodesRef.current.length > 0) {
+    if (!isModelCalibrating && (!isActive || !isRotating)) {
+      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+      currentSpeedRef.current = 0;
+    }
+    if (!isModelCalibrating && (!isActive || !isAnimating)) {
+      localTimeRef.current = 0;
+      if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
           node.mesh.rotation.copy(node.initialRot);
         });
       }
+    }
+
+    // 1. If static blueprint mode, keep strictly still in rest position and return
+    if (!isActive && !isModelCalibrating) {
+      if (groupRef.current) {
+        groupRef.current.scale.setScalar(DEFAULT_SCALE);
+      }
       return;
+    }
+
+    if (isAnimating) {
+      localTimeRef.current += delta;
     }
 
     // 2. Active Mode / Calibration Mode: Constant scale and turntable rotation
@@ -771,11 +796,9 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
     const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed : 0);
     currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
-    if (groupRef.current) {
+    if (groupRef.current && (isRotating || isModelCalibrating)) {
       if (currentSpeedRef.current > 0.001) {
         groupRef.current.rotation.y += delta * currentSpeedRef.current;
-      } else if (!isActive && !isModelCalibrating) {
-        groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, 0, 4.0, delta);
       }
     }
 
