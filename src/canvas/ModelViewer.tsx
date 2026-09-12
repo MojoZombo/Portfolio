@@ -208,13 +208,20 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [bpFallback, setBpFallback] = useState(false);
   const [shadedFallback, setShadedFallback] = useState(false);
 
-  const bpPosterPath = bpFallback
-    ? `./posters/${modelType}-blueprint.png`
-    : `./posters/${modelType}-blueprint-${themeSuffix}.png`;
+  // Cache-busting version query parameter to force browsers to load fresh baked posters
+  const POSTER_VERSION = '20260912-v2';
 
-  const shadedPosterPath = shadedFallback
-    ? `./posters/${modelType}-shaded.png`
-    : `./posters/${modelType}-shaded-${themeSuffix}.png`;
+  const bpPosterPath = `${
+    bpFallback
+      ? `./posters/${modelType}-blueprint.png`
+      : `./posters/${modelType}-blueprint-${themeSuffix}.png`
+  }?v=${POSTER_VERSION}`;
+
+  const shadedPosterPath = `${
+    shadedFallback
+      ? `./posters/${modelType}-shaded.png`
+      : `./posters/${modelType}-shaded-${themeSuffix}.png`
+  }?v=${POSTER_VERSION}`;
 
   const handleCanvasInteraction = () => {
     if (allowZoom) {
