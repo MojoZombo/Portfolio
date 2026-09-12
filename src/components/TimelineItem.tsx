@@ -28,6 +28,7 @@ interface TimelineItemProps {
 
 const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   project,
+  index = 0,
   onSelect,
   onVisible,
   modelTranslateX,
@@ -62,8 +63,8 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
     DEFAULT_TEXT_TRANSLATE_Y;
 
   const itemRef = useRef<HTMLDivElement | null>(null);
-  const [isActive, setIsActive] = useState(false);
-  const isActiveRef = useRef(false);
+  const [isActive, setIsActive] = useState(index === 0);
+  const isActiveRef = useRef(index === 0);
   const [isSettled, setIsSettled] = useState(false);
   const [isDesktop, setIsDesktop] = useState(true);
 
@@ -102,8 +103,8 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
 
           // Adaptive threshold for mobile vs desktop with compact spacing
           const isMobileDevice = window.innerWidth < 768;
-          const enterThreshold = windowHeight * (isMobileDevice ? 0.30 : 0.22);
-          const exitThreshold = windowHeight * (isMobileDevice ? 0.44 : 0.32);
+          const enterThreshold = windowHeight * (isMobileDevice ? 0.26 : 0.22);
+          const exitThreshold = windowHeight * (isMobileDevice ? 0.36 : 0.32);
 
           let nextActive = isActiveRef.current;
           if (distance < enterThreshold) {
@@ -149,24 +150,24 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
       ref={itemRef}
       className="relative min-h-[360px] sm:min-h-[420px] md:min-h-[44vh] flex items-center justify-center py-3 sm:py-5 md:py-8 overflow-visible"
     >
-      <div className="relative w-full max-w-5xl mx-auto px-3 sm:px-6 flex flex-col md:flex-row items-center justify-center overflow-visible gap-4 md:gap-0">
+      <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center justify-center overflow-visible gap-4 md:gap-0">
         
         {/* Project Header / Details:
             - Desktop: Floats on left and slides in dynamically when active in center view
-            - Mobile: Cleanly positioned above the 3D model, always visible with crisp typography
+            - Mobile: Positioned cleanly above the 3D model with transparent background, animating in when active
         */}
         <motion.div
           initial={false}
           animate={{
-            opacity: isDesktop ? (isActive ? 1 : 0) : 1,
-            x: isDesktop ? (isActive ? 0 : textShiftX) : 0,
-            y: isDesktop ? (isActive ? 0 : textShiftY) : 0,
-            pointerEvents: isDesktop ? (isActive ? 'auto' : 'none') : 'auto',
+            opacity: isActive ? 1 : 0,
+            x: isDesktop ? (isActive ? 0 : textShiftX) : (isActive ? 0 : -20),
+            y: isDesktop ? (isActive ? 0 : textShiftY) : (isActive ? 0 : -8),
+            pointerEvents: isActive ? 'auto' : 'none',
           }}
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           className="w-full md:w-5/12 md:absolute md:left-4 lg:left-8 z-20"
         >
-          <div className="space-y-2.5 bg-slate-100/80 dark:bg-slate-900/70 md:bg-transparent md:dark:bg-transparent backdrop-blur-sm md:backdrop-blur-none p-3.5 sm:p-4 md:p-0 rounded-xl md:rounded-none">
+          <div className="space-y-2.5 p-0">
             {/* Company Badge & Date */}
             <div className="flex flex-wrap items-center gap-2">
               {project.company && (
