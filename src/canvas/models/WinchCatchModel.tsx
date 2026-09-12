@@ -314,7 +314,7 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
     amplitude: 35,
     amplitudePositive: 60,
     amplitudeNegative: 0,
-    phase: 95,
+    phase: 0,
     pivotMode: 'center-of-mass',
     pivotX: 0,
     pivotY: 0,
@@ -960,9 +960,12 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
   // Frame loop
   const localTimeRef = useRef(0);
 
-  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
-    if (isAnimating) {
+  useFrame((_state, delta) => {
+    delta = Math.min(delta, 0.035);
+    if (isAnimating && (isActive || isModelCalibrating)) {
       localTimeRef.current += delta;
+    } else if (!isActive && !isModelCalibrating) {
+      localTimeRef.current = 0;
     }
     // Always apply transform calibration directly to pivot
     if (pivotRef.current) {

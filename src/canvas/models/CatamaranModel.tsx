@@ -577,9 +577,12 @@ export const CatamaranModel: React.FC<ModelProps> = ({
 
   const localTimeRef = useRef(0);
 
-  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
-    if (isAnimating) {
+  useFrame((_state, delta) => {
+    delta = Math.min(delta, 0.035);
+    if (isAnimating && (isActive || isModelCalibrating)) {
       localTimeRef.current += delta;
+    } else if (!isActive && !isModelCalibrating) {
+      localTimeRef.current = 0;
     }
     // Always apply transform calibration directly to pivot
     if (pivotRef.current) {

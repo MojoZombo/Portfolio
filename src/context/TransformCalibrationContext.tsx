@@ -1430,7 +1430,7 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
         amplitude: 35,
         amplitudePositive: 60,
         amplitudeNegative: 0,
-        phase: 95,
+        phase: 0,
         pivotMode: 'center-of-mass',
         pivotX: 0,
         pivotY: 0,

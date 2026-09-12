@@ -527,8 +527,10 @@ export const BottleScrubberModel: React.FC<ModelProps> = ({
 
   useFrame((_state, delta) => {
     delta = Math.min(delta, 0.035);
-    if (isAnimating) {
+    if (isAnimating && (isActive || isModelCalibrating)) {
       localTimeRef.current += delta;
+    } else if (!isActive && !isModelCalibrating) {
+      localTimeRef.current = 0;
     }
 
     // Apply transform calibration directly to pivot

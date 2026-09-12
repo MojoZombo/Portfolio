@@ -313,7 +313,7 @@ function buildMasterPingPongPrototype(sourceScene: THREE.Group) {
   });
   const ballMesh = new THREE.Mesh(ballGeo, ballMat);
   ballMesh.name = 'Ping_Pong_Ball';
-  ballMesh.position.set(0.1701, 0.4413, 0.2231);
+  ballMesh.position.set(0.1701, 0.4313, 0.2231);
   ballMesh.userData.isPingPongBall = true;
   template.add(ballMesh);
 
@@ -655,9 +655,12 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
 
   const localTimeRef = useRef(0);
 
-  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
-    if (isAnimating) {
+  useFrame((_state, delta) => {
+    delta = Math.min(delta, 0.035);
+    if (isAnimating && (isActive || isModelCalibrating)) {
       localTimeRef.current += delta;
+    } else if (!isActive && !isModelCalibrating) {
+      localTimeRef.current = 0;
     }
     // Always apply transform calibration directly to pivot
     if (pivotRef.current) {
@@ -915,7 +918,7 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
           } else {
             // Analytic closed-form trajectory: exact mathematical curve, 0 physics simulation overhead
             const omega = (100 * Math.PI * 2) / 60; // 100 RPM paddle speed
-            const phaseShift = Math.PI / 2; // Peak paddle strike instant
+            const phaseShift = 0; // Starts flush against the platform at t = 0
             const cyclePhase = (((time * omega - phaseShift) / (2 * Math.PI)) % 1 + 1) % 1;
 
             // Parabolic gravity trajectory: 4 * h * u * (1 - u)
