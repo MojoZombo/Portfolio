@@ -62,7 +62,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
                 e.stopPropagation();
                 prevSlide();
               }}
-              className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white/90 hover:bg-white text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 shadow-md backdrop-blur-sm transition-colors cursor-pointer z-10"
+              className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white hover:bg-blue-600 hover:text-white text-slate-700 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer z-10"
               aria-label="Previous Image"
             >
               <ChevronLeft size={16} />
@@ -72,7 +72,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
                 e.stopPropagation();
                 nextSlide();
               }}
-              className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white/90 hover:bg-white text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 shadow-md backdrop-blur-sm transition-colors cursor-pointer z-10"
+              className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white hover:bg-blue-600 hover:text-white text-slate-700 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer z-10"
               aria-label="Next Image"
             >
               <ChevronRight size={16} />
@@ -82,7 +82,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
       </div>
 
       {/* Caption & Navigation Dots Bar */}
-      <div className="px-5 py-2.5 bg-slate-200/50 dark:bg-slate-900/70 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono text-xs text-slate-600 dark:text-slate-400">
+      <div className="px-5 py-2.5 bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono text-xs text-slate-600 dark:text-slate-400">
         <div className="flex items-center gap-2">
           <span className="text-blue-600 dark:text-blue-400 font-semibold">
             {currentIndex + 1} / {images.length}

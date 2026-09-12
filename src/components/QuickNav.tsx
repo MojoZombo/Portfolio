@@ -27,7 +27,7 @@ export const QuickNav: React.FC<QuickNavProps> = ({ projects }) => {
       <div className="p-2 rounded bg-white/80 dark:bg-cad-surface/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 flex flex-col items-center gap-3">
         <button
           onClick={scrollToTop}
-          className="text-slate-400 hover:text-blue-500 transition-colors p-1"
+          className="text-slate-400 hover:text-blue-500 p-1 cursor-pointer"
           title="Scroll to Top"
         >
           ▲
@@ -39,7 +39,7 @@ export const QuickNav: React.FC<QuickNavProps> = ({ projects }) => {
           <button
             key={year}
             onClick={() => scrollToYear(year)}
-            className="px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-all"
+            className="px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
           >
             {year}
           </button>

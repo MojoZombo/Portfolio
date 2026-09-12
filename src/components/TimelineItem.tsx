@@ -192,7 +192,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             <div className="pt-1">
               <button
                 onClick={() => onSelect(project)}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded text-xs font-mono font-medium bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-200 dark:hover:bg-white dark:text-slate-900 transition-colors cursor-pointer touch-manipulation"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded text-xs font-mono font-medium bg-slate-900 hover:bg-blue-600 text-white dark:bg-slate-200 dark:hover:bg-blue-500 dark:text-slate-900 dark:hover:text-white cursor-pointer touch-manipulation"
               >
                 <span>View Project Details</span>
                 <ArrowUpRight size={14} />

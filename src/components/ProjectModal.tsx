@@ -71,10 +71,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 15 }}
             transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-10 w-full h-full sm:h-auto max-w-5xl max-h-[100dvh] sm:max-h-[92vh] flex flex-col bg-white dark:bg-[#141C28] rounded-none sm:rounded-2xl shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100"
+            className="relative z-10 w-full h-full sm:h-auto max-w-5xl max-h-[100dvh] sm:max-h-[92vh] flex flex-col bg-white dark:bg-[#0c121e] rounded-none sm:rounded-2xl shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100"
           >
             {/* Header Title Bar */}
-            <div className="px-4 sm:px-6 py-4 flex items-center justify-between bg-slate-100/70 dark:bg-slate-900/70 shrink-0">
+            <div className="px-4 sm:px-6 py-4 flex items-center justify-between bg-slate-100 dark:bg-slate-950 shrink-0">
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 {project.company && (
                   <CompanyLogo
@@ -84,7 +84,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                     size="sm"
                   />
                 )}
-                <span className="px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-semibold bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-semibold bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                   {project.date.toUpperCase()}
                 </span>
                 <h2 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight line-clamp-1">
@@ -99,7 +99,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                     href={project.projectWebsiteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200/90 hover:bg-slate-300/90 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 transition-colors"
+                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-800 dark:hover:bg-blue-500 dark:hover:text-white dark:text-slate-200 cursor-pointer"
                   >
                     <span>Project Webpage</span>
                     <ExternalLink size={12} />
@@ -107,7 +107,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                 )}
                 <button
                   onClick={onClose}
-                  className="w-8 h-8 p-0 flex items-center justify-center rounded text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="w-8 h-8 p-0 flex items-center justify-center rounded text-slate-500 hover:text-white dark:text-slate-400 dark:hover:text-white hover:bg-blue-600 dark:hover:bg-blue-500 cursor-pointer"
                   aria-label="Close modal"
                 >
                   <svg
@@ -132,16 +132,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
             >
               
               {/* Interactive 3D Model Showcase */}
-              <div className="bg-slate-100/60 dark:bg-slate-900/40 rounded-lg p-3 relative">
+              <div className="bg-slate-100 dark:bg-slate-800/60 rounded-lg p-3 relative">
                 {/* 3D Viewer Top Fullscreen Button */}
                 <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 flex items-center justify-end pointer-events-none">
                   <button
                     type="button"
                     onClick={() => setIs3DFullscreen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-white/95 hover:bg-slate-100 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 text-xs font-mono font-medium shadow-sm transition-colors pointer-events-auto cursor-pointer"
+                    className="group flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700/80 bg-white hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-900 dark:hover:bg-blue-500 dark:hover:text-white dark:text-slate-200 text-xs font-mono font-medium pointer-events-auto cursor-pointer"
                     title="Open Fullscreen 3D Model Inspector"
                   >
-                    <Maximize2 size={13} className="text-blue-600 dark:text-blue-400" />
+                    <Maximize2 size={13} className="text-blue-600 dark:text-blue-400 group-hover:text-white" />
                     <span>Fullscreen 3D</span>
                   </button>
                 </div>
@@ -159,7 +159,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                 {project.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-2.5 py-0.5 text-xs rounded font-mono bg-slate-100 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300"
+                    className="px-2.5 py-0.5 text-xs rounded font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
                   >
                     {tag}
                   </span>
@@ -223,7 +223,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                                     <div key={iIdx} className="flex items-center justify-center">
                                       <div
                                         onClick={() => setSelectedImage({ url: img.url, caption: img.caption || img.title })}
-                                        className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-full bg-slate-100 dark:bg-slate-900/60"
+                                        className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-full bg-slate-100 dark:bg-slate-800/60"
                                       >
                                         <img
                                           src={img.url}
@@ -231,7 +231,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                                           className="block max-h-80 w-auto object-contain rounded-lg"
                                           loading="lazy"
                                         />
-                                        <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
                                           <ZoomIn size={12} />
                                           <span>Enlarge</span>
                                         </div>
@@ -243,7 +243,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                                   <div className="flex items-center justify-center pt-1">
                                     <div
                                       onClick={() => setSelectedImage({ url: section.images![2].url, caption: section.images![2].caption || section.images![2].title })}
-                                      className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-2xl bg-slate-100 dark:bg-slate-900/60"
+                                      className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-2xl bg-slate-100 dark:bg-slate-800/60"
                                     >
                                       <img
                                         src={section.images[2].url}
@@ -251,7 +251,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                                         className="block max-h-80 w-auto object-contain rounded-lg mx-auto"
                                         loading="lazy"
                                       />
-                                      <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
                                         <ZoomIn size={12} />
                                         <span>Enlarge</span>
                                       </div>
@@ -265,7 +265,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                                   <div key={iIdx} className="flex items-center justify-center">
                                     <div
                                       onClick={() => setSelectedImage({ url: img.url, caption: img.caption || img.title })}
-                                      className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-full bg-slate-100 dark:bg-slate-900/60"
+                                      className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-full bg-slate-100 dark:bg-slate-800/60"
                                     >
                                       <img
                                         src={img.url}
@@ -273,7 +273,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                                         className="block max-h-80 w-auto object-contain rounded-lg"
                                         loading="lazy"
                                       />
-                                      <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
                                         <ZoomIn size={12} />
                                         <span>Enlarge</span>
                                       </div>
@@ -285,7 +285,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                               <div className="flex items-center justify-center">
                                 <div
                                   onClick={() => setSelectedImage({ url: section.images![0].url, caption: section.images![0].caption || section.images![0].title })}
-                                  className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-2xl bg-slate-100 dark:bg-slate-900/60"
+                                  className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-2xl bg-slate-100 dark:bg-slate-800/60"
                                 >
                                   <img
                                     src={section.images[0].url}
@@ -293,7 +293,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                                     className="block max-h-80 w-auto object-contain rounded-lg mx-auto"
                                     loading="lazy"
                                   />
-                                  <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
                                     <ZoomIn size={12} />
                                     <span>Enlarge</span>
                                   </div>
@@ -407,7 +407,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 py-1">
                     {project.specs.map((spec, idx) => (
-                      <div key={idx} className="bg-slate-100/70 dark:bg-slate-900/50 p-2.5 rounded-lg flex flex-col justify-between">
+                      <div key={idx} className="bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/40 dark:border-slate-800/60 p-2.5 rounded-lg flex flex-col justify-between">
                         <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
                           {spec.label}
                         </span>
@@ -445,7 +445,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                   </h3>
                   <ul className="space-y-2.5 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
                     {project.keyChallenges.map((challenge, idx) => (
-                      <li key={idx} className="bg-slate-100/60 dark:bg-slate-900/40 p-3 rounded-lg leading-relaxed flex items-start gap-2.5">
+                      <li key={idx} className="bg-slate-100/60 dark:bg-slate-800/60 border border-slate-200/40 dark:border-slate-800/60 p-3 rounded-lg leading-relaxed flex items-start gap-2.5">
                         <span className="text-blue-500 dark:text-blue-400 font-bold select-none">•</span>
                         <span>{challenge}</span>
                       </li>
@@ -458,7 +458,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
             
             {/* Mobile Scroll Indicator */}
             <div 
-              className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-white via-white/90 dark:from-[#141C28] dark:via-[#141C28]/90 to-transparent pointer-events-none transition-opacity duration-300 flex items-end justify-center pb-6 sm:hidden ${hasScrolled || isScrolledToBottom ? 'opacity-0' : 'opacity-100'}`}
+              className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-white via-white/90 dark:from-[#0c121e] dark:via-[#0c121e]/90 to-transparent pointer-events-none transition-opacity duration-300 flex items-end justify-center pb-6 sm:hidden ${hasScrolled || isScrolledToBottom ? 'opacity-0' : 'opacity-100'}`}
             >
               <div className="animate-bounce bg-slate-900/10 dark:bg-white/10 p-2 rounded-full backdrop-blur-sm text-slate-500 dark:text-slate-400 shadow-sm flex items-center justify-center">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -482,7 +482,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
           >
             <button
               onClick={() => setSelectedImage(null)}
-              className="absolute top-6 right-6 w-9 h-9 p-0 flex items-center justify-center text-white bg-slate-800 hover:bg-slate-700 rounded transition-colors z-20 cursor-pointer"
+              className="absolute top-6 right-6 w-9 h-9 p-0 flex items-center justify-center text-white bg-slate-800 hover:bg-slate-700 rounded z-20 cursor-pointer"
               aria-label="Close Lightbox"
             >
               <svg
@@ -523,12 +523,12 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-between select-none overflow-hidden"
+            className="fixed inset-0 z-[100] bg-slate-100/95 dark:bg-black/95 backdrop-blur-xl flex flex-col items-center justify-between select-none overflow-hidden"
           >
             {/* Floating Top Header Bar */}
             <div className="absolute top-4 left-4 right-4 sm:left-6 sm:right-6 flex items-center justify-between z-30 pointer-events-none">
-              <div className="flex items-center gap-2.5 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded shadow-lg pointer-events-auto">
-                <h3 className="text-sm sm:text-base font-bold text-white tracking-tight font-mono">
+              <div className="flex items-center gap-2.5 bg-white text-slate-900 dark:bg-slate-900/90 dark:text-white border border-slate-200 dark:border-slate-800 px-3.5 py-1.5 rounded pointer-events-auto">
+                <h3 className="text-sm sm:text-base font-bold tracking-tight font-mono">
                   {project.title}
                 </h3>
               </div>
@@ -537,11 +537,11 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                 <button
                   type="button"
                   onClick={() => setIs3DFullscreen(false)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono font-medium text-slate-200 bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md shadow-lg transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono font-medium text-slate-700 bg-white hover:bg-blue-600 hover:text-white dark:text-slate-200 dark:bg-slate-900/90 dark:hover:bg-blue-500 dark:hover:text-white border border-slate-200 dark:border-slate-800 cursor-pointer"
                 >
-                  <Minimize2 size={13} className="text-blue-400" />
+                  <Minimize2 size={13} className="text-blue-500 dark:text-blue-400" />
                   <span>Exit Fullscreen</span>
-                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-white/10 text-[10px] text-slate-300">
+                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-white/10 text-[10px] dark:text-slate-300">
                     ESC
                   </span>
                 </button>

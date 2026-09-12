@@ -48,10 +48,10 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 15 }}
           transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-          className="relative z-10 w-full max-w-4xl h-[95vh] flex flex-col bg-white dark:bg-[#141C28] rounded-2xl shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100"
+          className="relative z-10 w-full max-w-4xl h-[95vh] flex flex-col bg-white dark:bg-[#0c121e] rounded-2xl shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100"
         >
           {/* Header Title Bar */}
-          <div className="px-6 py-4 flex items-center justify-between bg-slate-100/70 dark:bg-slate-900/70 shrink-0">
+          <div className="px-6 py-4 flex items-center justify-between bg-slate-100/70 dark:bg-slate-950 shrink-0 border-b border-slate-200 dark:border-slate-800">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
                 Resume
@@ -63,7 +63,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
               <a
                 href="./Jaden_Fann_Resume.pdf"
                 download="Jaden_Fann_Resume.pdf"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200/90 hover:bg-slate-300/90 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium border border-slate-300 dark:border-slate-700 bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer"
               >
                 <span>Download</span>
                 <Download size={12} />
@@ -72,14 +72,14 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
                 href="./Jaden_Fann_Resume.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200/90 hover:bg-slate-300/90 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium border border-slate-300 dark:border-slate-700 bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer"
               >
                 <span>Open PDF</span>
                 <ExternalLink size={12} />
               </a>
               <button
                 onClick={onClose}
-                className="w-8 h-8 p-0 flex items-center justify-center rounded text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                className="w-8 h-8 p-0 flex items-center justify-center rounded text-slate-500 hover:text-white dark:text-slate-400 dark:hover:text-white hover:bg-blue-600 dark:hover:bg-blue-500 cursor-pointer"
                 aria-label="Close modal"
               >
                 <svg
@@ -98,7 +98,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
           </div>
 
           {/* Modal Scrollable Body */}
-          <div className="flex-1 w-full h-full bg-slate-100 dark:bg-slate-900/50">
+          <div className="flex-1 w-full h-full bg-slate-100 dark:bg-slate-900">
             <iframe
               src="./Jaden_Fann_Resume.pdf#view=Fit&toolbar=0&navpanes=0&scrollbar=0"
               title="Jaden Fann Resume"

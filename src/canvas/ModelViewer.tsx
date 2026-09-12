@@ -325,13 +325,13 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               setIsAnimationPlaying(next);
               setIsRotating(next);
             }}
-            className="px-3 py-1.5 rounded bg-white hover:bg-slate-100 text-slate-700 dark:bg-slate-800/90 dark:hover:bg-slate-700 dark:text-slate-200 shadow-md backdrop-blur-sm transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
+            className="group px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700/80 bg-white hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-900 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white backdrop-blur-sm cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
             title={isAnimationPlaying ? 'Pause 3D animation and rotation' : 'Play 3D animation and rotation'}
           >
             {isAnimationPlaying ? (
-              <Pause size={12} className="text-blue-600 dark:text-blue-400" />
+              <Pause size={12} className="text-blue-600 dark:text-blue-400 group-hover:text-white" />
             ) : (
-              <Play size={12} className="text-amber-600 dark:text-amber-400" />
+              <Play size={12} className="text-amber-600 dark:text-amber-400 group-hover:text-white" />
             )}
             <span>{isAnimationPlaying ? 'Pause' : 'Play'}</span>
           </button>
@@ -346,10 +346,10 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                 setIsAnimationPlaying(true);
                 setIsRotating(true);
               }}
-              className="px-3 py-1.5 rounded bg-white hover:bg-slate-100 text-slate-700 dark:bg-slate-800/90 dark:hover:bg-slate-700 dark:text-slate-200 shadow-md backdrop-blur-sm transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
+              className="group px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700/80 bg-white hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-900 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white backdrop-blur-sm cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
               title="Reset 3D model zoom and position"
             >
-              <RotateCcw size={12} className="text-blue-600 dark:text-blue-400" />
+              <RotateCcw size={12} className="text-blue-600 dark:text-blue-400 group-hover:text-white" />
               <span>Reset View</span>
             </button>
           )}
