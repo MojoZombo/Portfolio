@@ -27,9 +27,9 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated CAD Defaults for Robot Hand
-const DEFAULT_OFFSET: [number, number, number] = [0.42, 0.51, 0.46];
+const DEFAULT_OFFSET: [number, number, number] = [0.42, 0.2, 0.46];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0, -90, 0];
-const DEFAULT_SCALE = 0.95;
+const DEFAULT_SCALE = 1.1;
 
 // Baked Custom Part Color Overrides for Robot Hand
 const DEFAULT_PART_COLORS: Record<number, string> = {

@@ -29,7 +29,7 @@ const toonGradient = createToonGradientMap();
 // Optimal Calibrated Defaults for Anti-Tangle Winch
 const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.01];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [-180.0, 0.0, 0.0];
-const DEFAULT_SCALE = 20.0;
+const DEFAULT_SCALE = 27.0;
 
 // Baked Custom Part Color Overrides for Winch
 const DEFAULT_PART_COLORS: Record<number, string> = {

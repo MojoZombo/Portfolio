@@ -47,12 +47,12 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
     }
 
     if (!isActive) {
-      if (groupRef.current) groupRef.current.scale.setScalar(1.25);
+      if (groupRef.current) groupRef.current.scale.setScalar(1.55);
       return;
     }
 
     if (groupRef.current) {
-      groupRef.current.scale.setScalar(1.25);
+      groupRef.current.scale.setScalar(1.55);
     }
 
     if (isAnimating) {

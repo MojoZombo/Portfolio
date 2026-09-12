@@ -29,7 +29,7 @@ const toonGradient = createToonGradientMap();
 // Optimal Calibrated Defaults for Underwater Robot
 const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.0, -59.5, 0.0];
-const DEFAULT_SCALE = 1.00;
+const DEFAULT_SCALE = 1.25;
 
 // Default Part Colors for Underwater Robot
 const DEFAULT_PART_COLORS: Record<number, string> = {

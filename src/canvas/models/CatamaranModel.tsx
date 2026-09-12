@@ -29,7 +29,7 @@ const toonGradient = createToonGradientMap();
 // Optimal Calibrated Defaults for Sailing Catamaran
 const DEFAULT_OFFSET: [number, number, number] = [-0.15, 0.03, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [-90.0, -90.0, 0.0];
-const DEFAULT_SCALE = 2.30;
+const DEFAULT_SCALE = 2.50;
 const DEFAULT_ROTATION_SPEED = 0.20; // 0.2 rad/s turntable rotation
 
 // Default Part Colors for Sailing Catamaran

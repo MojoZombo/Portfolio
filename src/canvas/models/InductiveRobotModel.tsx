@@ -59,12 +59,12 @@ export const InductiveRobotModel: React.FC<ModelProps> = ({
     }
 
     if (!isActive) {
-      if (groupRef.current) groupRef.current.scale.setScalar(1.2);
+      if (groupRef.current) groupRef.current.scale.setScalar(1.4);
       return;
     }
 
     if (groupRef.current) {
-      groupRef.current.scale.setScalar(1.2);
+      groupRef.current.scale.setScalar(1.4);
     }
 
     if (isAnimating) {

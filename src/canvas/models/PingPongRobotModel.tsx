@@ -27,9 +27,9 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Ping Pong Robot
-const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
+const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.05, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.00, 0.00, 0.00];
-const DEFAULT_SCALE = 5.50;
+const DEFAULT_SCALE = 6.300;
 
 // Static ball kinematic constants & zero-allocation scratch vectors
 const BALL_LOCAL_CONTACT = new THREE.Vector3(0.0204, 0.095, 0.004);

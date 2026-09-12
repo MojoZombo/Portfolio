@@ -27,9 +27,9 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Scrubtious Bottle Scrubber
-const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
+const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.03, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.00, 0.00, 0.00];
-const DEFAULT_SCALE = 7.50;
+const DEFAULT_SCALE = 12;
 const DEFAULT_ROTATION_SPEED = 0.20;
 
 // Baked Custom Part Color Overrides for Scrubtious
