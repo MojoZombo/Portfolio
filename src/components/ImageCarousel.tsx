@@ -29,7 +29,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
   const currentImg = images[currentIndex];
 
   return (
-    <div className="relative w-full rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 my-3 select-none">
+    <div className="relative w-full rounded-lg overflow-hidden bg-slate-100/60 dark:bg-slate-900/40 my-3 select-none">
       {/* Main Image Display Area (Seamless with page) */}
       <div className="relative h-[320px] sm:h-[400px] w-full flex items-center justify-center p-3 sm:p-5">
         <AnimatePresence mode="wait">
@@ -62,7 +62,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
                 e.stopPropagation();
                 prevSlide();
               }}
-              className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white/90 hover:bg-white text-slate-700 dark:bg-slate-900/90 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700/60 backdrop-blur-sm transition-colors cursor-pointer z-10"
+              className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white/90 hover:bg-white text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 shadow-md backdrop-blur-sm transition-colors cursor-pointer z-10"
               aria-label="Previous Image"
             >
               <ChevronLeft size={16} />
@@ -72,7 +72,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
                 e.stopPropagation();
                 nextSlide();
               }}
-              className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white/90 hover:bg-white text-slate-700 dark:bg-slate-900/90 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700/60 backdrop-blur-sm transition-colors cursor-pointer z-10"
+              className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white/90 hover:bg-white text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 shadow-md backdrop-blur-sm transition-colors cursor-pointer z-10"
               aria-label="Next Image"
             >
               <ChevronRight size={16} />
@@ -82,7 +82,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
       </div>
 
       {/* Caption & Navigation Dots Bar */}
-      <div className="px-5 py-2.5 bg-slate-100/60 dark:bg-slate-900/60 border-t border-slate-200/80 dark:border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono text-xs text-slate-600 dark:text-slate-400">
+      <div className="px-5 py-2.5 bg-slate-200/50 dark:bg-slate-900/70 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono text-xs text-slate-600 dark:text-slate-400">
         <div className="flex items-center gap-2">
           <span className="text-blue-600 dark:text-blue-400 font-semibold">
             {currentIndex + 1} / {images.length}

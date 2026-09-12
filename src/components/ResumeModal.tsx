@@ -48,10 +48,10 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 15 }}
           transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-          className="relative z-10 w-full max-w-4xl h-[95vh] flex flex-col bg-white dark:bg-[#141C28] rounded-2xl border border-slate-300 dark:border-none shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100"
+          className="relative z-10 w-full max-w-4xl h-[95vh] flex flex-col bg-white dark:bg-[#141C28] rounded-2xl shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100"
         >
           {/* Header Title Bar */}
-          <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/60 shrink-0">
+          <div className="px-6 py-4 flex items-center justify-between bg-slate-100/70 dark:bg-slate-900/70 shrink-0">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
                 Resume
@@ -63,7 +63,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
               <a
                 href="./Jaden_Fann_Resume.pdf"
                 download="Jaden_Fann_Resume.pdf"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200/90 hover:bg-slate-300/90 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 transition-colors"
               >
                 <span>Download</span>
                 <Download size={12} />
@@ -72,7 +72,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
                 href="./Jaden_Fann_Resume.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200/90 hover:bg-slate-300/90 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 transition-colors"
               >
                 <span>Open PDF</span>
                 <ExternalLink size={12} />

@@ -1,17 +1,18 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, OrthographicCamera, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei';
+import { OrbitControls, TransformControls, PerspectiveCamera, OrthographicCamera, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { projectsData } from '../../data/projectsData';
 import { ModelRenderer } from '../../canvas/ModelRenderer';
 import { useTheme } from '../../context/ThemeContext';
-import { useTransformCalibration, SplitPartRecord } from '../../context/TransformCalibrationContext';
+import { useTransformCalibration, SplitPartRecord, AxisAlignment, PartColorInfo, TransformSettings } from '../../context/TransformCalibrationContext';
 import { CADCuttingPlaneGizmo } from '../../canvas/CADCuttingPlaneGizmo';
-import { separateDisconnectedIslands, sliceGeometryByPlane } from '../../utils/meshSplitter';
+import { separateDisconnectedIslands, sliceGeometryByPlane, computeGeometryCenterOfMass, getAssemblyRoot } from '../../utils/meshSplitter';
 import {
   Palette,
   Play,
+  Pause,
   Copy,
   Check,
   Sun,
@@ -33,6 +34,9 @@ import {
   Camera,
   Zap,
   Eye,
+  ChevronUp,
+  ChevronDown,
+  GripVertical,
 } from 'lucide-react';
 
 interface StudioProps {
@@ -65,14 +69,21 @@ function StudioSceneBridge({
   selectedPartIndex,
   colorOverrides,
   animationOverrides,
+  isPlaying = false,
+  soloPartIndex = null,
+  availableParts = [],
 }: {
   onSceneReady: (scene: THREE.Scene) => void;
   onEngineReady?: (handles: { scene: THREE.Scene; camera: THREE.Camera; gl: THREE.WebGLRenderer }) => void;
   selectedPartIndex: number | null;
   colorOverrides: Record<number, string>;
   animationOverrides: Record<number, any>;
+  isPlaying?: boolean;
+  soloPartIndex?: number | null;
+  availableParts?: PartColorInfo[];
 }) {
   const { scene, camera, gl } = useThree();
+  const localTimeRef = useRef(0);
 
   useEffect(() => {
     onSceneReady(scene);
@@ -82,15 +93,26 @@ function StudioSceneBridge({
   }, [scene, camera, gl, onSceneReady, onEngineReady]);
 
   // Live update highlight glow, colors, and live kinematics for all CAD parts and dynamically split sub-meshes
-  useFrame((state) => {
-    const time = state.clock.getElapsedTime();
+  useFrame((_state, delta) => {
+    if (isPlaying) {
+      localTimeRef.current += Math.min(delta, 0.035);
+    }
+    // When paused (not isPlaying), force time to 0 so all parts are cleanly at rest pose
+    const time = isPlaying ? localTimeRef.current : 0;
 
-    const isHelperOrGizmo = (obj: THREE.Object3D) => {
+    const isHelperOrGizmo = (obj: THREE.Object3D): boolean => {
+      if ((obj as THREE.Mesh).isMesh) {
+        const m = obj as THREE.Mesh;
+        if (!m.name || m.name === 'undefined' || (m.geometry?.attributes?.position?.count && m.geometry.attributes.position.count <= 4)) {
+          return true;
+        }
+      }
       let cur: THREE.Object3D | null = obj;
       while (cur) {
         if (
-          cur.name.includes('Helper') ||
           cur.name.includes('Gizmo') ||
+          cur.name.includes('TransformGizmo') ||
+          cur.name.includes('Helper') ||
           cur.name.includes('Grid') ||
           cur.name.includes('Line') ||
           cur.name.includes('Pivot') ||
@@ -123,23 +145,23 @@ function StudioSceneBridge({
           mesh.userData.isCadMesh = true;
 
           // 1. Initial transform capture for robust kinematics
-          if (!mesh.userData.initialPos) {
+          if (!mesh.userData.initialPos || !(mesh.userData.initialPos instanceof THREE.Vector3)) {
             mesh.userData.initialPos = mesh.position.clone();
             mesh.userData.initialRot = mesh.rotation.clone();
             mesh.userData.initialQuat = mesh.quaternion.clone();
+            mesh.userData.initialScale = mesh.scale.clone();
           }
 
-          // 2. Center of mass calculation in parent space
-          if (!mesh.userData.centerOfMass) {
-            if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-            const geomCom = mesh.geometry.boundingBox
-              ? mesh.geometry.boundingBox.getCenter(new THREE.Vector3())
-              : new THREE.Vector3();
-
-            mesh.userData.geomCom = geomCom;
-            mesh.userData.centerOfMass = mesh.userData.initialPos
+          // 2. Center of mass calculation in parent space (with scale correction)
+          if (!mesh.userData.geomCom || !(mesh.userData.geomCom instanceof THREE.Vector3)) {
+            mesh.userData.geomCom = computeGeometryCenterOfMass(mesh.geometry);
+          }
+          if (!mesh.userData.centerOfMass || !(mesh.userData.centerOfMass instanceof THREE.Vector3)) {
+            const gCom = mesh.userData.geomCom as THREE.Vector3;
+            const scaled = gCom.clone().multiply(mesh.userData.initialScale || mesh.scale);
+            mesh.userData.centerOfMass = (mesh.userData.initialPos as THREE.Vector3)
               .clone()
-              .add(geomCom.clone().applyQuaternion(mesh.userData.initialQuat));
+              .add(scaled.applyQuaternion(mesh.userData.initialQuat as THREE.Quaternion));
           }
 
           // 3. Highlight glow & Color override sync
@@ -148,28 +170,29 @@ function StudioSceneBridge({
 
           const mat = mesh.material;
           if (mat) {
-            if (Array.isArray(mat)) {
-              mat.forEach((m) => {
-                if ((m as THREE.MeshToonMaterial).isMeshToonMaterial) {
-                  const tm = m as THREE.MeshToonMaterial;
-                  if (isSelected) {
-                    tm.color.set('#38bdf8');
-                    tm.emissive.set('#0284c7');
-                  } else {
-                    if (overrideColor) tm.color.set(overrideColor);
-                    tm.emissive.set('#000000');
-                  }
+            const syncMaterial = (m: THREE.Material) => {
+              if ((m as THREE.MeshToonMaterial).isMeshToonMaterial) {
+                const tm = m as THREE.MeshToonMaterial;
+                if (!tm.userData.originalColor) {
+                  const partInfo = availableParts.find((p) => p.index === currentIdx);
+                  tm.userData.originalColor = partInfo?.color || ('#' + tm.color.getHexString());
                 }
-              });
-            } else if ((mat as THREE.MeshToonMaterial).isMeshToonMaterial) {
-              const tm = mat as THREE.MeshToonMaterial;
-              if (isSelected) {
-                tm.color.set('#38bdf8');
-                tm.emissive.set('#0284c7');
-              } else {
-                if (overrideColor) tm.color.set(overrideColor);
-                tm.emissive.set('#000000');
+
+                if (isSelected) {
+                  tm.color.set('#38bdf8');
+                  tm.emissive.set('#0284c7');
+                } else {
+                  const restoredColor = overrideColor || tm.userData.originalColor || '#d6d1c8';
+                  tm.color.set(restoredColor);
+                  tm.emissive.set('#000000');
+                }
               }
+            };
+
+            if (Array.isArray(mat)) {
+              mat.forEach(syncMaterial);
+            } else {
+              syncMaterial(mat);
             }
           }
 
@@ -226,7 +249,37 @@ function StudioSceneBridge({
       let cQuat = pBaseQuat.clone();
       let pAccDeltaQuat = pParentDeltaQuat.clone();
 
-      if (pAnim && pAnim.type !== 'none') {
+      const restingCom = pBasePos.clone().add(
+        (pMesh.userData.centerOfMass as THREE.Vector3)
+          .clone()
+          .sub(pMesh.userData.initialPos as THREE.Vector3)
+          .applyQuaternion(pParentDeltaQuat)
+      );
+      pMesh.userData.restingCom = restingCom;
+      pMesh.userData.restingPos = pBasePos.clone();
+      pMesh.userData.parentDeltaQuat = pParentDeltaQuat.clone();
+
+      // Check if this part should be animated under Solo mode
+      let shouldAnimate = true;
+      if (soloPartIndex !== null && soloPartIndex !== undefined) {
+        if (pIdx !== soloPartIndex) {
+          // Check if pIdx is an ancestor that soloPartIndex depends on
+          let isAncestor = false;
+          let curParent = animationOverrides[soloPartIndex]?.parentPartIndex;
+          while (curParent !== undefined && curParent !== null) {
+            if (curParent === pIdx) {
+              isAncestor = true;
+              break;
+            }
+            curParent = animationOverrides[curParent]?.parentPartIndex;
+          }
+          if (!isAncestor) {
+            shouldAnimate = false;
+          }
+        }
+      }
+
+      if (shouldAnimate && pAnim && pAnim.type !== 'none') {
         const applyPAnim = (animConfig: any) => {
           if (!animConfig || animConfig.type === 'none') return;
           if (animConfig.type === 'multi' && Array.isArray(animConfig.subAnimations)) {
@@ -239,7 +292,44 @@ function StudioSceneBridge({
             animConfig.axis === 'y' ? 1 : 0,
             animConfig.axis === 'z' ? 1 : 0
           );
-          const axisVec = rawAxis.clone().applyQuaternion(pAccDeltaQuat);
+          const alignment = animConfig.axisAlignment || 'model';
+          const parentWorldQuat = new THREE.Quaternion();
+          if (pMesh.parent) {
+            pMesh.parent.getWorldQuaternion(parentWorldQuat);
+          }
+
+          // Custom axis orientation offset in degrees (Pitch X, Yaw Y, Roll Z)
+          const rotXRad = ((animConfig.axisRotX || 0) * Math.PI) / 180;
+          const rotYRad = ((animConfig.axisRotY || 0) * Math.PI) / 180;
+          const rotZRad = ((animConfig.axisRotZ || 0) * Math.PI) / 180;
+          const customAxisQuat = new THREE.Quaternion().setFromEuler(
+            new THREE.Euler(rotXRad, rotYRad, rotZRad, 'XYZ')
+          );
+          const orientedAxis = rawAxis.clone().applyQuaternion(customAxisQuat);
+
+          let axisVec: THREE.Vector3;
+          let pivotOffset: THREE.Vector3;
+
+          const rawPivotOffset = new THREE.Vector3(
+            (animConfig.pivotX || 0) / 100,
+            (animConfig.pivotY || 0) / 100,
+            (animConfig.pivotZ || 0) / 100
+          );
+
+          if (alignment === 'global') {
+            // Global world axis: rotate oriented axis into mesh parent local space
+            axisVec = orientedAxis.clone().applyQuaternion(parentWorldQuat.clone().invert());
+            pivotOffset = rawPivotOffset.clone().applyQuaternion(parentWorldQuat.clone().invert());
+          } else if (alignment === 'part') {
+            // Part's transform axis: align with the part's initial local orientation
+            axisVec = orientedAxis.clone().applyQuaternion(pBaseQuat);
+            pivotOffset = rawPivotOffset.clone().applyQuaternion(pBaseQuat);
+          } else {
+            // 'model': Calibrated model frame (matches mesh.parent coordinate frame)
+            axisVec = orientedAxis.clone().applyQuaternion(pAccDeltaQuat);
+            pivotOffset = rawPivotOffset.clone().applyQuaternion(pAccDeltaQuat);
+          }
+
           const dir = animConfig.direction ?? 1;
           const omega = ((animConfig.speed || 0) * Math.PI * 2) / 60;
 
@@ -257,14 +347,11 @@ function StudioSceneBridge({
             if (pivotMode === 'origin') {
               pivot.copy(pBasePos).add(translationDelta);
             } else if (pivotMode === 'custom') {
-              pivot.add(
-                new THREE.Vector3(
-                  (animConfig.pivotX || 0) / 100,
-                  (animConfig.pivotY || 0) / 100,
-                  (animConfig.pivotZ || 0) / 100
-                ).applyQuaternion(pAccDeltaQuat)
-              );
+              pivot.add(pivotOffset);
             }
+
+            pMesh.userData.hingePivot = pivot.clone();
+            pMesh.userData.hingeAxis = axisVec.clone();
 
             const angle =
               animConfig.type === 'continuous-spin'
@@ -279,9 +366,19 @@ function StudioSceneBridge({
           } else if (animConfig.type === 'linear-reciprocate') {
             const distPosM = (animConfig.amplitudePositive !== undefined ? animConfig.amplitudePositive : (animConfig.amplitude || 10)) / 100;
             const distNegM = (animConfig.amplitudeNegative !== undefined ? animConfig.amplitudeNegative : (animConfig.amplitude || 10)) / 100;
-            const centerM = (distPosM - distNegM) / 2;
-            const strokeHalfM = (distPosM + distNegM) / 2;
-            const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
+            let displacementScalar = 0;
+            if (isPlaying) {
+              if (distNegM === 0) {
+                const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
+                displacementScalar = progress * distPosM * dir;
+              } else if (distPosM === 0) {
+                const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
+                displacementScalar = -progress * distNegM * dir;
+              } else {
+                const s = Math.sin(time * omega + phaseRad);
+                displacementScalar = (s >= 0 ? s * distPosM : s * distNegM) * dir;
+              }
+            }
             const displacement = axisVec.clone().multiplyScalar(displacementScalar);
             cPos.add(displacement);
           }
@@ -302,7 +399,10 @@ function StudioSceneBridge({
 
     meshMap.forEach((mesh, pIdx) => {
       const result = solveKinematics(pIdx);
-      if (result) {
+      // Skip position/quaternion writes for meshes managed by their own
+      // model component's useFrame kinematics (e.g. WinchCatchModel, CatamaranModel).
+      // StudioSceneBridge still handles highlight glow & color sync above.
+      if (result && !mesh.userData.hasOwnKinematics) {
         mesh.position.copy(result.pos);
         mesh.quaternion.copy(result.quat);
       }
@@ -346,6 +446,9 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     setCuttingPlaneConfig,
     registerSplitParts,
     splitHistory,
+    movePart,
+    reorderParts,
+    resetPartOrder,
   } = useTransformCalibration();
 
   const [activeTab, setActiveTab] = useState<'transform' | 'colors' | 'splitter' | 'kinematics' | 'cdpr' | 'export'>('transform');
@@ -355,6 +458,8 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
   const [copied, setCopied] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [editingPartIndex, setEditingPartIndex] = useState<number | null>(null);
+  const [draggedPartIndex, setDraggedPartIndex] = useState<number | null>(null);
+  const [dragOverPartIndex, setDragOverPartIndex] = useState<number | null>(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -365,6 +470,42 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
   const studioEngineRef = useRef<{ scene: THREE.Scene; camera: THREE.Camera; gl: THREE.WebGLRenderer } | null>(null);
   const [isExportingPosters, setIsExportingPosters] = useState(false);
   const [exportProgress, setExportProgress] = useState<string | null>(null);
+
+  // Animation Playback & Pivot Drag State
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isSolo, setIsSolo] = useState(false);
+  const [isDraggingGizmo, setIsDraggingGizmo] = useState(false);
+  const [gizmoControlMode, setGizmoControlMode] = useState<'translate' | 'rotate'>('translate');
+  const orbitControlsRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__STUDIO_DEBUG__ = {
+        updatePartAnimation,
+        setSelectedPartIndex,
+        settings,
+        setIsPlaying,
+        isPlaying,
+      };
+    }
+  }, [updatePartAnimation, setSelectedPartIndex, settings, isPlaying]);
+
+  // Auto-pause to rest pose whenever switching parts so the new part can be aligned in rest pose
+  useEffect(() => {
+    setIsPlaying(false);
+  }, [selectedPartIndex]);
+
+  // Spacebar shortcut to toggle play/pause preview
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        setIsPlaying((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Ensure calibration context is active in Studio
   useEffect(() => {
@@ -476,12 +617,29 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     sceneRef.current.traverse((child) => {
       if ((child as THREE.Mesh).isMesh && (child.userData?.isCadMesh || child.userData?.partIndex !== undefined)) {
         const mesh = child as THREE.Mesh;
-        // Skip helpers and gizmos just in case
-        if (mesh.name.includes('Helper') || mesh.name.includes('Gizmo') || mesh.name.includes('Grid')) return;
+        // Skip helpers, gizmos, grids, and stray helper planes
+        if (
+          !mesh.name ||
+          mesh.name === 'undefined' ||
+          mesh.name.includes('Helper') ||
+          mesh.name.includes('Gizmo') ||
+          mesh.name.includes('Grid') ||
+          mesh.name.includes('mesh_47') ||
+          (mesh.geometry?.attributes?.position?.count && mesh.geometry.attributes.position.count <= 4)
+        ) return;
 
         const clone = mesh.clone();
         
-        // Bake world transforms
+        // Clean up runtime internal animation / kinematics state from userData before exporting GLB
+        // so re-imported models don't have non-serializable or stale transform cache in node.extras
+        if (clone.userData) {
+          clone.userData = {
+            name: mesh.name,
+            cadPartIndex: mesh.userData.cadPartIndex,
+            partIndex: mesh.userData.partIndex,
+            isCadMesh: true,
+          };
+        }
         const worldPos = new THREE.Vector3();
         const worldQuat = new THREE.Quaternion();
         const worldScale = new THREE.Vector3();
@@ -618,11 +776,18 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
 `;
     }
 
-    if (Object.keys(settings.animationOverrides).length > 0) {
+    const activeAnimationEntries = Object.entries(settings.animationOverrides).filter(
+      ([_, anim]) => anim && (anim.type !== 'none' || (anim.parentPartIndex !== undefined && anim.parentPartIndex !== null))
+    );
+    if (activeAnimationEntries.length > 0) {
+      const cleanedOverrides: Record<string, any> = {};
+      for (const [idx, anim] of activeAnimationEntries) {
+        cleanedOverrides[idx] = anim;
+      }
       output += `
 // Custom Part Animations:
 `;
-      output += `const partAnimationOverrides = ${JSON.stringify(settings.animationOverrides, null, 2)};
+      output += `const partAnimationOverrides = ${JSON.stringify(cleanedOverrides, null, 2)};
 `;
     }
 
@@ -631,6 +796,14 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
 // CDPR 4-Cable Robot Kinematics Config:
 `;
       output += `const cdprConfig = ${JSON.stringify(settings.cdprConfig, null, 2)};
+`;
+    }
+
+    if (settings.partOrder && settings.partOrder.length > 0) {
+      output += `
+// Custom Assembly Tree Part Order:
+`;
+      output += `const customPartOrder = ${JSON.stringify(settings.partOrder)};
 `;
     }
 
@@ -1039,9 +1212,20 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
               <Layers size={13} className="text-blue-400" />
               <span>ASSEMBLY TREE</span>
             </span>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-              {availableParts.length} parts
-            </span>
+            <div className="flex items-center gap-2">
+              {settings.partOrder && settings.partOrder.length > 0 && (
+                <button
+                  onClick={resetPartOrder}
+                  className="text-[10px] font-mono text-slate-400 hover:text-amber-400 underline cursor-pointer"
+                  title="Reset part hierarchy to default order"
+                >
+                  Reset Order
+                </button>
+              )}
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                {availableParts.length} parts
+              </span>
+            </div>
           </div>
 
           {/* Part Search */}
@@ -1058,23 +1242,68 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
             </div>
           </div>
 
-          {/* Parts List with Inline Rename */}
+          {/* Parts List with Drag-and-Drop & Inline Rename */}
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {filteredParts.length === 0 ? (
               <div className="p-4 text-center text-xs font-mono text-slate-500">
                 No parts detected
               </div>
             ) : (
-              filteredParts.map((part) => {
+              filteredParts.map((part, partIdxInFiltered) => {
                 const isSelected = selectedPartIndex === part.index;
                 const isEditing = editingPartIndex === part.index;
                 const activeColor = settings.colorOverrides[part.index] || part.color;
                 const hasAnim = settings.animationOverrides[part.index] && settings.animationOverrides[part.index].type !== 'none';
+                const isBeingDragged = draggedPartIndex === part.index;
+                const isDragTarget = dragOverPartIndex === part.index;
 
                 return (
                   <div
                     key={part.index}
+                    draggable={!isEditing}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', String(part.index));
+                      e.dataTransfer.effectAllowed = 'move';
+                      setDraggedPartIndex(part.index);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (dragOverPartIndex !== part.index) {
+                        setDragOverPartIndex(part.index);
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverPartIndex === part.index) {
+                        setDragOverPartIndex(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverPartIndex(null);
+                      setDraggedPartIndex(null);
+                      const draggedIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                      if (!isNaN(draggedIdx) && draggedIdx !== part.index) {
+                        const currentOrder = availableParts.map((p) => p.index);
+                        const fromIdx = currentOrder.indexOf(draggedIdx);
+                        const toIdx = currentOrder.indexOf(part.index);
+                        if (fromIdx !== -1 && toIdx !== -1) {
+                          const newOrder = [...currentOrder];
+                          newOrder.splice(fromIdx, 1);
+                          newOrder.splice(toIdx, 0, draggedIdx);
+                          reorderParts(newOrder);
+                        }
+                      }
+                    }}
+                    onDragEnd={() => {
+                      setDraggedPartIndex(null);
+                      setDragOverPartIndex(null);
+                    }}
                     className={`group relative rounded-lg text-xs font-mono flex items-center justify-between transition-all ${
+                      isBeingDragged ? 'opacity-40' : ''
+                    } ${
+                      isDragTarget ? 'border-t-2 border-t-blue-400 bg-blue-950/40' : ''
+                    } ${
                       isSelected
                         ? 'bg-blue-600 text-white shadow-md font-semibold'
                         : 'hover:bg-slate-800/80 text-slate-300'
@@ -1102,23 +1331,64 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                       </div>
                     ) : (
                       <>
-                        <button
-                          onClick={() => {
-                            setSelectedPartIndex(isSelected ? null : part.index);
-                            if (!isSelected && activeTab === 'transform') {
-                              setActiveTab('colors');
-                            }
-                          }}
-                          className="flex-1 text-left px-2.5 py-2 flex items-center gap-2 truncate cursor-pointer"
-                        >
-                          <span
-                            className="w-3 h-3 rounded-full shrink-0 border border-white/20 shadow-inner"
-                            style={{ backgroundColor: activeColor }}
-                          />
-                          <span className="truncate">{part.name}</span>
-                        </button>
+                        <div className="flex items-center flex-1 min-w-0">
+                          <div
+                            className={`pl-1.5 pr-0.5 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity ${
+                              isSelected ? 'text-white/70' : 'text-slate-500 hover:text-slate-200'
+                            }`}
+                            title="Drag to reorder part in tree"
+                          >
+                            <GripVertical size={12} />
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              setSelectedPartIndex(isSelected ? null : part.index);
+                              if (!isSelected && activeTab === 'transform') {
+                                setActiveTab('colors');
+                              }
+                            }}
+                            className="flex-1 text-left px-1.5 py-2 flex items-center gap-2 truncate cursor-pointer"
+                          >
+                            <span
+                              className="w-3 h-3 rounded-full shrink-0 border border-white/20 shadow-inner"
+                              style={{ backgroundColor: activeColor }}
+                            />
+                            <span className="truncate">{part.name}</span>
+                          </button>
+                        </div>
 
                         <div className="flex items-center gap-1 pr-2 shrink-0">
+                          {/* Up / Down Move Buttons */}
+                          <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                movePart(part.index, 'up');
+                              }}
+                              disabled={partIdxInFiltered === 0}
+                              className={`p-1 rounded hover:bg-black/20 transition-colors ${
+                                isSelected ? 'text-white/80 hover:text-white' : 'text-slate-400 hover:text-white'
+                              } disabled:opacity-20 disabled:cursor-not-allowed`}
+                              title="Move Up in Tree"
+                            >
+                              <ChevronUp size={12} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                movePart(part.index, 'down');
+                              }}
+                              disabled={partIdxInFiltered === filteredParts.length - 1}
+                              className={`p-1 rounded hover:bg-black/20 transition-colors ${
+                                isSelected ? 'text-white/80 hover:text-white' : 'text-slate-400 hover:text-white'
+                              } disabled:opacity-20 disabled:cursor-not-allowed`}
+                              title="Move Down in Tree"
+                            >
+                              <ChevronDown size={12} />
+                            </button>
+                          </div>
+
                           {hasAnim && (
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" title="Animated" />
                           )}
@@ -1186,7 +1456,22 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
             className="grab-cursor"
             gl={{ antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: true }}
           >
-            <StudioPivotVisualizer selectedPartIndex={selectedPartIndex} activeAnim={activeAnim} />
+            <InteractiveStudioPivotGizmo
+              selectedPartIndex={selectedPartIndex}
+              activeAnim={activeAnim}
+              gizmoMode={gizmoControlMode}
+              modelSettings={settings}
+              onUpdatePivot={(update) => {
+                updatePartAnimation(selectedPartIndex!, update);
+              }}
+              onDragStart={() => {
+                setIsPlaying(false);
+                setIsDraggingGizmo(true);
+              }}
+              onDragEnd={() => {
+                setIsDraggingGizmo(false);
+              }}
+            />
 
             {isOrthographic ? (
               <OrthographicCamera
@@ -1232,7 +1517,8 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                 modelType={activeModelId}
                 isActive={renderMode === 'shaded'}
                 isHovered={false}
-                isRotating={settings.autoRotate}
+                isRotating={settings.autoRotate && !isDraggingGizmo}
+                isAnimating={isPlaying}
               />
             </Suspense>
 
@@ -1240,6 +1526,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
             <StudioSceneBridge
               onSceneReady={(sc) => {
                 sceneRef.current = sc;
+                if (typeof window !== 'undefined') (window as any).__STUDIO_SCENE__ = sc;
               }}
               onEngineReady={(handles) => {
                 studioEngineRef.current = handles;
@@ -1247,6 +1534,9 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
               selectedPartIndex={selectedPartIndex}
               colorOverrides={settings.colorOverrides}
               animationOverrides={settings.animationOverrides}
+              isPlaying={isPlaying}
+              soloPartIndex={isSolo ? selectedPartIndex : null}
+              availableParts={availableParts}
             />
 
             {/* Interactive Cutting Plane Gizmo for Part Slicing */}
@@ -1265,6 +1555,8 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
             </GizmoHelper>
 
             <OrbitControls
+              ref={orbitControlsRef}
+              enabled={!isDraggingGizmo}
               target={[0, 0, 0]}
               enableZoom={true}
               enablePan={true}
@@ -1287,8 +1579,8 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
             </div>
           </div>
 
-          {/* Overlay Turntable Pause/Play Floating Pill */}
-          <div className="absolute bottom-4 left-4 z-10">
+          {/* Overlay Floating Control Pills */}
+          <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2">
             <button
               onClick={() => updateSetting('autoRotate', !settings.autoRotate)}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-full font-mono text-xs font-semibold shadow-xl backdrop-blur-md border transition-all cursor-pointer ${
@@ -1299,6 +1591,19 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
             >
               <RotateCw size={13} className={settings.autoRotate ? 'animate-spin' : ''} />
               <span>{settings.autoRotate ? 'Auto-Spin Active' : 'Turntable Paused'}</span>
+            </button>
+
+            <button
+              onClick={() => setIsPlaying(!isPlaying)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-full font-mono text-xs font-semibold shadow-xl backdrop-blur-md border transition-all cursor-pointer ${
+                isPlaying
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-emerald-500/20'
+                  : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
+              }`}
+              title="Toggle Animation Play/Pause (Spacebar)"
+            >
+              {isPlaying ? <Pause size={13} /> : <Play size={13} className="fill-current" />}
+              <span>{isPlaying ? 'Animation Playing' : 'Animation Paused (Rest Pose)'}</span>
             </button>
           </div>
         </main>
@@ -2136,6 +2441,36 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                       </div>
                     )}
 
+                    {activeAnim && activeAnim.type !== 'none' && (
+                      <div className="flex items-center gap-2 p-2 bg-slate-950/80 rounded-xl border border-slate-800 mb-3">
+                        <button
+                          type="button"
+                          onClick={() => setIsPlaying(!isPlaying)}
+                          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer shadow-sm ${
+                            isPlaying
+                              ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-900/30'
+                              : 'bg-blue-600 text-white hover:bg-blue-500 shadow-blue-900/30'
+                          }`}
+                        >
+                          {isPlaying ? <Pause size={14} /> : <Play size={14} className="fill-current" />}
+                          <span>{isPlaying ? 'Pause (Rest Pose)' : 'Play / Test Motion'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsSolo(!isSolo)}
+                          title="Solo: only animate the selected part"
+                          className={`px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all border cursor-pointer ${
+                            isSolo
+                              ? 'bg-amber-600 text-white border-amber-500 shadow-amber-900/30'
+                              : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                          }`}
+                        >
+                          Solo
+                        </button>
+                      </div>
+                    )}
+
                     {activeAnim && activeAnim.type !== 'none' && activeAnim.type !== 'multi' && (
                       <>
                         {/* Axis */}
@@ -2159,6 +2494,307 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                                 {ax}-Axis
                               </button>
                             ))}
+                          </div>
+                        </div>
+
+                        {/* Axis Alignment / Reference Frame */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-mono">
+                            <span className="font-semibold text-slate-300">Axis Reference Frame</span>
+                            <span className="text-[10px] text-slate-400">
+                              {(activeAnim.axisAlignment || 'model') === 'model' ? 'Assembly Model' : activeAnim.axisAlignment === 'part' ? 'Part Transform' : 'Global World'}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => updatePartAnimation(selectedPartIndex, { axisAlignment: 'model' })}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+                                (activeAnim.axisAlignment || 'model') === 'model'
+                                  ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              Assembly Axis
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updatePartAnimation(selectedPartIndex, { axisAlignment: 'part' })}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+                                activeAnim.axisAlignment === 'part'
+                                  ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              Part Transform
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updatePartAnimation(selectedPartIndex, { axisAlignment: 'global' })}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+                                activeAnim.axisAlignment === 'global'
+                                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
+                                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              Global Axis
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 3D Viewport Gizmo Mode: Translate vs Rotate */}
+                        <div className="space-y-1.5 p-2 bg-slate-900/60 rounded-xl border border-slate-800/80">
+                          <div className="flex justify-between items-center text-xs font-mono">
+                            <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                              <Crosshair size={13} className="text-blue-400" />
+                              3D Viewport Tool
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {gizmoControlMode === 'translate' ? 'Move Pivot Position' : 'Rotate Axis Angle'}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setGizmoControlMode('translate')}
+                              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+                                gizmoControlMode === 'translate'
+                                  ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <Move size={12} />
+                              Translate Pivot
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setGizmoControlMode('rotate')}
+                              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer ${
+                                gizmoControlMode === 'rotate'
+                                  ? 'bg-purple-600 text-white font-semibold shadow-sm'
+                                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <RotateCw size={12} />
+                              Rotate Axis
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Axis Custom Rotation / Angle Offsets */}
+                        <div className="space-y-2 p-2.5 bg-slate-900/40 rounded-xl border border-slate-800/80">
+                          <div className="flex justify-between items-center text-xs font-mono">
+                            <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                              <RotateCw size={13} className="text-purple-400" />
+                              Axis Rotation Angles
+                            </span>
+                            <span className="text-[10px] text-purple-300 font-mono">
+                              {activeAnim.axisRotX || 0}°, {activeAnim.axisRotY || 0}°, {activeAnim.axisRotZ || 0}°
+                            </span>
+                          </div>
+
+                          {/* X / Y / Z Angle Rows */}
+                          <div className="grid grid-cols-3 gap-2">
+                            {/* Pitch / X */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between items-center text-[10px] font-mono text-red-400">
+                                <span>Pitch (X°)</span>
+                              </div>
+                              <div className="flex items-center bg-slate-800 rounded border border-slate-700">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updatePartAnimation(selectedPartIndex, {
+                                      axisRotX: ((activeAnim.axisRotX || 0) - 15 + 360) % 360,
+                                    })
+                                  }
+                                  className="px-1.5 py-1 text-slate-400 hover:text-white text-[10px] cursor-pointer"
+                                  title="-15°"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  value={activeAnim.axisRotX || 0}
+                                  onChange={(e) =>
+                                    updatePartAnimation(selectedPartIndex, {
+                                      axisRotX: parseFloat(e.target.value) || 0,
+                                    })
+                                  }
+                                  className="w-full bg-transparent text-center text-xs font-mono text-white focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updatePartAnimation(selectedPartIndex, {
+                                      axisRotX: ((activeAnim.axisRotX || 0) + 15) % 360,
+                                    })
+                                  }
+                                  className="px-1.5 py-1 text-slate-400 hover:text-white text-[10px] cursor-pointer"
+                                  title="+15°"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Yaw / Y */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between items-center text-[10px] font-mono text-green-400">
+                                <span>Yaw (Y°)</span>
+                              </div>
+                              <div className="flex items-center bg-slate-800 rounded border border-slate-700">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updatePartAnimation(selectedPartIndex, {
+                                      axisRotY: ((activeAnim.axisRotY || 0) - 15 + 360) % 360,
+                                    })
+                                  }
+                                  className="px-1.5 py-1 text-slate-400 hover:text-white text-[10px] cursor-pointer"
+                                  title="-15°"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  value={activeAnim.axisRotY || 0}
+                                  onChange={(e) =>
+                                    updatePartAnimation(selectedPartIndex, {
+                                      axisRotY: parseFloat(e.target.value) || 0,
+                                    })
+                                  }
+                                  className="w-full bg-transparent text-center text-xs font-mono text-white focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updatePartAnimation(selectedPartIndex, {
+                                      axisRotY: ((activeAnim.axisRotY || 0) + 15) % 360,
+                                    })
+                                  }
+                                  className="px-1.5 py-1 text-slate-400 hover:text-white text-[10px] cursor-pointer"
+                                  title="+15°"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Roll / Z */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between items-center text-[10px] font-mono text-blue-400">
+                                <span>Roll (Z°)</span>
+                              </div>
+                              <div className="flex items-center bg-slate-800 rounded border border-slate-700">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updatePartAnimation(selectedPartIndex, {
+                                      axisRotZ: ((activeAnim.axisRotZ || 0) - 15 + 360) % 360,
+                                    })
+                                  }
+                                  className="px-1.5 py-1 text-slate-400 hover:text-white text-[10px] cursor-pointer"
+                                  title="-15°"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  value={activeAnim.axisRotZ || 0}
+                                  onChange={(e) =>
+                                    updatePartAnimation(selectedPartIndex, {
+                                      axisRotZ: parseFloat(e.target.value) || 0,
+                                    })
+                                  }
+                                  className="w-full bg-transparent text-center text-xs font-mono text-white focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updatePartAnimation(selectedPartIndex, {
+                                      axisRotZ: ((activeAnim.axisRotZ || 0) + 15) % 360,
+                                    })
+                                  }
+                                  className="px-1.5 py-1 text-slate-400 hover:text-white text-[10px] cursor-pointer"
+                                  title="+15°"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Quick Angle Presets & Reset */}
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePartAnimation(selectedPartIndex, {
+                                  axisRotX: 0,
+                                  axisRotY: 0,
+                                  axisRotZ: 0,
+                                })
+                              }
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-slate-300 rounded cursor-pointer transition-colors"
+                            >
+                              Reset (0°)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePartAnimation(selectedPartIndex, {
+                                  axisRotX: ((activeAnim.axisRotX || 0) + 45) % 360,
+                                })
+                              }
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-red-300 rounded cursor-pointer transition-colors"
+                            >
+                              +45° X
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePartAnimation(selectedPartIndex, {
+                                  axisRotY: ((activeAnim.axisRotY || 0) + 45) % 360,
+                                })
+                              }
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-green-300 rounded cursor-pointer transition-colors"
+                            >
+                              +45° Y
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePartAnimation(selectedPartIndex, {
+                                  axisRotZ: ((activeAnim.axisRotZ || 0) + 45) % 360,
+                                })
+                              }
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-blue-300 rounded cursor-pointer transition-colors"
+                            >
+                              +45° Z
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePartAnimation(selectedPartIndex, {
+                                  axisRotX: ((activeAnim.axisRotX || 0) + 90) % 360,
+                                })
+                              }
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-red-300 rounded cursor-pointer transition-colors"
+                            >
+                              +90° X
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePartAnimation(selectedPartIndex, {
+                                  axisRotY: ((activeAnim.axisRotY || 0) + 90) % 360,
+                                })
+                              }
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] font-mono text-green-300 rounded cursor-pointer transition-colors"
+                            >
+                              +90° Y
+                            </button>
                           </div>
                         </div>
 
@@ -2434,6 +3070,10 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                         {/* Custom Pivot XYZ with Direct Inputs */}
                         {activeAnim.pivotMode === 'custom' && (
                           <div className="space-y-2 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                            <div className="flex items-center gap-1.5 text-[10px] font-mono text-blue-400 bg-blue-950/40 px-2 py-1 rounded-lg border border-blue-900/40 mb-2">
+                              <Crosshair size={12} className="shrink-0" />
+                              <span>Drag 3D arrows directly on the pivot in the canvas, or tweak below:</span>
+                            </div>
                             {['pivotX', 'pivotY', 'pivotZ'].map((pKey, idx) => {
                               const label = ['Pivot X (cm)', 'Pivot Y (cm)', 'Pivot Z (cm)'][idx];
                               const val = (activeAnim as any)[pKey] || 0;
@@ -2446,9 +3086,10 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                                         type="number"
                                         step="0.5"
                                         value={val}
-                                        onChange={(e) =>
-                                          updatePartAnimation(selectedPartIndex, { [pKey]: parseFloat(e.target.value) || 0 })
-                                        }
+                                        onChange={(e) => {
+                                          if (isPlaying) setIsPlaying(false);
+                                          updatePartAnimation(selectedPartIndex, { [pKey]: parseFloat(e.target.value) || 0 });
+                                        }}
                                         className="w-16 px-1.5 py-0.5 bg-slate-950 text-[11px] font-mono text-white rounded border border-slate-800 text-right outline-none"
                                       />
                                       <span className="text-slate-400">cm</span>
@@ -2458,11 +3099,12 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                                     type="range"
                                     min="-100"
                                     max="100"
-                                    step="1"
+                                    step="0.5"
                                     value={val}
-                                    onChange={(e) =>
-                                      updatePartAnimation(selectedPartIndex, { [pKey]: parseInt(e.target.value) })
-                                    }
+                                    onChange={(e) => {
+                                      if (isPlaying) setIsPlaying(false);
+                                      updatePartAnimation(selectedPartIndex, { [pKey]: parseFloat(e.target.value) || 0 });
+                                    }}
                                     className="w-full accent-blue-500 cursor-pointer"
                                   />
                                 </div>
@@ -3050,77 +3692,378 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     </div>
   );
 };
-function StudioPivotVisualizer({ selectedPartIndex, activeAnim }: { selectedPartIndex: number | null, activeAnim: any }) {
-  const { scene } = useThree();
-  const groupRef = useRef<THREE.Group>(null);
+interface InteractiveStudioPivotGizmoProps {
+  selectedPartIndex: number | null;
+  activeAnim: any;
+  gizmoMode: 'translate' | 'rotate';
+  modelSettings?: TransformSettings;
+  onUpdatePivot: (update: Partial<any>) => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+}
 
+function InteractiveStudioPivotGizmo({
+  selectedPartIndex,
+  activeAnim,
+  gizmoMode,
+  modelSettings: _modelSettings,
+  onUpdatePivot,
+  onDragStart,
+  onDragEnd,
+}: InteractiveStudioPivotGizmoProps) {
+  const { scene } = useThree();
+  const anchorRef = useRef<THREE.Group>(null!);
+  const transformRef = useRef<any>(null);
+  const isDraggingRef = useRef<boolean>(false);
+  const onDragStartRef = useRef(onDragStart);
+  const onDragEndRef = useRef(onDragEnd);
+  onDragStartRef.current = onDragStart;
+  onDragEndRef.current = onDragEnd;
+
+  // Frame update to sync anchor position and orientation when NOT dragging
   useFrame(() => {
-    if (!groupRef.current || selectedPartIndex === null || !activeAnim || activeAnim.pivotMode !== 'custom') {
-      if (groupRef.current) groupRef.current.visible = false;
+    if (!anchorRef.current || selectedPartIndex === null || !activeAnim || activeAnim.type === 'none') {
+      if (anchorRef.current) anchorRef.current.visible = false;
       return;
     }
-    
-    let targetMesh: THREE.Object3D | null = null;
+
+    if (isDraggingRef.current) {
+      // While dragging, TransformControls moves/rotates anchorRef directly in world space
+      return;
+    }
+
+    let targetMesh: THREE.Mesh | null = null;
     scene.traverse((child) => {
       if ((child as any).isMesh && (
         child.userData.cadPartIndex === selectedPartIndex || 
         child.userData.partIndex === selectedPartIndex || 
         child.userData.subPartIndex === selectedPartIndex
       )) {
-        targetMesh = child;
+        targetMesh = child as THREE.Mesh;
       }
     });
 
     if (targetMesh) {
-      groupRef.current.visible = true;
-      const t = targetMesh as any;
-      
-      let com: THREE.Vector3;
-      if (t.userData.centerOfMass) {
-        com = (t.userData.centerOfMass as THREE.Vector3).clone();
+      anchorRef.current.visible = true;
+      const t = targetMesh as THREE.Mesh;
+      t.updateWorldMatrix(true, false);
+
+      const getSafeVec3 = (v: any): THREE.Vector3 | null => {
+        if (!v) return null;
+        if (v instanceof THREE.Vector3) return v.clone();
+        if (typeof v.x === 'number' && typeof v.y === 'number' && typeof v.z === 'number') {
+          return new THREE.Vector3(v.x, v.y, v.z);
+        }
+        return null;
+      };
+
+      let geomCom: THREE.Vector3;
+      const parsedGeomCom = getSafeVec3(t.userData.geomCom);
+      if (parsedGeomCom) {
+        geomCom = parsedGeomCom;
       } else if (t.geometry) {
-        if (!t.geometry.boundingBox) t.geometry.computeBoundingBox();
-        const geomCom = t.geometry.boundingBox ? t.geometry.boundingBox.getCenter(new THREE.Vector3()) : new THREE.Vector3();
-        const initialPos = (t.userData.initialPos as THREE.Vector3) || t.position;
-        const initialQuat = (t.userData.initialQuat as THREE.Quaternion) || t.quaternion;
-        com = initialPos.clone().add(geomCom.clone().applyQuaternion(initialQuat));
+        geomCom = computeGeometryCenterOfMass(t.geometry);
+        t.userData.geomCom = geomCom;
       } else {
-        com = ((t.userData.initialPos as THREE.Vector3) || t.position).clone();
+        geomCom = new THREE.Vector3();
       }
 
-      const offset = new THREE.Vector3(
+      // Resting world center of mass in assembly coordinates (incorporating turntable and model hierarchy, without part's own oscillation)
+      let worldCom: THREE.Vector3;
+      const restingComVec = getSafeVec3(t.userData.restingCom);
+      const centerOfMassVec = getSafeVec3(t.userData.centerOfMass);
+      if (restingComVec && t.parent) {
+        t.parent.updateWorldMatrix(true, false);
+        worldCom = restingComVec.applyMatrix4(t.parent.matrixWorld);
+      } else if (centerOfMassVec && t.parent) {
+        t.parent.updateWorldMatrix(true, false);
+        worldCom = centerOfMassVec.applyMatrix4(t.parent.matrixWorld);
+      } else {
+        worldCom = geomCom.clone().applyMatrix4(t.matrixWorld);
+      }
+
+      const assemblyRoot = getAssemblyRoot(t);
+      assemblyRoot.updateWorldMatrix(true, false);
+      const modelScale = assemblyRoot.getWorldScale(new THREE.Vector3()).x || 1;
+
+      const alignment: AxisAlignment = activeAnim.axisAlignment || 'model';
+      const rawOffset = new THREE.Vector3(
         (activeAnim.pivotX || 0) / 100,
         (activeAnim.pivotY || 0) / 100,
         (activeAnim.pivotZ || 0) / 100
       );
-      
-      const localPivot = com.clone().add(offset);
 
-      // Transform local pivot to world space using the mesh's parent transform (which includes turntable rotation and model transforms)
-      if (t.parent) {
-        t.parent.updateWorldMatrix(true, false);
-        const worldPos = t.parent.localToWorld(localPivot.clone());
-        groupRef.current.position.copy(worldPos);
-        const worldQuat = new THREE.Quaternion();
-        t.parent.getWorldQuaternion(worldQuat);
-        groupRef.current.quaternion.copy(worldQuat);
+      // Custom axis rotation quaternion from (axisRotX, axisRotY, axisRotZ)
+      const rotXRad = ((activeAnim.axisRotX || 0) * Math.PI) / 180;
+      const rotYRad = ((activeAnim.axisRotY || 0) * Math.PI) / 180;
+      const rotZRad = ((activeAnim.axisRotZ || 0) * Math.PI) / 180;
+      const customAxisQuat = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(rotXRad, rotYRad, rotZRad, 'XYZ')
+      );
+
+      let baseQuat = new THREE.Quaternion();
+
+      if (alignment === 'global') {
+        baseQuat.set(0, 0, 0, 1);
+      } else if (alignment === 'part') {
+        // Part's resting orientation (only rotated by parent rigid group and turntable, NOT part's own oscillation)
+        if (t.userData.initialQuat && t.parent) {
+          const parentWorldQuat = new THREE.Quaternion();
+          t.parent.getWorldQuaternion(parentWorldQuat);
+          const parentDeltaQuat = (t.userData.parentDeltaQuat as THREE.Quaternion) || new THREE.Quaternion();
+          baseQuat = parentWorldQuat.clone().multiply(parentDeltaQuat).multiply(t.userData.initialQuat as THREE.Quaternion);
+        } else {
+          t.getWorldQuaternion(baseQuat);
+        }
       } else {
-        groupRef.current.position.copy(localPivot);
+        // 'model': Overall Assembly Model coordinate frame (includes calibration rotation and parent parts)
+        if (t.parent) {
+          t.parent.getWorldQuaternion(baseQuat);
+          const parentDeltaQuat = (t.userData.parentDeltaQuat as THREE.Quaternion) || new THREE.Quaternion();
+          baseQuat.multiply(parentDeltaQuat);
+        } else {
+          assemblyRoot.getWorldQuaternion(baseQuat);
+        }
       }
+
+      // World-space offset scaled by model scale
+      const worldOffset = rawOffset.clone().multiplyScalar(modelScale).applyQuaternion(baseQuat);
+
+      // Combine reference frame with custom axis rotation angles
+      const gizmoQuat = baseQuat.clone().multiply(customAxisQuat);
+
+      let worldPivot: THREE.Vector3;
+      if (t.userData.hingePivot && t.parent && (activeAnim.type === 'oscillate-rotation' || activeAnim.type === 'continuous-spin')) {
+        t.parent.updateWorldMatrix(true, false);
+        worldPivot = (t.userData.hingePivot as THREE.Vector3).clone().applyMatrix4(t.parent.matrixWorld);
+      } else if (activeAnim.pivotMode === 'custom') {
+        worldPivot = worldCom.clone().add(worldOffset);
+      } else if (activeAnim.pivotMode === 'origin') {
+        if (t.userData.restingPos && t.parent) {
+          t.parent.updateWorldMatrix(true, false);
+          worldPivot = (t.userData.restingPos as THREE.Vector3).clone().applyMatrix4(t.parent.matrixWorld);
+        } else if (t.userData.initialPos && t.parent) {
+          t.parent.updateWorldMatrix(true, false);
+          worldPivot = (t.userData.initialPos as THREE.Vector3).clone().applyMatrix4(t.parent.matrixWorld);
+        } else {
+          const meshWorldPos = new THREE.Vector3();
+          t.getWorldPosition(meshWorldPos);
+          worldPivot = meshWorldPos;
+        }
+      } else {
+        // 'center-of-mass'
+        worldPivot = worldCom.clone();
+      }
+
+      anchorRef.current.position.copy(worldPivot);
+      anchorRef.current.quaternion.copy(gizmoQuat);
     } else {
-      groupRef.current.visible = false;
+      anchorRef.current.visible = false;
     }
   });
 
-  if (selectedPartIndex === null || !activeAnim || activeAnim.pivotMode !== 'custom') return null;
+  const handleMouseDown = () => {
+    isDraggingRef.current = true;
+    onDragStartRef.current();
+  };
+
+  const handleMouseUp = () => {
+    isDraggingRef.current = false;
+    onDragEndRef.current();
+  };
+
+  const handleObjectChange = () => {
+    if (!isDraggingRef.current || !anchorRef.current || selectedPartIndex === null || !activeAnim) return;
+
+    let targetMesh: THREE.Mesh | null = null;
+    scene.traverse((child) => {
+      if ((child as any).isMesh && (
+        child.userData.cadPartIndex === selectedPartIndex || 
+        child.userData.partIndex === selectedPartIndex || 
+        child.userData.subPartIndex === selectedPartIndex
+      )) {
+        targetMesh = child as THREE.Mesh;
+      }
+    });
+    if (!targetMesh) return;
+
+    const t = targetMesh as THREE.Mesh;
+    t.updateWorldMatrix(true, false);
+
+    const assemblyRoot = getAssemblyRoot(t);
+    assemblyRoot.updateWorldMatrix(true, false);
+    const modelScale = assemblyRoot.getWorldScale(new THREE.Vector3()).x || 1;
+
+    const alignment: AxisAlignment = activeAnim.axisAlignment || 'model';
+    let baseQuat = new THREE.Quaternion();
+
+    if (alignment === 'global') {
+      baseQuat.set(0, 0, 0, 1);
+    } else if (alignment === 'part') {
+      if (t.userData.initialQuat && t.parent) {
+        const parentWorldQuat = new THREE.Quaternion();
+        t.parent.getWorldQuaternion(parentWorldQuat);
+        const parentDeltaQuat = (t.userData.parentDeltaQuat as THREE.Quaternion) || new THREE.Quaternion();
+        baseQuat = parentWorldQuat.clone().multiply(parentDeltaQuat).multiply(t.userData.initialQuat as THREE.Quaternion);
+      } else {
+        t.getWorldQuaternion(baseQuat);
+      }
+    } else {
+      // 'model': Overall Assembly Model coordinate frame (includes calibration rotation and parent parts)
+      if (t.parent) {
+        t.parent.getWorldQuaternion(baseQuat);
+        const parentDeltaQuat = (t.userData.parentDeltaQuat as THREE.Quaternion) || new THREE.Quaternion();
+        baseQuat.multiply(parentDeltaQuat);
+      } else {
+        assemblyRoot.getWorldQuaternion(baseQuat);
+      }
+    }
+
+    if (gizmoMode === 'rotate') {
+      // Rotating the axis: compute new custom rotation relative to baseQuat
+      const newCustomQuat = baseQuat.clone().invert().multiply(anchorRef.current.quaternion);
+      const euler = new THREE.Euler().setFromQuaternion(newCustomQuat, 'XYZ');
+      const rX = Math.round((euler.x * 180) / Math.PI);
+      const rY = Math.round((euler.y * 180) / Math.PI);
+      const rZ = Math.round((euler.z * 180) / Math.PI);
+
+      if (rX !== (activeAnim.axisRotX || 0) || rY !== (activeAnim.axisRotY || 0) || rZ !== (activeAnim.axisRotZ || 0)) {
+        onUpdatePivot({ axisRotX: rX, axisRotY: rY, axisRotZ: rZ });
+      }
+      const getSafeVec3 = (v: any): THREE.Vector3 | null => {
+        if (!v) return null;
+        if (v instanceof THREE.Vector3) return v.clone();
+        if (typeof v.x === 'number' && typeof v.y === 'number' && typeof v.z === 'number') {
+          return new THREE.Vector3(v.x, v.y, v.z);
+        }
+        return null;
+      };
+
+      let geomCom: THREE.Vector3;
+      const parsedGeomCom = getSafeVec3(t.userData.geomCom);
+      if (parsedGeomCom) {
+        geomCom = parsedGeomCom;
+      } else if (t.geometry) {
+        geomCom = computeGeometryCenterOfMass(t.geometry);
+        t.userData.geomCom = geomCom;
+      } else {
+        geomCom = new THREE.Vector3();
+      }
+
+      let worldCom: THREE.Vector3;
+      const restingComVec = getSafeVec3(t.userData.restingCom);
+      const centerOfMassVec = getSafeVec3(t.userData.centerOfMass);
+      if (restingComVec && t.parent) {
+        t.parent.updateWorldMatrix(true, false);
+        worldCom = restingComVec.applyMatrix4(t.parent.matrixWorld);
+      } else if (centerOfMassVec && t.parent) {
+        t.parent.updateWorldMatrix(true, false);
+        worldCom = centerOfMassVec.applyMatrix4(t.parent.matrixWorld);
+      } else {
+        worldCom = geomCom.clone().applyMatrix4(t.matrixWorld);
+      }
+
+      const newWorldPivot = anchorRef.current.position.clone();
+      const newWorldOffset = newWorldPivot.sub(worldCom);
+
+      const localOffset = newWorldOffset.clone().applyQuaternion(baseQuat.clone().invert()).divideScalar(modelScale);
+
+      const pX = Math.round(localOffset.x * 100 * 2) / 2;
+      const pY = Math.round(localOffset.y * 100 * 2) / 2;
+      const pZ = Math.round(localOffset.z * 100 * 2) / 2;
+
+      if (pX !== activeAnim.pivotX || pY !== activeAnim.pivotY || pZ !== activeAnim.pivotZ) {
+        onUpdatePivot({ pivotX: pX, pivotY: pY, pivotZ: pZ });
+      }
+    }
+  };
+
+  if (selectedPartIndex === null || !activeAnim || activeAnim.type === 'none') return null;
+
+  const axis = activeAnim.axis || 'z';
+  const axisColor = axis === 'x' ? '#ef4444' : axis === 'y' ? '#22c55e' : '#3b82f6';
+  const amplitude = activeAnim.amplitude || 35;
+  const sweepRad = (amplitude * 2 * Math.PI) / 180;
+  const startRad = (-amplitude * Math.PI) / 180;
+  const alignment: AxisAlignment = activeAnim.axisAlignment || 'model';
 
   return (
-    <group ref={groupRef} name="StudioPivotVisualizer_Group" userData={{ isHelper: true, isVisualizer: true }}>
-      <mesh name="StudioPivotVisualizer_Sphere" userData={{ isHelper: true, isVisualizer: true }}>
-        <sphereGeometry args={[0.02, 16, 16]} />
-        <meshBasicMaterial color="#ef4444" depthTest={false} transparent opacity={0.85} />
-      </mesh>
-      <axesHelper args={[0.15]} />
-    </group>
+    <>
+      <group ref={anchorRef} name="InteractivePivotGizmo_Group" userData={{ isHelper: true, isVisualizer: true }}>
+        {/* Pivot Center Sphere */}
+        <mesh name="InteractivePivotGizmo_Sphere" userData={{ isHelper: true }}>
+          <sphereGeometry args={[0.025, 16, 16]} />
+          <meshBasicMaterial color="#ef4444" depthTest={false} transparent opacity={0.9} />
+        </mesh>
+
+        {/* RGB Coordinate Axes */}
+        <axesHelper args={[0.2]} />
+
+        {/* Active Rotation Axis Guide Line (pointing along chosen axis) */}
+        <group
+          rotation={
+            axis === 'x'
+              ? [0, 0, Math.PI / 2]
+              : axis === 'z'
+              ? [Math.PI / 2, 0, 0]
+              : [0, 0, 0]
+          }
+        >
+          <mesh userData={{ isHelper: true }}>
+            <cylinderGeometry args={[0.003, 0.003, 1.2, 16]} />
+            <meshBasicMaterial color={axisColor} depthTest={false} transparent opacity={0.85} />
+          </mesh>
+        </group>
+
+        {/* Visual Rotation Sweep Arc */}
+        {(activeAnim.type === 'oscillate-rotation' || activeAnim.type === 'continuous-spin') && (
+          <group
+            rotation={
+              axis === 'x'
+                ? [0, Math.PI / 2, 0]
+                : axis === 'y'
+                ? [Math.PI / 2, 0, 0]
+                : [0, 0, 0]
+            }
+          >
+            <mesh userData={{ isHelper: true }}>
+              <ringGeometry
+                args={[
+                  0.06,
+                  0.18,
+                  32,
+                  1,
+                  activeAnim.type === 'continuous-spin' ? 0 : startRad,
+                  activeAnim.type === 'continuous-spin' ? Math.PI * 2 : sweepRad,
+                ]}
+              />
+              <meshBasicMaterial
+                color={axisColor}
+                side={THREE.DoubleSide}
+                depthTest={false}
+                transparent
+                opacity={0.35}
+              />
+            </mesh>
+          </group>
+        )}
+      </group>
+
+      {/* Attach TransformControls directly to anchorRef:
+          - If gizmoMode === 'rotate', allow rotating the axis in all pivot modes
+          - If gizmoMode === 'translate', allow translating when in custom pivot mode */}
+      {(gizmoMode === 'rotate' || activeAnim.pivotMode === 'custom') && (
+        <TransformControls
+          ref={transformRef}
+          object={anchorRef}
+          mode={gizmoMode}
+          size={0.65}
+          space={gizmoMode === 'rotate' ? 'local' : (alignment === 'global' ? 'world' : 'local')}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onObjectChange={handleObjectChange}
+        />
+      )}
+    </>
   );
 }

@@ -369,3 +369,192 @@ export function decomposeSceneDisconnectedIslands(root: THREE.Object3D): number 
 
   return splitMeshCount;
 }
+
+/**
+ * Computes the geometric center of mass (area-weighted triangle centroid) for a BufferGeometry.
+ * Falls back to bounding box center for points/lines or degenerate geometries.
+ */
+export function computeGeometryCenterOfMass(geometry: THREE.BufferGeometry): THREE.Vector3 {
+  const pos = geometry.attributes.position;
+  if (!pos || pos.count === 0) return new THREE.Vector3();
+
+  const index = geometry.index;
+  const pA = new THREE.Vector3();
+  const pB = new THREE.Vector3();
+  const pC = new THREE.Vector3();
+  const cb = new THREE.Vector3();
+  const ab = new THREE.Vector3();
+  const triCenter = new THREE.Vector3();
+
+  let totalArea = 0;
+  const weightedCom = new THREE.Vector3(0, 0, 0);
+  const numTriangles = index ? Math.floor(index.count / 3) : Math.floor(pos.count / 3);
+
+  for (let i = 0; i < numTriangles; i++) {
+    const iA = index ? index.getX(i * 3) : i * 3;
+    const iB = index ? index.getX(i * 3 + 1) : i * 3 + 1;
+    const iC = index ? index.getX(i * 3 + 2) : i * 3 + 2;
+
+    pA.fromBufferAttribute(pos, iA);
+    pB.fromBufferAttribute(pos, iB);
+    pC.fromBufferAttribute(pos, iC);
+
+    cb.subVectors(pC, pB);
+    ab.subVectors(pA, pB);
+    cb.cross(ab);
+    const area = cb.length() * 0.5;
+
+    if (area > 0) {
+      triCenter.addVectors(pA, pB).add(pC).multiplyScalar(1 / 3);
+      weightedCom.addScaledVector(triCenter, area);
+      totalArea += area;
+    }
+  }
+
+  if (totalArea > 0) {
+    weightedCom.divideScalar(totalArea);
+    return weightedCom;
+  }
+
+  if (!geometry.boundingBox) geometry.computeBoundingBox();
+  return geometry.boundingBox ? geometry.boundingBox.getCenter(new THREE.Vector3()) : new THREE.Vector3();
+}
+
+/**
+ * Computes the center of mass of a mesh in its parent's coordinate frame,
+ * correctly scaling by mesh.scale, rotating by mesh.quaternion, and translating by mesh.position.
+ */
+export function computeMeshCenterOfMass(mesh: THREE.Mesh): THREE.Vector3 {
+  const geomCom = computeGeometryCenterOfMass(mesh.geometry);
+  const scaled = geomCom.clone().multiply(mesh.scale);
+  return mesh.position.clone().add(scaled.applyQuaternion(mesh.quaternion));
+}
+
+/**
+ * Splits a single multi-material mesh (a mesh with geometry.groups and material array)
+ * into separate individual single-material THREE.Mesh instances.
+ */
+export function splitMultiMaterialMesh(mesh: THREE.Mesh): THREE.Mesh[] {
+  if (!Array.isArray(mesh.material) || mesh.material.length <= 1) {
+    return [mesh];
+  }
+  const materials = mesh.material;
+  const geometry = mesh.geometry;
+  const groups = geometry.groups;
+  if (!groups || groups.length <= 1) {
+    return [mesh];
+  }
+
+  const subMeshes: THREE.Mesh[] = [];
+  const posAttr = geometry.attributes.position;
+  const normAttr = geometry.attributes.normal;
+  const uvAttr = geometry.attributes.uv;
+  const index = geometry.index;
+
+  groups.forEach((group, gIdx) => {
+    const matIdx = group.materialIndex !== undefined ? group.materialIndex : gIdx;
+    const mat = materials[matIdx] || materials[0] || new THREE.MeshStandardMaterial();
+    const subGeo = new THREE.BufferGeometry();
+
+    if (index) {
+      const indexArray = index.array;
+      const newPos: number[] = [];
+      const newNorm: number[] = [];
+      const newUv: number[] = [];
+      const newIndices: number[] = [];
+      const vertMap = new Map<number, number>();
+
+      for (let i = group.start; i < group.start + group.count; i++) {
+        const oldIdx = indexArray[i];
+        if (!vertMap.has(oldIdx)) {
+          const newIdx = newPos.length / 3;
+          vertMap.set(oldIdx, newIdx);
+          newPos.push(posAttr.getX(oldIdx), posAttr.getY(oldIdx), posAttr.getZ(oldIdx));
+          if (normAttr) newNorm.push(normAttr.getX(oldIdx), normAttr.getY(oldIdx), normAttr.getZ(oldIdx));
+          if (uvAttr) newUv.push(uvAttr.getX(oldIdx), uvAttr.getY(oldIdx));
+        }
+        newIndices.push(vertMap.get(oldIdx)!);
+      }
+
+      subGeo.setAttribute('position', new THREE.Float32BufferAttribute(newPos, 3));
+      if (normAttr) subGeo.setAttribute('normal', new THREE.Float32BufferAttribute(newNorm, 3));
+      if (uvAttr) subGeo.setAttribute('uv', new THREE.Float32BufferAttribute(newUv, 2));
+      subGeo.setIndex(newIndices);
+    } else {
+      const newPos: number[] = [];
+      const newNorm: number[] = [];
+      const newUv: number[] = [];
+      for (let i = group.start; i < group.start + group.count; i++) {
+        newPos.push(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
+        if (normAttr) newNorm.push(normAttr.getX(i), normAttr.getY(i), normAttr.getZ(i));
+        if (uvAttr) newUv.push(uvAttr.getX(i), uvAttr.getY(i));
+      }
+      subGeo.setAttribute('position', new THREE.Float32BufferAttribute(newPos, 3));
+      if (normAttr) subGeo.setAttribute('normal', new THREE.Float32BufferAttribute(newNorm, 3));
+      if (uvAttr) subGeo.setAttribute('uv', new THREE.Float32BufferAttribute(newUv, 2));
+    }
+
+    subGeo.computeVertexNormals();
+    subGeo.computeBoundingBox();
+    subGeo.computeBoundingSphere();
+
+    const matName = mat.name ? mat.name.replace(/_\d+$/, '') : `${mesh.name}_${gIdx}`;
+    const subMesh = new THREE.Mesh(subGeo, mat);
+    subMesh.name = matName;
+    subMesh.position.copy(mesh.position);
+    subMesh.quaternion.copy(mesh.quaternion);
+    subMesh.scale.copy(mesh.scale);
+    subMesh.castShadow = mesh.castShadow;
+    subMesh.receiveShadow = mesh.receiveShadow;
+    subMeshes.push(subMesh);
+  });
+
+  return subMeshes;
+}
+
+/**
+ * Traverses an Object3D hierarchy and splits any multi-material meshes into individual single-material meshes.
+ */
+export function splitAllMultiMaterialMeshes(root: THREE.Object3D): number {
+  const multiMeshes: THREE.Mesh[] = [];
+  root.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      const m = child as THREE.Mesh;
+      if (Array.isArray(m.material) && m.material.length > 1 && m.geometry.groups && m.geometry.groups.length > 1) {
+        multiMeshes.push(m);
+      }
+    }
+  });
+
+  let splitCount = 0;
+  multiMeshes.forEach((mesh) => {
+    const parent = mesh.parent;
+    if (!parent) return;
+
+    const subMeshes = splitMultiMaterialMesh(mesh);
+    if (subMeshes.length > 1) {
+      splitCount++;
+      const meshIndexInParent = parent.children.indexOf(mesh);
+      parent.remove(mesh);
+      subMeshes.forEach((subMesh, idx) => {
+        parent.children.splice(meshIndexInParent + idx, 0, subMesh);
+        subMesh.parent = parent;
+      });
+    }
+  });
+
+  return splitCount;
+}
+
+/**
+ * Find the top-level assembly root group (the turntable group) for any mesh in the scene.
+ * In the portfolio and studio, this is the top-level group directly under the Three.js Scene.
+ */
+export function getAssemblyRoot(object: THREE.Object3D): THREE.Object3D {
+  let curr: THREE.Object3D = object;
+  while (curr.parent && curr.parent.type !== 'Scene' && !(curr.parent as any).isScene) {
+    curr = curr.parent;
+  }
+  return curr;
+}
+

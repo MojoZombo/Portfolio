@@ -6,6 +6,7 @@ import { createToonGradientMap } from '../materials';
 import { useTheme } from '../../context/ThemeContext';
 import { useTransformCalibration, PartColorInfo, PartAnimationConfig } from '../../context/TransformCalibrationContext';
 import { CADPivotGizmo } from '../CADPivotGizmo';
+import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, getAssemblyRoot } from '../../utils/meshSplitter';
 
 interface ModelProps {
   isActive?: boolean;
@@ -30,9 +31,22 @@ const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.00, 0.00, 0.00];
 const DEFAULT_SCALE = 5.50;
 
+// Static ball kinematic constants & zero-allocation scratch vectors
+const BALL_LOCAL_CONTACT = new THREE.Vector3(0.0204, 0.095, 0.004);
+const scratchBallContact = new THREE.Vector3();
+
 // Baked Custom Part Color Overrides for Ping Pong Robot
 const DEFAULT_PART_COLORS: Record<number, string> = {
-  55: '#f8fafc', // Mesh_49_8 (Body B)
+  2: '#64748b', // Mesh_31_2
+  5: '#64748b', // Mesh_31_5
+  6: '#64748b', // Mesh_31_6
+  7: '#475569', // Mesh_31_7
+  8: '#1e293b', // Mesh_31_8
+  34: '#475569', // Mesh_49_11
+  35: '#475569', // Mesh_49_12
+  36: '#919191', // Mesh_49_13
+  38: '#f8fafc', // Mesh_49_15
+  55: '#ff7300', // Ping Pong Ball
   56: '#475569', // Mesh_49_8 (Body C)
   57: '#059669', // Mesh_49_8 (Body D)
   58: '#dc2626', // Mesh_49_8 (Body E)
@@ -76,7 +90,6 @@ const DEFAULT_PART_VISIBILITY: Record<number, boolean> = {
   26: false, // Mesh_49_3
   29: false, // Mesh_49_6
   37: false, // Mesh_49_14
-  55: false, // Mesh_49_8 (Body B)
   65: false, // Mesh_49_8 (Body L)
   69: false, // Mesh_49_8 (Body P)
 };
@@ -287,6 +300,23 @@ function buildMasterPingPongPrototype(sourceScene: THREE.Group) {
     template.attach(mesh);
   });
 
+  splitAllMultiMaterialMeshes(template);
+
+  // Ping Pong Ball: Bouncing on top of Mesh_49_15 beneath Mesh_31_17
+  const ballRadius = 0.018;
+  const ballGeo = new THREE.SphereGeometry(ballRadius, 32, 24);
+  const ballMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color('#ff7300'),
+    roughness: 0.25,
+    metalness: 0.05,
+    name: 'Ping_Pong_Ball_Mat',
+  });
+  const ballMesh = new THREE.Mesh(ballGeo, ballMat);
+  ballMesh.name = 'Ping_Pong_Ball';
+  ballMesh.position.set(0.1701, 0.4413, 0.2231);
+  ballMesh.userData.isPingPongBall = true;
+  template.add(ballMesh);
+
   template.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       const mesh = child as THREE.Mesh;
@@ -307,13 +337,13 @@ function buildMasterPingPongPrototype(sourceScene: THREE.Group) {
         const defaultBakedColor = (stdMat?.color ? `#${stdMat.color.getHexString()}` : '#cbd5e1');
         partsInfo.push({
           index: partsInfo.length,
-          name: mesh.name || `Component ${partsInfo.length + 1}`,
+          name: mesh.userData.isPingPongBall ? 'Ping Pong Ball' : (mesh.name || `Component ${partsInfo.length + 1}`),
           color: defaultBakedColor,
         });
       }
 
       try {
-        const bpEdges = new THREE.EdgesGeometry(mesh.geometry, 8);
+        const bpEdges = new THREE.EdgesGeometry(mesh.geometry, mesh.userData.isPingPongBall ? 30 : 8);
         staticEdgesList.push(bpEdges);
 
         const celEdges = new THREE.EdgesGeometry(mesh.geometry, 28);
@@ -332,6 +362,8 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
   const pivotRef = useRef<THREE.Group | null>(null);
   const cloneRef = useRef<THREE.Group | null>(null);
   const meshNodesRef = useRef<MeshNodeInfo[]>([]);
+  const ballNodeRef = useRef<MeshNodeInfo | null>(null);
+  const paddleNodeRef = useRef<MeshNodeInfo | null>(null);
   const currentSpeedRef = useRef(0);
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -493,14 +525,16 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
     centeredScene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
-        if (!mesh.geometry.boundingBox) {
-          mesh.geometry.computeBoundingBox();
-        }
-        const geomCom = mesh.geometry.boundingBox
-          ? mesh.geometry.boundingBox.getCenter(new THREE.Vector3())
-          : new THREE.Vector3();
+        const geomCom = computeGeometryCenterOfMass(mesh.geometry);
         const initQuat = mesh.quaternion.clone();
-        const com = mesh.position.clone().add(geomCom.clone().applyQuaternion(initQuat));
+        const scaledCom = geomCom.clone().multiply(mesh.scale);
+        const com = mesh.position.clone().add(scaledCom.applyQuaternion(initQuat));
+        mesh.userData.centerOfMass = com;
+
+        // Signal to StudioSceneBridge that this model manages its own kinematics
+        mesh.userData.hasOwnKinematics = true;
+
+        const partIdx = mesh.userData.cadPartIndex !== undefined ? mesh.userData.cadPartIndex : idx;
 
         list.push({
           mesh,
@@ -508,12 +542,14 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
           initialRot: mesh.rotation.clone(),
           initialQuat: initQuat,
           centerOfMass: com,
-          index: idx,
+          index: partIdx,
         });
         idx++;
       }
     });
     meshNodesRef.current = list;
+    ballNodeRef.current = list.find((n) => n.mesh.name === 'Ping_Pong_Ball') || null;
+    paddleNodeRef.current = list.find((n) => n.index === 38) || null;
   }, [centeredScene]);
 
   // Apply materials and dynamic color overrides
@@ -655,7 +691,7 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
     }
 
     // Auto rotate parent with smooth acceleration from 0 RPM
-    const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.6;
+    const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.2;
     const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed : 0);
     currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
@@ -667,8 +703,8 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
       }
     }
 
-    const time = localTimeRef.current;
-    if (isAnimating) {
+    const time = isAnimating ? localTimeRef.current : 0;
+    if (meshNodesRef.current.length > 0) {
       const computedTransforms = new Map<
         number,
         { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion }
@@ -720,10 +756,18 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
         }
 
         let currentPos = basePos.clone();
-          let currentQuat = baseQuat.clone();
-          let accumulatedDeltaQuat = parentDeltaQuat.clone();
-          if (anim && anim.type !== 'none') {
-            const applyAnim = (animConfig: any) => {
+        let currentQuat = baseQuat.clone();
+        let accumulatedDeltaQuat = parentDeltaQuat.clone();
+
+        const restingCom = basePos.clone().add(
+          node.centerOfMass.clone().sub(node.initialPos).applyQuaternion(parentDeltaQuat)
+        );
+        node.mesh.userData.restingCom = restingCom;
+        node.mesh.userData.restingPos = basePos.clone();
+        node.mesh.userData.parentDeltaQuat = parentDeltaQuat.clone();
+
+        if (anim && anim.type !== 'none') {
+          const applyAnim = (animConfig: any) => {
             if (!animConfig || animConfig.type === 'none') return;
             if (animConfig.type === 'multi' && Array.isArray(animConfig.subAnimations)) {
               animConfig.subAnimations.forEach(applyAnim);
@@ -731,12 +775,55 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
             }
 
             const phaseRad = ((animConfig.phase || 0) * Math.PI) / 180;
+            const rotXRad = ((animConfig.axisRotX || 0) * Math.PI) / 180;
+            const rotYRad = ((animConfig.axisRotY || 0) * Math.PI) / 180;
+            const rotZRad = ((animConfig.axisRotZ || 0) * Math.PI) / 180;
+            const customAxisQuat = new THREE.Quaternion().setFromEuler(
+              new THREE.Euler(rotXRad, rotYRad, rotZRad, 'XYZ')
+            );
+
             const rawAxis = new THREE.Vector3(
               animConfig.axis === 'x' ? 1 : 0,
               animConfig.axis === 'y' ? 1 : 0,
               animConfig.axis === 'z' ? 1 : 0
             );
-            const axisVec = rawAxis.clone().applyQuaternion(accumulatedDeltaQuat);
+            const orientedAxis = rawAxis.clone().applyQuaternion(customAxisQuat);
+            const alignment = animConfig.axisAlignment || 'model';
+            const parentWorldQuat = new THREE.Quaternion();
+            if (node.mesh.parent) {
+              node.mesh.parent.getWorldQuaternion(parentWorldQuat);
+            }
+
+            let axisVec: THREE.Vector3;
+            let pivotOffset: THREE.Vector3;
+
+            const rawPivotOffset = new THREE.Vector3(
+              (animConfig.pivotX || 0) / 100,
+              (animConfig.pivotY || 0) / 100,
+              (animConfig.pivotZ || 0) / 100
+            );
+
+            if (alignment === 'global') {
+              axisVec = orientedAxis.clone().applyQuaternion(parentWorldQuat.clone().invert());
+              pivotOffset = rawPivotOffset.clone().applyQuaternion(parentWorldQuat.clone().invert());
+            } else if (alignment === 'part') {
+              axisVec = orientedAxis.clone().applyQuaternion(baseQuat);
+              pivotOffset = rawPivotOffset.clone().applyQuaternion(baseQuat);
+            } else {
+              // 'model': Assembly Model Root frame (groupRef)
+              const assemblyWorldQuat = new THREE.Quaternion();
+              if (groupRef.current) {
+                groupRef.current.getWorldQuaternion(assemblyWorldQuat);
+              } else {
+                const assemblyRoot = getAssemblyRoot(node.mesh);
+                assemblyRoot.getWorldQuaternion(assemblyWorldQuat);
+              }
+              const assemblyToParentQuat = parentWorldQuat.clone().invert().multiply(assemblyWorldQuat);
+
+              axisVec = orientedAxis.clone().applyQuaternion(assemblyToParentQuat).applyQuaternion(accumulatedDeltaQuat);
+              pivotOffset = rawPivotOffset.clone().applyQuaternion(assemblyToParentQuat).applyQuaternion(accumulatedDeltaQuat);
+            }
+
             const dir = animConfig.direction ?? 1;
             const omega = ((animConfig.speed || 0) * Math.PI * 2) / 60;
 
@@ -750,14 +837,11 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
               if (pivotMode === 'origin') {
                 pivot.copy(basePos).add(translationDelta);
               } else if (pivotMode === 'custom') {
-                pivot.add(
-                  new THREE.Vector3(
-                    (animConfig.pivotX || 0) / 100,
-                    (animConfig.pivotY || 0) / 100,
-                    (animConfig.pivotZ || 0) / 100
-                  ).applyQuaternion(accumulatedDeltaQuat)
-                  );
+                pivot.add(pivotOffset);
               }
+
+              node.mesh.userData.hingePivot = pivot.clone();
+              node.mesh.userData.hingeAxis = axisVec.clone();
 
               const angle =
                 animConfig.type === 'continuous-spin'
@@ -774,9 +858,17 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
             } else if (animConfig.type === 'linear-reciprocate') {
               const distPosM = ((animConfig.amplitudePositive !== undefined ? animConfig.amplitudePositive : (animConfig.amplitude || 10)) / 100);
               const distNegM = ((animConfig.amplitudeNegative !== undefined ? animConfig.amplitudeNegative : (animConfig.amplitude || 10)) / 100);
-              const centerM = (distPosM - distNegM) / 2;
-              const strokeHalfM = (distPosM + distNegM) / 2;
-              const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
+              let displacementScalar = 0;
+              if (distNegM === 0) {
+                const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
+                displacementScalar = progress * distPosM * dir;
+              } else if (distPosM === 0) {
+                const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
+                displacementScalar = -progress * distNegM * dir;
+              } else {
+                const s = Math.sin(time * omega + phaseRad);
+                displacementScalar = (s >= 0 ? s * distPosM : s * distNegM) * dir;
+              }
               const displacement = axisVec.clone().multiplyScalar(displacementScalar);
               currentPos.add(displacement);
             }
@@ -787,6 +879,9 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
 
         node.mesh.position.copy(currentPos);
         node.mesh.quaternion.copy(currentQuat);
+        node.mesh.userData.currentCom = basePos.clone().add(
+          node.centerOfMass.clone().sub(node.initialPos).applyQuaternion(accumulatedDeltaQuat)
+        );
 
         const deltaPos = currentPos.clone().sub(node.initialPos);
         const deltaQuat = currentQuat.clone().multiply(node.initialQuat.clone().invert());
@@ -798,6 +893,61 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
       nodeMap.forEach((_, pIdx) => {
         solveKinematics(pIdx);
       });
+
+      // Animate Ping Pong Ball bouncing on top of Mesh_49_15 (Part 38) beneath Mesh_31_17 (Part 17)
+      const ballNode = ballNodeRef.current;
+      const paddleNode = paddleNodeRef.current;
+      if (ballNode && paddleNode) {
+        const userBallAnim = isModelCalibrating ? settings.animationOverrides[ballNode.index] : null;
+        if (!userBallAnim || userBallAnim.type === 'none') {
+          // Zero-allocation dynamic contact point tracking on top face of Mesh_49_15
+          scratchBallContact.copy(BALL_LOCAL_CONTACT).applyQuaternion(paddleNode.mesh.quaternion);
+          const contactX = paddleNode.mesh.position.x + scratchBallContact.x;
+          const contactY = paddleNode.mesh.position.y + scratchBallContact.y;
+          const contactZ = paddleNode.mesh.position.z + scratchBallContact.z;
+
+          const ballRadius = 0.018;
+
+          if (!isAnimating) {
+            // Rest pose: resting flush on top of paddle surface
+            ballNode.mesh.position.set(contactX, contactY + ballRadius, contactZ);
+            ballNode.mesh.scale.set(1, 1, 1);
+          } else {
+            // Analytic closed-form trajectory: exact mathematical curve, 0 physics simulation overhead
+            const omega = (100 * Math.PI * 2) / 60; // 100 RPM paddle speed
+            const phaseShift = Math.PI / 2; // Peak paddle strike instant
+            const cyclePhase = (((time * omega - phaseShift) / (2 * Math.PI)) % 1 + 1) % 1;
+
+            // Parabolic gravity trajectory: 4 * h * u * (1 - u)
+            // Paddle peak top is at y ~ 0.433. Roof (Mesh_31_17) bottom is at y = 0.5574.
+            // With maxBounceHeight = 0.070, ball top reaches y = 0.5393, staying safely beneath Mesh_31_17.
+            const maxBounceHeight = 0.070;
+            const bounceY = 4 * maxBounceHeight * cyclePhase * (1 - cyclePhase);
+
+            // Squash & stretch on impact (at cyclePhase near 0 and 1)
+            const distFromImpact = Math.min(cyclePhase, 1 - cyclePhase);
+            let scaleY = 1;
+            let scaleXZ = 1;
+            if (distFromImpact < 0.08) {
+              const impactIntensity = Math.sin((1 - distFromImpact / 0.08) * Math.PI);
+              scaleY = 1 - 0.15 * impactIntensity;
+              scaleXZ = 1 + 0.075 * impactIntensity;
+            } else {
+              const flightSpeed = Math.abs(1 - 2 * cyclePhase);
+              scaleY = 1 + 0.06 * flightSpeed;
+              scaleXZ = 1 - 0.03 * flightSpeed;
+            }
+
+            const ballY = contactY + (ballRadius * scaleY) + bounceY;
+            ballNode.mesh.position.set(contactX, ballY, contactZ);
+            ballNode.mesh.scale.set(scaleXZ, scaleY, scaleXZ);
+
+            // Subtle topspin rotation
+            ballNode.mesh.rotation.z += delta * 6.0;
+            ballNode.mesh.rotation.x += delta * 2.0;
+          }
+        }
+      }
     }
   });
 

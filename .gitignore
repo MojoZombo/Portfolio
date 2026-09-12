@@ -34,9 +34,15 @@ lerna-debug.log*
 .DS_Store
 Thumbs.db
 
-# Temporary inspect scripts
+# Temporary inspect scripts & scratch
 check_*.js
 inspect_*.js
 fetch_dates.js
+patch*.js
+*.cjs
+*_origin.tsx
+pivot_helper.tsx
+src/data/backups/
+/*.png
 *_original.glb
 scratch/

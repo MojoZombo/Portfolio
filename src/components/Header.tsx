@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { Sun, Moon, FileText, MapPin, GraduationCap, Mail, Linkedin } from 'lucide-react';
+import { Sun, Moon, FileText, MapPin, GraduationCap, Mail, Linkedin, ArrowUpRight } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -13,7 +13,7 @@ export const Header: React.FC = () => {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               Jaden Fann
             </h1>
-            <p className="text-xs sm:text-sm font-mono text-blue-600 dark:text-blue-400 font-semibold">
+            <p className="text-xs sm:text-sm font-mono text-slate-700 dark:text-slate-300 font-semibold">
               Mechanical Engineer @ Blue Origin · UC Berkeley M.S. Mechanical Engineering
             </p>
             <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed pt-1">
@@ -32,7 +32,7 @@ export const Header: React.FC = () => {
               </span>
               <a
                 href="mailto:fann@berkeley.edu"
-                className="hover:text-blue-500 transition-colors inline-flex items-center gap-1.5"
+                className="hover:text-blue-500 hover:underline underline-offset-2 transition-colors inline-flex items-center gap-1.5"
               >
                 <Mail size={12} className="text-slate-400 dark:text-slate-500" />
                 <span>fann@berkeley.edu</span>
@@ -41,10 +41,11 @@ export const Header: React.FC = () => {
                 href="https://linkedin.com/in/jadenfann"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-blue-500 transition-colors inline-flex items-center gap-1.5"
+                className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline underline-offset-4 decoration-blue-500/60 hover:decoration-blue-500 font-semibold transition-colors"
               >
-                <Linkedin size={12} className="text-slate-400 dark:text-slate-500" />
+                <Linkedin size={13} className="text-blue-600 dark:text-blue-400 shrink-0" />
                 <span>LinkedIn</span>
+                <ArrowUpRight size={11} className="opacity-80" />
               </a>
             </div>
           </div>
@@ -64,7 +65,7 @@ export const Header: React.FC = () => {
 
             <button
               onClick={toggleTheme}
-              className="p-2 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-colors cursor-pointer"
+              className="p-2 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
               title="Toggle Light / Dark Mode"
             >
               {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}

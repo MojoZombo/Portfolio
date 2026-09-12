@@ -4,7 +4,7 @@ export const projectsData: Project[] = [
   // 1. Tesla Deployable Linear Actuation Mechanism (September 2024 – January 2025)
   {
     id: 'tesla-linear-actuator',
-    title: 'Tesla Deployable Linear Actuator',
+    title: 'Deployable Linear Actuating Mechanism',
     subtitle: 'Dual Synchronized Lead Screws & Telescoping Mechanism',
     date: 'September 2024 – January 2025',
     dateRange: 'September 2024 – January 2025',
@@ -114,10 +114,10 @@ export const projectsData: Project[] = [
     }
   },
 
-  // 2. Inductive IR3 Autonomous EV Charging Robot (Jun 2024 – Sep 2024)
+  // 2. Inductive Autonomous EV Charging Robot (Jun 2024 – Sep 2024)
   {
     id: 'inductive-autonomous-charging-robot',
-    title: 'Inductive IR3 Autonomous EV Charging Robot',
+    title: 'Autonomous EV Charging Robot',
     subtitle: 'Mobile Robotic EV Fast-Charging UGV System',
     date: 'Jun 2024 – Sep 2024',
     dateRange: 'Jun 2024 – Sep 2024',
@@ -223,7 +223,7 @@ export const projectsData: Project[] = [
   // 3. Robot Humanoid Hand Mirroring (Aug 2024 - Dec 2024)
   {
     id: 'robot-hand-mirroring',
-    title: 'Robot Humanoid Hand Mirroring',
+    title: 'Robotic Humanoid Hand Mirroring',
     subtitle: 'Sawyer Arm & 5-DOF Articulated End-Effector',
     date: 'Aug 2024 – Dec 2024',
     dateRange: 'Aug 2024 – Dec 2024',
@@ -599,7 +599,7 @@ export const projectsData: Project[] = [
   // 3. Autonomous Ping-Pong Dribbling and Bouncing Robot (Jan 2024 - May 2024)
   {
     id: 'ping-pong-robot',
-    title: 'Autonomous Ping-Pong Dribbling and Bouncing Robot',
+    title: 'Ping-Pong Bouncing Robot',
     subtitle: '2-DOF High-Bandwidth Dynamic Gimbal Platform',
     date: 'Jan 2024 – May 2024',
     dateRange: 'Jan 2024 – May 2024',
@@ -721,7 +721,7 @@ export const projectsData: Project[] = [
   // 4. Ocean Drone Catamaran for TAFLab (Aug 2023 - Jan 2024)
   {
     id: 'catamaran-ocean-drone',
-    title: 'Ocean Drone Catamaran for TAFLab',
+    title: 'Autonomous Ocean Drone Catamaran',
     subtitle: 'Autonomous Sailing Surface Vessel for Marine Data',
     date: 'Aug 2023 – Jan 2024',
     dateRange: 'Aug 2023 – Jan 2024',
@@ -839,7 +839,7 @@ export const projectsData: Project[] = [
   // 5. High-Speed Cable Robot to Catch Drones (Aug 2023 - Dec 2023)
   {
     id: 'drone-catch-cable-robot',
-    title: 'High-Speed Cable Robot to Catch Drones',
+    title: 'High-Speed Cable Robot Iteration 1',
     subtitle: '3000 RPM Dynamic Recovery Winch System',
     date: 'Aug 2023 – Dec 2023',
     dateRange: 'Aug 2023 – Dec 2023',
@@ -957,7 +957,7 @@ export const projectsData: Project[] = [
   // 6. Construction Robot Stability Outrigger Simulation (May 2023 - Aug 2023)
   {
     id: 'construction-outrigger-fea',
-    title: 'Construction Robot Stability Outrigger Simulation',
+    title: 'Construction Robot Simulation',
     subtitle: 'FEA and Dynamic Simulation for 1500 lb Robotic Platform',
     date: 'May 2023 – Aug 2023',
     dateRange: 'May 2023 – Aug 2023',

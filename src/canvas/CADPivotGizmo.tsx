@@ -1,12 +1,20 @@
 import React from 'react';
 import { Html } from '@react-three/drei';
 
-export const CADPivotGizmo: React.FC = () => {
+interface CADPivotGizmoProps {
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+}
+
+export const CADPivotGizmo: React.FC<CADPivotGizmoProps> = ({
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+}) => {
   const axisLength = 1.2;
   const axisThickness = 0.015;
 
   return (
-    <group name="CADPivotGizmo" userData={{ isHelper: true }} position={[0, 0, 0]}>
+    <group name="CADPivotGizmo" userData={{ isHelper: true }} position={position} rotation={rotation}>
       {/* Central Pivot Point Sphere */}
       <mesh name="CADPivotGizmo_Sphere" userData={{ isHelper: true }}>
         <sphereGeometry args={[0.06, 16, 16]} />

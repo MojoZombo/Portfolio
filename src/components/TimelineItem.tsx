@@ -166,7 +166,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           className="w-full md:w-5/12 md:absolute md:left-4 lg:left-8 z-20"
         >
-          <div className="space-y-2.5 bg-slate-50/70 dark:bg-slate-900/60 md:bg-transparent md:dark:bg-transparent backdrop-blur-sm md:backdrop-blur-none p-3.5 sm:p-4 md:p-0 rounded md:rounded-none border border-slate-200/50 dark:border-slate-800/50 md:border-0">
+          <div className="space-y-2.5 bg-slate-100/80 dark:bg-slate-900/70 md:bg-transparent md:dark:bg-transparent backdrop-blur-sm md:backdrop-blur-none p-3.5 sm:p-4 md:p-0 rounded-xl md:rounded-none">
             {/* Company Badge & Date */}
             <div className="flex flex-wrap items-center gap-2">
               {project.company && (
@@ -186,11 +186,6 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight">
               {project.title}
             </h2>
-
-            {/* Subtitle */}
-            <p className="text-xs sm:text-sm font-mono text-slate-500 dark:text-slate-400 line-clamp-2 sm:line-clamp-none">
-              {project.subtitle}
-            </p>
 
             {/* Single clean button to open details */}
             <div className="pt-1">

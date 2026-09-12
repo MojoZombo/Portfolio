@@ -254,7 +254,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
           <Canvas
             className={allowZoom ? "grab-cursor" : "grab-cursor !touch-pan-y"}
             frameloop={isActive || allowZoom || isHovered ? 'always' : 'demand'}
-            dpr={[1, typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1]}
+            dpr={3}
             gl={{
               antialias: true,
               alpha: true,
@@ -300,8 +300,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                 enablePan={allowZoom}
                 enableRotate={true}
                 autoRotate={false}
-                minPolarAngle={Math.PI / 6}
-                maxPolarAngle={Math.PI / 1.8}
+                minPolarAngle={0}
+                maxPolarAngle={Math.PI / 1.05}
                 dampingFactor={0.08}
                 touches={{
                   ONE: THREE.TOUCH.ROTATE,
@@ -325,7 +325,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               setIsAnimationPlaying(next);
               setIsRotating(next);
             }}
-            className="px-3 py-1.5 rounded bg-white hover:bg-slate-100 text-slate-700 dark:bg-slate-900/90 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700/60 backdrop-blur-sm transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
+            className="px-3 py-1.5 rounded bg-white hover:bg-slate-100 text-slate-700 dark:bg-slate-800/90 dark:hover:bg-slate-700 dark:text-slate-200 shadow-md backdrop-blur-sm transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
             title={isAnimationPlaying ? 'Pause 3D animation and rotation' : 'Play 3D animation and rotation'}
           >
             {isAnimationPlaying ? (
@@ -346,7 +346,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                 setIsAnimationPlaying(true);
                 setIsRotating(true);
               }}
-              className="px-3 py-1.5 rounded bg-white hover:bg-slate-100 text-slate-700 dark:bg-slate-900/90 dark:hover:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700/60 backdrop-blur-sm transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
+              className="px-3 py-1.5 rounded bg-white hover:bg-slate-100 text-slate-700 dark:bg-slate-800/90 dark:hover:bg-slate-700 dark:text-slate-200 shadow-md backdrop-blur-sm transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
               title="Reset 3D model zoom and position"
             >
               <RotateCcw size={12} className="text-blue-600 dark:text-blue-400" />

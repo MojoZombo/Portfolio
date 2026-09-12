@@ -167,7 +167,7 @@ export const App: React.FC = () => {
       />
 
       {/* Minimal Engineering Footer */}
-      <footer className="relative z-20 w-full py-12 text-slate-500 dark:text-slate-400 font-mono text-xs text-center border-t border-slate-200/40 dark:border-slate-800/40 mt-12">
+      <footer className="relative z-20 w-full py-12 text-slate-500 dark:text-slate-400 font-mono text-xs text-center mt-12">
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span>© {new Date().getFullYear()} JADEN FANN // MECHANICAL ENGINEER</span>
           <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
@@ -177,7 +177,7 @@ export const App: React.FC = () => {
                 setIsBakerOpen(true);
                 window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
               }}
-              className="hover:text-emerald-500 transition-colors flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 cursor-pointer text-[11px]"
+              className="hover:text-emerald-500 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 cursor-pointer text-[11px]"
               title="Open 1:1 Exact Model Poster Baker"
             >
               <Camera size={12} className="text-emerald-500" />
@@ -190,7 +190,7 @@ export const App: React.FC = () => {
                 setIsStudioOpen(true);
                 window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
               }}
-              className="hover:text-blue-500 transition-colors flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 cursor-pointer text-[11px]"
+              className="hover:text-blue-500 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 cursor-pointer text-[11px]"
               title="Open Fullscreen 3D CAD Alignment & Kinematics Studio"
             >
               <Cpu size={12} className="text-blue-500" />

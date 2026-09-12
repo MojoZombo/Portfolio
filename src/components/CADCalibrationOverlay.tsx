@@ -82,6 +82,11 @@ const partColorOverrides: Record<number, string> = ${JSON.stringify(settings.col
 const partAnimationOverrides = ${JSON.stringify(settings.animationOverrides, null, 2)};`;
     }
 
+    if (settings.partOrder && settings.partOrder.length > 0) {
+      code += `\n\n// Custom Assembly Tree Part Order:
+const customPartOrder = ${JSON.stringify(settings.partOrder)};`;
+    }
+
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

@@ -248,7 +248,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
         title={`Visit ${company} website (${resolvedUrl})`}
-        className={`group inline-flex items-center font-mono font-medium rounded bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 backdrop-blur transition-colors cursor-pointer select-none ${badgeSizeClasses[size]} ${className}`}
+        className={`group inline-flex items-center font-mono font-medium rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/90 dark:hover:bg-slate-700/90 text-slate-700 dark:text-slate-300 backdrop-blur transition-colors cursor-pointer select-none ${badgeSizeClasses[size]} ${className}`}
       >
         {badgeContent}
       </a>
@@ -257,7 +257,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
 
   return (
     <div
-      className={`inline-flex items-center font-mono font-medium rounded bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 backdrop-blur ${badgeSizeClasses[size]} ${className}`}
+      className={`inline-flex items-center font-mono font-medium rounded bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 backdrop-blur ${badgeSizeClasses[size]} ${className}`}
     >
       {badgeContent}
     </div>

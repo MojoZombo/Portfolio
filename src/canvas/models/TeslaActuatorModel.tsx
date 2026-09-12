@@ -31,7 +31,7 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
       groupRef.current.scale.setScalar(1.25);
     }
 
-    const targetSpeed = isActive && isRotating && isAnimating ? 0.6 : 0;
+    const targetSpeed = isActive && isRotating && isAnimating ? 0.2 : 0;
     currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
     if (groupRef.current) {

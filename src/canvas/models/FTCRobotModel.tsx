@@ -26,7 +26,7 @@ export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotati
       groupRef.current.scale.setScalar(1.2);
     }
 
-    const targetSpeed = isActive && isRotating && isAnimating ? 0.7 : 0;
+    const targetSpeed = isActive && isRotating && isAnimating ? 0.35 : 0;
     currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
     if (groupRef.current) {

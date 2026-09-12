@@ -6,6 +6,7 @@ import { createToonGradientMap } from '../materials';
 import { useTheme } from '../../context/ThemeContext';
 import { useTransformCalibration, PartColorInfo, PartAnimationConfig } from '../../context/TransformCalibrationContext';
 import { CADPivotGizmo } from '../CADPivotGizmo';
+import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes } from '../../utils/meshSplitter';
 
 interface ModelProps {
   isActive?: boolean;
@@ -26,9 +27,10 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Sailing Catamaran
-const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.03, 0.00];
-const DEFAULT_ROTATION_DEG: [number, number, number] = [-90.0, 0.0, 0.0];
-const DEFAULT_SCALE = 2.00;
+const DEFAULT_OFFSET: [number, number, number] = [-0.15, 0.03, 0.00];
+const DEFAULT_ROTATION_DEG: [number, number, number] = [-90.0, -90.0, 0.0];
+const DEFAULT_SCALE = 2.30;
+const DEFAULT_ROTATION_SPEED = 0.20; // 0.2 rad/s turntable rotation
 
 // Default Part Colors for Sailing Catamaran
 const DEFAULT_PART_COLORS: Record<number, string> = {
@@ -60,26 +62,31 @@ const DEFAULT_PART_COLORS: Record<number, string> = {
   35: '#FDB515', // rudder_mount-2001
 };
 
-// Default Kinematics Animations
+// Default Kinematics Animations (Aligned to Assembly Model Frame)
 const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   19: {
     type: 'oscillate-rotation',
     axis: 'y',
+    axisAlignment: 'model',
+    axisRotX: 0,
+    axisRotY: 0,
+    axisRotZ: 0,
     direction: 1,
-    speed: -5,
+    speed: -10,
     amplitude: 34,
     amplitudePositive: 10,
     amplitudeNegative: 10,
-    phase: 0,
+    phase: 20,
     pivotMode: 'custom',
     pivotX: 0,
     pivotY: 0,
-    pivotZ: -4,
+    pivotZ: 0,
     parentPartIndex: 22,
   },
   20: {
     type: 'none',
-    axis: 'z',
+    axis: 'y',
+    axisAlignment: 'model',
     direction: 1,
     speed: 60,
     amplitude: 35,
@@ -95,12 +102,16 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   22: {
     type: 'oscillate-rotation',
     axis: 'y',
+    axisAlignment: 'model',
+    axisRotX: 0,
+    axisRotY: 0,
+    axisRotZ: 0,
     direction: 1,
-    speed: 5,
-    amplitude: 20,
+    speed: 10,
+    amplitude: 30,
     amplitudePositive: 10,
     amplitudeNegative: 10,
-    phase: 0,
+    phase: 20,
     pivotMode: 'custom',
     pivotX: 0,
     pivotY: 55,
@@ -108,7 +119,8 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   },
   23: {
     type: 'none',
-    axis: 'z',
+    axis: 'y',
+    axisAlignment: 'model',
     direction: 1,
     speed: 60,
     amplitude: 35,
@@ -123,7 +135,8 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   },
   24: {
     type: 'none',
-    axis: 'z',
+    axis: 'y',
+    axisAlignment: 'model',
     direction: 1,
     speed: 60,
     amplitude: 35,
@@ -138,7 +151,8 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   },
   26: {
     type: 'none',
-    axis: 'z',
+    axis: 'y',
+    axisAlignment: 'model',
     direction: 1,
     speed: 60,
     amplitude: 35,
@@ -153,7 +167,8 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   },
   28: {
     type: 'none',
-    axis: 'z',
+    axis: 'y',
+    axisAlignment: 'model',
     direction: 1,
     speed: 60,
     amplitude: 35,
@@ -169,6 +184,10 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   30: {
     type: 'oscillate-rotation',
     axis: 'y',
+    axisAlignment: 'model',
+    axisRotX: 0,
+    axisRotY: 0,
+    axisRotZ: 0,
     direction: 1,
     speed: -5,
     amplitude: 27,
@@ -183,6 +202,10 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
   33: {
     type: 'oscillate-rotation',
     axis: 'y',
+    axisAlignment: 'model',
+    axisRotX: 0,
+    axisRotY: 0,
+    axisRotZ: 0,
     direction: 1,
     speed: -5,
     amplitude: 27,
@@ -239,6 +262,8 @@ function buildMasterCatamaranPrototype(sourceScene: THREE.Group) {
     template.updateWorldMatrix(true, false);
     template.attach(mesh);
   });
+
+  splitAllMultiMaterialMeshes(template);
 
   template.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
@@ -332,6 +357,7 @@ export const CatamaranModel: React.FC<ModelProps> = ({
         parts: masterCatamaranPrototype.partsInfo,
         defaultColors: DEFAULT_PART_COLORS,
         defaultAnimations: DEFAULT_PART_ANIMATIONS,
+        defaultRotationSpeed: DEFAULT_ROTATION_SPEED,
       });
     }
   }, [registerModel]);
@@ -428,6 +454,7 @@ export const CatamaranModel: React.FC<ModelProps> = ({
     clone.position.set(-center.x, -center.y, -center.z);
 
     // 2. Set initial world rotation and offset on the pivot
+    pivot.rotation.order = 'YXZ';
     pivot.rotation.set(
       (DEFAULT_ROTATION_DEG[0] * Math.PI) / 180,
       (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180,
@@ -453,14 +480,16 @@ export const CatamaranModel: React.FC<ModelProps> = ({
     centeredScene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
-        if (!mesh.geometry.boundingBox) {
-          mesh.geometry.computeBoundingBox();
-        }
-        const geomCom = mesh.geometry.boundingBox
-          ? mesh.geometry.boundingBox.getCenter(new THREE.Vector3())
-          : new THREE.Vector3();
+        const geomCom = computeGeometryCenterOfMass(mesh.geometry);
         const initQuat = mesh.quaternion.clone();
-        const com = mesh.position.clone().add(geomCom.clone().applyQuaternion(initQuat));
+        const scaledCom = geomCom.clone().multiply(mesh.scale);
+        const com = mesh.position.clone().add(scaledCom.applyQuaternion(initQuat));
+        mesh.userData.centerOfMass = com;
+
+        // Signal to StudioSceneBridge that this model manages its own kinematics
+        mesh.userData.hasOwnKinematics = true;
+
+        const partIdx = mesh.userData.cadPartIndex !== undefined ? mesh.userData.cadPartIndex : idx;
 
         list.push({
           mesh,
@@ -468,7 +497,7 @@ export const CatamaranModel: React.FC<ModelProps> = ({
           initialRot: mesh.rotation.clone(),
           initialQuat: initQuat,
           centerOfMass: com,
-          index: idx,
+          index: partIdx,
         });
         idx++;
       }
@@ -561,6 +590,7 @@ export const CatamaranModel: React.FC<ModelProps> = ({
       const rotY = isModelCalibrating ? (settings.rotY * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[1] * Math.PI) / 180;
       const rotZ = isModelCalibrating ? (settings.rotZ * Math.PI) / 180 : (DEFAULT_ROTATION_DEG[2] * Math.PI) / 180;
 
+      pivotRef.current.rotation.order = 'YXZ';
       pivotRef.current.rotation.set(rotX, rotY, rotZ);
       pivotRef.current.position.set(offsetX, offsetY, offsetZ);
     }
@@ -584,7 +614,7 @@ export const CatamaranModel: React.FC<ModelProps> = ({
     }
 
     // Auto rotate parent with smooth acceleration from 0 RPM
-    const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.6;
+    const maxSpeed = isModelCalibrating ? settings.rotationSpeed : DEFAULT_ROTATION_SPEED;
     const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed : 0);
     currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
@@ -596,8 +626,8 @@ export const CatamaranModel: React.FC<ModelProps> = ({
       }
     }
 
-    const time = localTimeRef.current;
-    if (isAnimating && meshNodesRef.current.length > 0) {
+    const time = isAnimating ? localTimeRef.current : 0;
+    if (meshNodesRef.current.length > 0) {
       const computedTransforms = new Map<
         number,
         { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion }
@@ -652,6 +682,13 @@ export const CatamaranModel: React.FC<ModelProps> = ({
         let currentQuat = baseQuat.clone();
         let accumulatedDeltaQuat = parentDeltaQuat.clone();
 
+        const restingCom = basePos.clone().add(
+          node.centerOfMass.clone().sub(node.initialPos).applyQuaternion(parentDeltaQuat)
+        );
+        node.mesh.userData.restingCom = restingCom;
+        node.mesh.userData.restingPos = basePos.clone();
+        node.mesh.userData.parentDeltaQuat = parentDeltaQuat.clone();
+
         if (anim && anim.type !== 'none') {
           const applyAnim = (animConfig: any) => {
             if (!animConfig || animConfig.type === 'none') return;
@@ -661,12 +698,51 @@ export const CatamaranModel: React.FC<ModelProps> = ({
             }
 
             const phaseRad = ((animConfig.phase || 0) * Math.PI) / 180;
+            const rotXRad = ((animConfig.axisRotX || 0) * Math.PI) / 180;
+            const rotYRad = ((animConfig.axisRotY || 0) * Math.PI) / 180;
+            const rotZRad = ((animConfig.axisRotZ || 0) * Math.PI) / 180;
+            const customAxisQuat = new THREE.Quaternion().setFromEuler(
+              new THREE.Euler(rotXRad, rotYRad, rotZRad, 'XYZ')
+            );
+
             const rawAxis = new THREE.Vector3(
               animConfig.axis === 'x' ? 1 : 0,
               animConfig.axis === 'y' ? 1 : 0,
               animConfig.axis === 'z' ? 1 : 0
             );
-            const axisVec = rawAxis.clone().applyQuaternion(accumulatedDeltaQuat);
+            const orientedAxis = rawAxis.clone().applyQuaternion(customAxisQuat);
+            const alignment = animConfig.axisAlignment || 'model';
+            const parentWorldQuat = new THREE.Quaternion();
+            if (node.mesh.parent) {
+              node.mesh.parent.getWorldQuaternion(parentWorldQuat);
+            }
+
+            let axisVec: THREE.Vector3;
+            let pivotOffset: THREE.Vector3;
+
+            const rawPivotOffset = new THREE.Vector3(
+              (animConfig.pivotX || 0) / 100,
+              (animConfig.pivotY || 0) / 100,
+              (animConfig.pivotZ || 0) / 100
+            );
+
+            if (alignment === 'global') {
+              axisVec = orientedAxis.clone().applyQuaternion(parentWorldQuat.clone().invert());
+              pivotOffset = rawPivotOffset.clone().applyQuaternion(parentWorldQuat.clone().invert());
+            } else if (alignment === 'part') {
+              axisVec = orientedAxis.clone().applyQuaternion(baseQuat);
+              pivotOffset = rawPivotOffset.clone().applyQuaternion(baseQuat);
+            } else {
+              // 'model': Align with Catamaran Model Frame
+              // Converts from upright boat model frame into CAD mesh frame (+Z is mast, +Y is bow)
+              const uprightToCadQuat = new THREE.Quaternion().setFromEuler(
+                new THREE.Euler(Math.PI / 2, 0, 0, 'XYZ')
+              );
+
+              axisVec = orientedAxis.clone().applyQuaternion(uprightToCadQuat).applyQuaternion(accumulatedDeltaQuat);
+              pivotOffset = rawPivotOffset.clone().applyQuaternion(uprightToCadQuat).applyQuaternion(accumulatedDeltaQuat);
+            }
+
             const dir = animConfig.direction ?? 1;
             const omega = ((animConfig.speed || 0) * Math.PI * 2) / 60;
 
@@ -682,14 +758,11 @@ export const CatamaranModel: React.FC<ModelProps> = ({
               if (pivotMode === 'origin') {
                 pivot.copy(basePos).add(translationDelta);
               } else if (pivotMode === 'custom') {
-                pivot.add(
-                  new THREE.Vector3(
-                    (animConfig.pivotX || 0) / 100,
-                    (animConfig.pivotY || 0) / 100,
-                    (animConfig.pivotZ || 0) / 100
-                  ).applyQuaternion(accumulatedDeltaQuat)
-                );
+                pivot.add(pivotOffset);
               }
+
+              node.mesh.userData.hingePivot = pivot.clone();
+              node.mesh.userData.hingeAxis = axisVec.clone();
 
               const angle =
                 animConfig.type === 'continuous-spin'
@@ -705,9 +778,17 @@ export const CatamaranModel: React.FC<ModelProps> = ({
             } else if (animConfig.type === 'linear-reciprocate') {
               const distPosM = ((animConfig.amplitudePositive !== undefined ? animConfig.amplitudePositive : (animConfig.amplitude || 10)) / 100);
               const distNegM = ((animConfig.amplitudeNegative !== undefined ? animConfig.amplitudeNegative : (animConfig.amplitude || 10)) / 100);
-              const centerM = (distPosM - distNegM) / 2;
-              const strokeHalfM = (distPosM + distNegM) / 2;
-              const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
+              let displacementScalar = 0;
+              if (distNegM === 0) {
+                const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
+                displacementScalar = progress * distPosM * dir;
+              } else if (distPosM === 0) {
+                const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
+                displacementScalar = -progress * distNegM * dir;
+              } else {
+                const s = Math.sin(time * omega + phaseRad);
+                displacementScalar = (s >= 0 ? s * distPosM : s * distNegM) * dir;
+              }
               const displacement = axisVec.clone().multiplyScalar(displacementScalar);
               currentPos.add(displacement);
             }
@@ -718,6 +799,9 @@ export const CatamaranModel: React.FC<ModelProps> = ({
 
         node.mesh.position.copy(currentPos);
         node.mesh.quaternion.copy(currentQuat);
+        node.mesh.userData.currentCom = basePos.clone().add(
+          node.centerOfMass.clone().sub(node.initialPos).applyQuaternion(accumulatedDeltaQuat)
+        );
 
         const deltaPos = currentPos.clone().sub(node.initialPos);
         const deltaQuat = currentQuat.clone().multiply(node.initialQuat.clone().invert());

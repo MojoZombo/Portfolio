@@ -6,6 +6,7 @@ import { createToonGradientMap } from '../materials';
 import { useTheme } from '../../context/ThemeContext';
 import { useTransformCalibration, PartColorInfo, PartAnimationConfig } from '../../context/TransformCalibrationContext';
 import { CADPivotGizmo } from '../CADPivotGizmo';
+import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes } from '../../utils/meshSplitter';
 
 interface ModelProps {
   isActive?: boolean;
@@ -27,8 +28,8 @@ const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Underwater Robot
 const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
-const DEFAULT_ROTATION_DEG: [number, number, number] = [0.0, 0.0, 0.0];
-const DEFAULT_SCALE = 5.50;
+const DEFAULT_ROTATION_DEG: [number, number, number] = [0.0, -59.5, 0.0];
+const DEFAULT_SCALE = 1.00;
 
 // Default Part Colors for Underwater Robot
 const DEFAULT_PART_COLORS: Record<number, string> = {
@@ -38,6 +39,7 @@ const DEFAULT_PART_COLORS: Record<number, string> = {
   3: '#64748b', // Mesh_8_1
   4: '#64748b', // Mesh_8_2
   11: '#003262', // Mesh_46
+  12: '#003262', // Mesh_46_1
   13: '#FDB515', // Mesh_49
   14: '#FDB515', // Mesh_49_1
   16: '#cbd5e1', // Mesh_36_1
@@ -49,7 +51,7 @@ const DEFAULT_PART_COLORS: Record<number, string> = {
   25: '#64748b', // Mesh_37_5
   26: '#64748b', // Mesh_37_6
   27: '#64748b', // Mesh_37_7
-  28: '#003262', // Dynamic_Gripper-1
+  28: '#003262', // Dynamic_Gripper-1 (Body A)
   29: '#64748b', // M200_Motor-1
   30: '#64748b', // Mesh_15
   31: '#64748b', // Mesh_15_1
@@ -57,10 +59,106 @@ const DEFAULT_PART_COLORS: Record<number, string> = {
   33: '#475569', // CameraMountFront_-_Radial-1
   35: '#3f5b88', // Mesh_4
   37: '#FDB515', // VerticalDoubleThruster-2
+  38: '#003262', // Dynamic_Gripper-1 (Body B)
+  39: '#f8fafc', // Dynamic_Gripper-1 (Body C)
+  40: '#475569', // Dynamic_Gripper-1 (Body D)
+  41: '#059669', // Dynamic_Gripper-1 (Body E)
+  42: '#dc2626', // Dynamic_Gripper-1 (Body F)
+  43: '#f8fafc', // Dynamic_Gripper-1 (Body G)
+  44: '#475569', // Dynamic_Gripper-1 (Body H)
+  45: '#059669', // Dynamic_Gripper-1 (Body I)
+  46: '#dc2626', // Dynamic_Gripper-1 (Body J)
 };
 
-// Default Kinematics Animations
-const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {};
+// Hidden Parts:
+const DEFAULT_PART_VISIBILITY: Record<number, boolean> = {
+  39: false, // Dynamic_Gripper-1_(Body_C)
+  40: false, // Dynamic_Gripper-1_(Body_D)
+  41: false, // Dynamic_Gripper-1_(Body_E)
+  42: false, // Dynamic_Gripper-1_(Body_F)
+  43: false, // Dynamic_Gripper-1_(Body_G)
+  44: false, // Dynamic_Gripper-1_(Body_H)
+  45: false, // Dynamic_Gripper-1_(Body_I)
+  46: false, // Dynamic_Gripper-1_(Body_J)
+};
+
+// Custom Part Animations:
+const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {
+  1: {
+    type: 'oscillate-rotation',
+    axis: 'y',
+    axisAlignment: 'model',
+    axisRotX: 0,
+    axisRotY: 0,
+    axisRotZ: 0,
+    direction: 1,
+    speed: 5,
+    amplitude: 35,
+    amplitudePositive: 10,
+    amplitudeNegative: 10,
+    phase: 0,
+    pivotMode: 'custom',
+    pivotX: 18,
+    pivotY: 0,
+    pivotZ: -7,
+  },
+  29: {
+    type: 'none',
+    axis: 'z',
+    axisAlignment: 'model',
+    axisRotX: 0,
+    axisRotY: 0,
+    axisRotZ: 0,
+    direction: 1,
+    speed: 60,
+    amplitude: 35,
+    amplitudePositive: 10,
+    amplitudeNegative: 10,
+    phase: 0,
+    pivotMode: 'center-of-mass',
+    pivotX: 0,
+    pivotY: 0,
+    pivotZ: 0,
+    parentPartIndex: 38,
+  },
+  30: {
+    type: 'oscillate-rotation',
+    axis: 'x',
+    axisAlignment: 'part',
+    axisRotX: 0,
+    axisRotY: 0,
+    axisRotZ: 0,
+    direction: -1,
+    speed: 5,
+    amplitude: 180,
+    amplitudePositive: 10,
+    amplitudeNegative: 10,
+    phase: 90,
+    pivotMode: 'center-of-mass',
+    pivotX: 0,
+    pivotY: 0,
+    pivotZ: 0,
+    parentPartIndex: 38,
+  },
+  38: {
+    type: 'linear-reciprocate',
+    axis: 'z',
+    axisAlignment: 'part',
+    axisRotX: 0,
+    axisRotY: 0,
+    axisRotZ: 0,
+    direction: 1,
+    speed: 5,
+    amplitude: 7,
+    amplitudePositive: 100,
+    amplitudeNegative: 0,
+    phase: 0,
+    pivotMode: 'center-of-mass',
+    pivotX: 0,
+    pivotY: 0,
+    pivotZ: 0,
+  },
+};
 
 // Shared global blueprint materials
 const darkBlueprintMat = new THREE.MeshBasicMaterial({
@@ -93,6 +191,46 @@ function buildMasterUnderwaterRobotPrototype(sourceScene: THREE.Group) {
   const activeEdgesList: THREE.EdgesGeometry[] = [];
   const partsInfo: PartColorInfo[] = [];
 
+  // Remove any grid/helper mesh or stray 4-vertex planes (e.g. Drei Grid plane)
+  const toRemove: THREE.Object3D[] = [];
+  template.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      const mesh = child as THREE.Mesh;
+      if (
+        !mesh.name ||
+        mesh.name === 'undefined' ||
+        mesh.name.includes('mesh_47') ||
+        mesh.name.includes('Grid') ||
+        mesh.name.includes('Helper') ||
+        mesh.name.includes('Gizmo') ||
+        (mesh.geometry?.attributes?.position?.count && mesh.geometry.attributes.position.count <= 4)
+      ) {
+        toRemove.push(mesh);
+      }
+    }
+  });
+  toRemove.forEach((mesh) => mesh.removeFromParent());
+
+  // Strip any serialized runtime keys from previous glTF export extras
+  template.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      const mesh = child as THREE.Mesh;
+      delete mesh.userData.geomCom;
+      delete mesh.userData.centerOfMass;
+      delete mesh.userData.initialPos;
+      delete mesh.userData.initialRot;
+      delete mesh.userData.initialQuat;
+      delete mesh.userData.initialScale;
+      delete mesh.userData.restingCom;
+      delete mesh.userData.restingPos;
+      delete mesh.userData.parentDeltaQuat;
+      delete mesh.userData.currentCom;
+      delete mesh.userData.hingePivot;
+      delete mesh.userData.hingeAxis;
+      delete mesh.userData.hasOwnKinematics;
+    }
+  });
+
   // Flatten hierarchy to root template to avoid local-coordinate nesting issues
   const meshesToFlatten: THREE.Mesh[] = [];
   template.traverse((child) => {
@@ -105,6 +243,8 @@ function buildMasterUnderwaterRobotPrototype(sourceScene: THREE.Group) {
     template.updateWorldMatrix(true, false);
     template.attach(mesh);
   });
+
+  splitAllMultiMaterialMeshes(template);
 
   template.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
@@ -175,8 +315,8 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
     settings,
   } = useTransformCalibration();
 
-  // Load the CAD assembly from public/models/UnderwaterRobot.glb
-  const { scene } = useGLTF('./models/UnderwaterRobot.glb');
+  // Load the CAD assembly from public/models/underwater-robot-split.glb
+  const { scene } = useGLTF('./models/underwater-robot-split.glb');
 
   // Exact matching blueprint colors
   const blueprintLineColor = isDark ? '#94A8C4' : '#1E293B';
@@ -197,6 +337,7 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
         scale: DEFAULT_SCALE,
         parts: masterUnderwaterRobotPrototype.partsInfo,
         defaultColors: DEFAULT_PART_COLORS,
+        defaultVisibility: DEFAULT_PART_VISIBILITY,
         defaultAnimations: DEFAULT_PART_ANIMATIONS,
       });
     }
@@ -319,14 +460,18 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
     centeredScene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
-        if (!mesh.geometry.boundingBox) {
-          mesh.geometry.computeBoundingBox();
-        }
-        const geomCom = mesh.geometry.boundingBox
-          ? mesh.geometry.boundingBox.getCenter(new THREE.Vector3())
-          : new THREE.Vector3();
+        const geomCom = computeGeometryCenterOfMass(mesh.geometry);
         const initQuat = mesh.quaternion.clone();
-        const com = mesh.position.clone().add(geomCom.clone().applyQuaternion(initQuat));
+        const scaledCom = geomCom.clone().multiply(mesh.scale);
+        const com = mesh.position.clone().add(scaledCom.applyQuaternion(initQuat));
+        mesh.userData.geomCom = geomCom;
+        mesh.userData.centerOfMass = com;
+        mesh.userData.hasOwnKinematics = true;
+        mesh.userData.initialPos = mesh.position.clone();
+        mesh.userData.initialRot = mesh.rotation.clone();
+        mesh.userData.initialQuat = initQuat;
+
+        const partIdx = mesh.userData.cadPartIndex !== undefined ? mesh.userData.cadPartIndex : idx;
 
         list.push({
           mesh,
@@ -334,7 +479,7 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
           initialRot: mesh.rotation.clone(),
           initialQuat: initQuat,
           centerOfMass: com,
-          index: idx,
+          index: partIdx,
         });
         idx++;
       }
@@ -364,9 +509,11 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
 
     let partRunningIndex = 0;
     toonMaterialsMap.forEach((toonMatOrArray, mesh) => {
+      let isMeshVisible = true;
       if (isShaded) {
         if (Array.isArray(toonMatOrArray)) {
           mesh.material = toonMatOrArray;
+          let anySubVisible = false;
           toonMatOrArray.forEach((tm) => {
             const currentPartIdx = partRunningIndex++;
             const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
@@ -374,9 +521,16 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
               ? settings.colorOverrides[currentPartIdx]
               : (DEFAULT_PART_COLORS[currentPartIdx] || '#cbd5e1');
 
+            const isPartVisible = isModelCalibrating
+              ? settings.visibilityOverrides?.[currentPartIdx] !== false
+              : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+
+            if (isPartVisible) anySubVisible = true;
+            tm.visible = isPartVisible;
             tm.color.set(isPartSelected ? '#38bdf8' : overrideHex);
             tm.emissive.set(isPartSelected ? '#0284c7' : '#000000');
           });
+          isMeshVisible = anySubVisible;
         } else {
           const currentPartIdx = partRunningIndex++;
           const isPartSelected = isModelCalibrating && selectedPartIndex === currentPartIdx;
@@ -384,19 +538,38 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
             ? settings.colorOverrides[currentPartIdx]
             : (DEFAULT_PART_COLORS[currentPartIdx] || '#cbd5e1');
 
+          const isPartVisible = isModelCalibrating
+            ? settings.visibilityOverrides?.[currentPartIdx] !== false
+            : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+
+          isMeshVisible = isPartVisible;
           mesh.material = toonMatOrArray;
+          toonMatOrArray.visible = isPartVisible;
           toonMatOrArray.color.set(isPartSelected ? '#38bdf8' : overrideHex);
           toonMatOrArray.emissive.set(isPartSelected ? '#0284c7' : '#000000');
         }
       } else {
         if (Array.isArray(toonMatOrArray)) {
-          mesh.material = toonMatOrArray.map(() => bpMat);
-          partRunningIndex += toonMatOrArray.length;
+          let anySubVisible = false;
+          mesh.material = toonMatOrArray.map(() => {
+            const currentPartIdx = partRunningIndex++;
+            const isPartVisible = isModelCalibrating
+              ? settings.visibilityOverrides?.[currentPartIdx] !== false
+              : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+            if (isPartVisible) anySubVisible = true;
+            return bpMat;
+          });
+          isMeshVisible = anySubVisible;
         } else {
+          const currentPartIdx = partRunningIndex++;
+          const isPartVisible = isModelCalibrating
+            ? settings.visibilityOverrides?.[currentPartIdx] !== false
+            : DEFAULT_PART_VISIBILITY[currentPartIdx] !== false;
+          isMeshVisible = isPartVisible;
           mesh.material = bpMat;
-          partRunningIndex += 1;
         }
       }
+      mesh.visible = isMeshVisible;
     });
   }, [
     centeredScene,
@@ -410,15 +583,14 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
     blueprintLineColor,
     celOutlineColor,
     isModelCalibrating ? settings.colorOverrides : null,
+    isModelCalibrating ? settings.visibilityOverrides : null,
   ]);
 
   // Frame loop
   const localTimeRef = useRef(0);
 
-  useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
-    if (isAnimating) {
-      localTimeRef.current += delta;
-    }
+  useFrame((_state, delta) => {
+    delta = Math.min(delta, 0.035);
     // Always apply transform calibration directly to pivot
     if (pivotRef.current) {
       const offsetX = isModelCalibrating ? settings.offsetX : DEFAULT_OFFSET[0];
@@ -451,7 +623,7 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
     }
 
     // Auto rotate parent with smooth acceleration from 0 RPM
-    const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.6;
+    const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.2;
     const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed : 0);
     currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
 
@@ -463,78 +635,213 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
       }
     }
 
-    const time = localTimeRef.current;
-    if (isAnimating && meshNodesRef.current.length > 0) {
-      meshNodesRef.current.forEach((node) => {
-        const anim = isModelCalibrating
+    const isPlaying = isModelCalibrating ? (isAnimating ?? true) : (isActive && isAnimating);
+    if (isPlaying) {
+      localTimeRef.current += Math.min(delta, 0.035);
+    }
+    const time = isPlaying ? localTimeRef.current : 0;
+
+    if (meshNodesRef.current.length > 0) {
+      const computedTransforms = new Map<
+        number,
+        { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion }
+      >();
+
+      const nodeMap = new Map<number, MeshNodeInfo>();
+      meshNodesRef.current.forEach((n) => nodeMap.set(n.index, n));
+
+      const solveKinematics = (
+        partIdx: number,
+        visited = new Set<number>()
+      ): { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion } | null => {
+        if (computedTransforms.has(partIdx)) {
+          return computedTransforms.get(partIdx)!;
+        }
+        if (visited.has(partIdx)) {
+          const n = nodeMap.get(partIdx);
+          if (!n) return null;
+          return {
+            pos: n.initialPos.clone(),
+            quat: n.initialQuat.clone(),
+            deltaPos: new THREE.Vector3(),
+            deltaQuat: new THREE.Quaternion(),
+          };
+        }
+        visited.add(partIdx);
+
+        const node = nodeMap.get(partIdx);
+        if (!node) return null;
+
+        const anim: PartAnimationConfig | undefined = isModelCalibrating
           ? (settings.animationOverrides[node.index] || DEFAULT_PART_ANIMATIONS[node.index])
           : DEFAULT_PART_ANIMATIONS[node.index];
 
-        if (!anim || anim.type === 'none') {
-          node.mesh.position.copy(node.initialPos);
-          node.mesh.rotation.copy(node.initialRot);
-          return;
+        const parentIdx = anim?.parentPartIndex;
+        let basePos = node.initialPos.clone();
+        let baseQuat = node.initialQuat.clone();
+        let parentDeltaQuat = new THREE.Quaternion();
+
+        if (parentIdx !== undefined && parentIdx !== null && parentIdx !== partIdx && nodeMap.has(parentIdx)) {
+          const parentResult = solveKinematics(parentIdx, visited);
+          const parentNode = nodeMap.get(parentIdx);
+          if (parentResult && parentNode) {
+            parentDeltaQuat = parentResult.deltaQuat;
+            const relOffset = node.initialPos.clone().sub(parentNode.initialPos);
+            basePos = parentResult.pos.clone().add(relOffset.clone().applyQuaternion(parentDeltaQuat));
+            baseQuat = parentDeltaQuat.clone().multiply(node.initialQuat);
+          }
         }
 
-        const phaseRad = (anim.phase * Math.PI) / 180;
-        const axisVec = new THREE.Vector3(
-          anim.axis === 'x' ? 1 : 0,
-          anim.axis === 'y' ? 1 : 0,
-          anim.axis === 'z' ? 1 : 0
+        let currentPos = basePos.clone();
+        let currentQuat = baseQuat.clone();
+        let accumulatedDeltaQuat = parentDeltaQuat.clone();
+
+        const restingCom = basePos.clone().add(
+          node.centerOfMass.clone().sub(node.initialPos).applyQuaternion(parentDeltaQuat)
         );
-        const dir = anim.direction ?? 1;
-        const omega = (anim.speed * Math.PI * 2) / 60;
+        node.mesh.userData.restingCom = restingCom;
+        node.mesh.userData.restingPos = basePos.clone();
+        node.mesh.userData.parentDeltaQuat = parentDeltaQuat.clone();
 
-        const pivotMode = anim.pivotMode || 'center-of-mass';
-        let pivot = node.centerOfMass.clone();
+        if (anim && anim.type !== 'none') {
+          const applyAnim = (animConfig: any) => {
+            if (!animConfig || animConfig.type === 'none') return;
+            if (animConfig.type === 'multi' && Array.isArray(animConfig.subAnimations)) {
+              animConfig.subAnimations.forEach(applyAnim);
+              return;
+            }
 
-        if (pivotMode === 'origin') {
-          pivot.set(0, 0, 0);
-        } else if (pivotMode === 'custom') {
-          pivot.add(
-            new THREE.Vector3(
-              (anim.pivotX || 0) / 100,
-              (anim.pivotY || 0) / 100,
-              (anim.pivotZ || 0) / 100
-            )
-          );
+            const phaseRad = ((animConfig.phase || 0) * Math.PI) / 180;
+            const rotXRad = ((animConfig.axisRotX || 0) * Math.PI) / 180;
+            const rotYRad = ((animConfig.axisRotY || 0) * Math.PI) / 180;
+            const rotZRad = ((animConfig.axisRotZ || 0) * Math.PI) / 180;
+            const customAxisQuat = new THREE.Quaternion().setFromEuler(
+              new THREE.Euler(rotXRad, rotYRad, rotZRad, 'XYZ')
+            );
+
+            const rawAxis = new THREE.Vector3(
+              animConfig.axis === 'x' ? 1 : 0,
+              animConfig.axis === 'y' ? 1 : 0,
+              animConfig.axis === 'z' ? 1 : 0
+            );
+            const orientedAxis = rawAxis.clone().applyQuaternion(customAxisQuat);
+            const alignment = animConfig.axisAlignment || 'model';
+            const parentWorldQuat = new THREE.Quaternion();
+            if (node.mesh.parent) {
+              node.mesh.parent.getWorldQuaternion(parentWorldQuat);
+            }
+
+            let axisVec: THREE.Vector3;
+            let pivotOffset: THREE.Vector3;
+
+            const rawPivotOffset = new THREE.Vector3(
+              (animConfig.pivotX || 0) / 100,
+              (animConfig.pivotY || 0) / 100,
+              (animConfig.pivotZ || 0) / 100
+            );
+
+            if (alignment === 'global') {
+              axisVec = orientedAxis.clone().applyQuaternion(parentWorldQuat.clone().invert());
+              pivotOffset = rawPivotOffset.clone().applyQuaternion(parentWorldQuat.clone().invert());
+            } else if (alignment === 'part') {
+              axisVec = orientedAxis.clone().applyQuaternion(baseQuat);
+              pivotOffset = rawPivotOffset.clone().applyQuaternion(baseQuat);
+            } else {
+              // 'model': Calibrated model frame (matches mesh.parent coordinate frame)
+              axisVec = orientedAxis.clone().applyQuaternion(accumulatedDeltaQuat);
+              pivotOffset = rawPivotOffset.clone().applyQuaternion(accumulatedDeltaQuat);
+            }
+
+            const dir = animConfig.direction ?? 1;
+            const omega = ((animConfig.speed || 0) * Math.PI * 2) / 60;
+
+            if (animConfig.type === 'continuous-spin' || animConfig.type === 'oscillate-rotation') {
+              const pivotMode = animConfig.pivotMode || 'center-of-mass';
+              let pivot = basePos.clone().add(
+                node.centerOfMass.clone().sub(node.initialPos).applyQuaternion(accumulatedDeltaQuat)
+              );
+
+              const translationDelta = currentPos.clone().sub(basePos);
+              pivot.add(translationDelta);
+
+              if (pivotMode === 'origin') {
+                pivot.copy(basePos).add(translationDelta);
+              } else if (pivotMode === 'custom') {
+                pivot.add(pivotOffset);
+              }
+
+              node.mesh.userData.hingePivot = pivot.clone();
+              node.mesh.userData.hingeAxis = axisVec.clone();
+
+              const angle =
+                animConfig.type === 'continuous-spin'
+                  ? time * omega * dir
+                  : Math.sin(time * omega + phaseRad) *
+                    (((animConfig.amplitude || 30) * Math.PI) / 180) *
+                    dir;
+
+              const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
+              currentQuat = qDelta.clone().multiply(currentQuat);
+              currentPos.sub(pivot).applyQuaternion(qDelta).add(pivot);
+              accumulatedDeltaQuat = qDelta.clone().multiply(accumulatedDeltaQuat);
+            } else if (animConfig.type === 'linear-reciprocate') {
+              const distPosM = ((animConfig.amplitudePositive !== undefined ? animConfig.amplitudePositive : (animConfig.amplitude || 10)) / 100);
+              const distNegM = ((animConfig.amplitudeNegative !== undefined ? animConfig.amplitudeNegative : (animConfig.amplitude || 10)) / 100);
+              let displacementScalar = 0;
+              if (isPlaying) {
+                if (distNegM === 0) {
+                  const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
+                  displacementScalar = progress * distPosM * dir;
+                } else if (distPosM === 0) {
+                  const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
+                  displacementScalar = -progress * distNegM * dir;
+                } else {
+                  const s = Math.sin(time * omega + phaseRad);
+                  displacementScalar = (s >= 0 ? s * distPosM : s * distNegM) * dir;
+                }
+              }
+              const displacement = axisVec.clone().multiplyScalar(displacementScalar);
+              currentPos.add(displacement);
+            }
+          };
+
+          applyAnim(anim);
         }
 
-        if (anim.type === 'continuous-spin' || anim.type === 'oscillate-rotation') {
-          const angle =
-            anim.type === 'continuous-spin'
-              ? time * omega * dir
-              : Math.sin(time * omega + phaseRad) *
-                (((anim.amplitude || 30) * Math.PI) / 180) *
-                dir;
+        node.mesh.position.copy(currentPos);
+        node.mesh.quaternion.copy(currentQuat);
+        node.mesh.userData.currentCom = basePos.clone().add(
+          node.centerOfMass.clone().sub(node.initialPos).applyQuaternion(accumulatedDeltaQuat)
+        );
 
-          const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
-          node.mesh.quaternion.copy(qDelta).multiply(node.initialQuat);
-          node.mesh.position
-            .copy(pivot)
-            .add(node.initialPos.clone().sub(pivot).applyQuaternion(qDelta));
-        } else if (anim.type === 'linear-reciprocate') {
-          node.mesh.quaternion.copy(node.initialQuat);
-          const distPosM = ((anim.amplitudePositive !== undefined ? anim.amplitudePositive : (anim.amplitude || 10)) / 100);
-          const distNegM = ((anim.amplitudeNegative !== undefined ? anim.amplitudeNegative : (anim.amplitude || 10)) / 100);
-          const centerM = (distPosM - distNegM) / 2;
-          const strokeHalfM = (distPosM + distNegM) / 2;
-          const displacementScalar = (centerM + Math.sin(time * omega + phaseRad) * strokeHalfM) * dir;
-          const displacement = axisVec
-            .clone()
-            .multiplyScalar(displacementScalar);
-          node.mesh.position.copy(node.initialPos).add(displacement);
-        }
+        const deltaPos = currentPos.clone().sub(node.initialPos);
+        const deltaQuat = currentQuat.clone().multiply(node.initialQuat.clone().invert());
+        const result = { pos: currentPos, quat: currentQuat, deltaPos, deltaQuat };
+        computedTransforms.set(partIdx, result);
+        return result;
+      };
+
+      nodeMap.forEach((_, pIdx) => {
+        solveKinematics(pIdx);
       });
     }
   });
 
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
-      {isModelCalibrating && settings.showGizmo && <CADPivotGizmo />}
+      {isModelCalibrating && settings.showGizmo && (
+        <CADPivotGizmo
+          position={[settings.offsetX, settings.offsetY, settings.offsetZ]}
+          rotation={[
+            (settings.rotX * Math.PI) / 180,
+            (settings.rotY * Math.PI) / 180,
+            (settings.rotZ * Math.PI) / 180,
+          ]}
+        />
+      )}
       <primitive object={centeredScene} />
     </group>
   );
 };
 
-useGLTF.preload('./models/UnderwaterRobot.glb');
+useGLTF.preload('./models/underwater-robot-split.glb');
