@@ -1,16 +1,19 @@
 /**
- * Mouse-Aware Radial Button Ripple Effect
+ * Mouse-Aware Radial Button Ripple Effect with Edge Projection & Debounce
  * 
- * - On mouseenter: Smoothly expands a circular clipPath from cursor entry point (startX, startY).
- * - On mouseleave:
- *   - If the animation hadn't fully finished covering the button yet:
- *     Reverses the animation back to where it started from its current radius.
- *   - If the animation had finished:
- *     Animates out towards where the mouse left the button (exitX, exitY).
+ * - Edge Projection: Ensures the animation always originates from and exits into
+ *   the true perimeter edge of the button (nearest to where the cursor entered/left),
+ *   never floating in the middle.
+ * - Intent Debounce: Ignores rapid mouse sweeps past buttons (< 50ms), preventing
+ *   accidental flickers.
+ * - Dynamic Exit:
+ *   - If aborted before fully covering (< 100%): smoothly reverses back to the entry edge point.
+ *   - If fully covered: animates out towards the exact exit edge point where the cursor crossed.
  */
 
 interface ActiveButtonAnimation {
   anim?: Animation;
+  debounceTimer?: ReturnType<typeof setTimeout> | null;
   startX: number;
   startY: number;
   endRadius: number;
@@ -19,26 +22,39 @@ interface ActiveButtonAnimation {
   isCovered: boolean;
 }
 
+/**
+ * Projects any cursor coordinate (x, y) to the nearest outer edge of the button rectangle.
+ */
+function projectToNearestEdge(x: number, y: number, width: number, height: number): { x: number; y: number } {
+  const clampedX = Math.max(0, Math.min(width, x));
+  const clampedY = Math.max(0, Math.min(height, y));
+
+  const dLeft = clampedX;
+  const dRight = width - clampedX;
+  const dTop = clampedY;
+  const dBottom = height - clampedY;
+
+  const minD = Math.min(dLeft, dRight, dTop, dBottom);
+
+  if (minD === dLeft) return { x: 0, y: clampedY };
+  if (minD === dRight) return { x: width, y: clampedY };
+  if (minD === dTop) return { x: clampedX, y: 0 };
+  return { x: clampedX, y: height };
+}
+
 export function initButtonRipple(): () => void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return () => {};
 
   const activeAnims = new WeakMap<HTMLElement, ActiveButtonAnimation>();
+  const DEBOUNCE_MS = 50;
   const ENTER_DURATION = 360;
   const EXIT_DURATION = 300;
 
-  const handleMouseEnter = (e: MouseEvent) => {
-    const target = e.target;
-    if (!(target instanceof HTMLElement)) return;
-    const btn = target.closest<HTMLElement>('.btn-ripple');
-    if (!btn || btn !== target) return;
-
-    btn.classList.add('is-hovered');
+  const startAnimation = (btn: HTMLElement, edgeX: number, edgeY: number) => {
     const rect = btn.getBoundingClientRect();
-    const startX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-    const startY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
     const endRadius = Math.hypot(
-      Math.max(startX, rect.width - startX),
-      Math.max(startY, rect.height - startY)
+      Math.max(edgeX, rect.width - edgeX),
+      Math.max(edgeY, rect.height - edgeY)
     );
 
     const prev = activeAnims.get(btn);
@@ -50,11 +66,13 @@ export function initButtonRipple(): () => void {
       }
     }
 
+    btn.classList.add('is-hovered');
+
     try {
       const enterAnim = btn.animate(
         [
-          { clipPath: `circle(0px at ${startX}px ${startY}px)`, opacity: 1 },
-          { clipPath: `circle(${endRadius}px at ${startX}px ${startY}px)`, opacity: 1 }
+          { clipPath: `circle(0px at ${edgeX}px ${edgeY}px)`, opacity: 1 },
+          { clipPath: `circle(${endRadius}px at ${edgeX}px ${edgeY}px)`, opacity: 1 }
         ],
         {
           duration: ENTER_DURATION,
@@ -66,8 +84,9 @@ export function initButtonRipple(): () => void {
 
       const animData: ActiveButtonAnimation = {
         anim: enterAnim,
-        startX,
-        startY,
+        debounceTimer: null,
+        startX: edgeX,
+        startY: edgeY,
         endRadius,
         startTime: performance.now(),
         duration: ENTER_DURATION,
@@ -80,8 +99,47 @@ export function initButtonRipple(): () => void {
 
       activeAnims.set(btn, animData);
     } catch {
-      // Fallback: browser doesn't support pseudoElement in animate
+      // Fallback
     }
+  };
+
+  const handleMouseEnter = (e: MouseEvent) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    const btn = target.closest<HTMLElement>('.btn-ripple');
+    if (!btn || btn !== target) return;
+
+    const rect = btn.getBoundingClientRect();
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+    const edge = projectToNearestEdge(rawX, rawY, rect.width, rect.height);
+
+    const prev = activeAnims.get(btn);
+    if (prev?.debounceTimer) {
+      clearTimeout(prev.debounceTimer);
+    }
+    if (prev?.anim) {
+      try {
+        prev.anim.cancel();
+      } catch {
+        // no-op
+      }
+    }
+
+    // Set debounce timer to filter out fast cursor passes
+    const debounceTimer = setTimeout(() => {
+      startAnimation(btn, edge.x, edge.y);
+    }, DEBOUNCE_MS);
+
+    activeAnims.set(btn, {
+      debounceTimer,
+      startX: edge.x,
+      startY: edge.y,
+      endRadius: 0,
+      startTime: 0,
+      duration: ENTER_DURATION,
+      isCovered: false
+    });
   };
 
   const handleMouseLeave = (e: MouseEvent) => {
@@ -90,12 +148,22 @@ export function initButtonRipple(): () => void {
     const btn = target.closest<HTMLElement>('.btn-ripple');
     if (!btn || btn !== target) return;
 
+    const data = activeAnims.get(btn);
+
+    // If mouse left before the debounce timer finished, abort completely with zero animation
+    if (data?.debounceTimer) {
+      clearTimeout(data.debounceTimer);
+      activeAnims.delete(btn);
+      btn.classList.remove('is-hovered');
+      return;
+    }
+
     btn.classList.remove('is-hovered');
 
-    const data = activeAnims.get(btn);
     const rect = btn.getBoundingClientRect();
-    const exitX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-    const exitY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+    const exitEdge = projectToNearestEdge(rawX, rawY, rect.width, rect.height);
 
     if (data?.anim) {
       try {
@@ -105,8 +173,8 @@ export function initButtonRipple(): () => void {
       }
     }
 
-    if (data && !data.isCovered) {
-      // Case A: hadn't fully finished covering yet -> reverse the animation from where it started!
+    if (data && !data.isCovered && data.startTime > 0) {
+      // Case A: hadn't fully finished covering yet -> reverse back to start edge point!
       const elapsed = performance.now() - data.startTime;
       const rawProgress = Math.min(1, Math.max(0.05, elapsed / data.duration));
       const easedProgress = Math.sin((rawProgress * Math.PI) / 2);
@@ -138,18 +206,18 @@ export function initButtonRipple(): () => void {
       } catch {
         activeAnims.delete(btn);
       }
-    } else {
-      // Case B: animation had finished -> animate out from where the mouse left the button!
+    } else if (data && data.isCovered) {
+      // Case B: animation had finished -> animate out towards the exit edge point!
       const maxRadius = Math.hypot(
-        Math.max(exitX, rect.width - exitX),
-        Math.max(exitY, rect.height - exitY)
+        Math.max(exitEdge.x, rect.width - exitEdge.x),
+        Math.max(exitEdge.y, rect.height - exitEdge.y)
       );
 
       try {
         const exitAnim = btn.animate(
           [
-            { clipPath: `circle(${maxRadius}px at ${exitX}px ${exitY}px)`, opacity: 1 },
-            { clipPath: `circle(0px at ${exitX}px ${exitY}px)`, opacity: 1 }
+            { clipPath: `circle(${maxRadius}px at ${exitEdge.x}px ${exitEdge.y}px)`, opacity: 1 },
+            { clipPath: `circle(0px at ${exitEdge.x}px ${exitEdge.y}px)`, opacity: 1 }
           ],
           {
             duration: EXIT_DURATION,
@@ -168,8 +236,8 @@ export function initButtonRipple(): () => void {
 
         activeAnims.set(btn, {
           anim: exitAnim,
-          startX: exitX,
-          startY: exitY,
+          startX: exitEdge.x,
+          startY: exitEdge.y,
           endRadius: maxRadius,
           startTime: performance.now(),
           duration: EXIT_DURATION,
@@ -178,14 +246,32 @@ export function initButtonRipple(): () => void {
       } catch {
         activeAnims.delete(btn);
       }
+    } else {
+      activeAnims.delete(btn);
+    }
+  };
+
+  // Immediate activation on pointerdown to ensure zero latency when clicking immediately
+  const handlePointerDown = (e: PointerEvent) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    const btn = target.closest<HTMLElement>('.btn-ripple');
+    if (!btn) return;
+
+    const data = activeAnims.get(btn);
+    if (data?.debounceTimer) {
+      clearTimeout(data.debounceTimer);
+      startAnimation(btn, data.startX, data.startY);
     }
   };
 
   document.addEventListener('mouseenter', handleMouseEnter, true);
   document.addEventListener('mouseleave', handleMouseLeave, true);
+  document.addEventListener('pointerdown', handlePointerDown, true);
 
   return () => {
     document.removeEventListener('mouseenter', handleMouseEnter, true);
     document.removeEventListener('mouseleave', handleMouseLeave, true);
+    document.removeEventListener('pointerdown', handlePointerDown, true);
   };
 }
