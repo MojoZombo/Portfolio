@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { Project } from '../types/project';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 
@@ -8,6 +8,9 @@ interface TimelineRulerProps {
 }
 
 export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId }) => {
+  const rulerRef = useRef<HTMLElement>(null);
+  const [isOverlapping, setIsOverlapping] = useState(false);
+  const [trackLeft, setTrackLeft] = useState(72);
   const targetProgress = useMotionValue(0);
   
   // High-performance spring interpolation with calibrated damping
@@ -19,6 +22,14 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
 
   const topPercent = useTransform(smoothProgress, (v: number) => `${Math.min(100, Math.max(0, v * 100))}%`);
   const offsetsRef = React.useRef<{ centerDocY: number }[]>([]);
+
+  // Calculate dynamic track position closer to center projects
+  const updateTrackPosition = useCallback(() => {
+    const width = window.innerWidth;
+    // On wide screens (>= 1440px): 72px; on standard desktop (1024-1439px): 56px; on tablet: 48px
+    const pos = width >= 1440 ? 72 : width >= 1024 ? 56 : 48;
+    setTrackLeft(pos);
+  }, []);
 
   // Cache absolute document centers on resize or DOM change (ZERO reflows during active scroll)
   const measureOffsets = useCallback(() => {
@@ -36,6 +47,46 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
     }
     offsetsRef.current = list;
   }, [projects]);
+
+  const checkOverlap = useCallback(() => {
+    const rulerEl = rulerRef.current;
+    if (!rulerEl) return;
+
+    const rulerRect = rulerEl.getBoundingClientRect();
+    if (rulerRect.width === 0 || rulerRect.height === 0) return;
+
+    // Buffer margin so ruler fades out cleanly before text directly touches it
+    const margin = 16;
+    const rulerTop = rulerRect.top - margin;
+    const rulerBottom = rulerRect.bottom + margin;
+    const rulerLeft = rulerRect.left - margin;
+    const rulerRight = rulerRect.right + margin;
+
+    // Text elements across header and main that could overlap with the timeline
+    const textEls = document.querySelectorAll(
+      'header p, header span, header a, main h2, main p, main span, main button, main a'
+    );
+
+    let overlap = false;
+    for (let i = 0; i < textEls.length; i++) {
+      const el = textEls[i] as HTMLElement;
+      if (!el.offsetParent && el.offsetWidth === 0 && el.offsetHeight === 0) continue;
+
+      const rect = el.getBoundingClientRect();
+      // Skip elements outside the vertical viewport
+      if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
+
+      const intersectsX = rect.left < rulerRight && rect.right > rulerLeft;
+      const intersectsY = rect.top < rulerBottom && rect.bottom > rulerTop;
+
+      if (intersectsX && intersectsY) {
+        overlap = true;
+        break;
+      }
+    }
+
+    setIsOverlapping(overlap);
+  }, []);
 
   const updateProgress = useCallback(() => {
     const n = projects.length;
@@ -82,29 +133,34 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
   useEffect(() => {
     let animationFrameId: number;
 
-    const handleScroll = () => {
+    const handleUpdate = () => {
       cancelAnimationFrame(animationFrameId);
-      animationFrameId = requestAnimationFrame(updateProgress);
+      animationFrameId = requestAnimationFrame(() => {
+        updateProgress();
+        checkOverlap();
+      });
     };
 
     const handleResize = () => {
+      updateTrackPosition();
       measureOffsets();
-      handleScroll();
+      handleUpdate();
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scroll', handleUpdate, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
     
-    // Initial measure after DOM settles
+    // Initial setup
+    updateTrackPosition();
     measureOffsets();
-    updateProgress();
+    handleUpdate();
 
     return () => {
       cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', handleUpdate);
       window.removeEventListener('resize', handleResize);
     };
-  }, [measureOffsets, updateProgress]);
+  }, [measureOffsets, updateProgress, checkOverlap, updateTrackPosition]);
 
   const scrollToProject = (id: string) => {
     const el = document.getElementById(`project-${id}`);
@@ -122,24 +178,35 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
   };
 
   return (
-    <aside className="fixed left-0 top-28 bottom-16 w-24 z-20 hidden md:flex flex-col justify-between select-none pointer-events-none font-mono text-[10px]">
-      {/* Dynamic Vertical Ruler Track (Positioned on exact 48px grid column) */}
+    <aside
+      ref={rulerRef}
+      className={`fixed left-0 top-36 md:top-40 bottom-16 w-36 z-20 hidden md:flex flex-col justify-between select-none pointer-events-none font-mono text-[10px] transition-opacity duration-300 ease-out ${
+        isOverlapping ? 'opacity-0 pointer-events-none' : 'opacity-100'
+      }`}
+    >
+      {/* Dynamic Vertical Ruler Track - Positioned closer to center projects */}
       <div className="relative h-full w-full py-2">
-        {/* Track Line Container (exact 48px grid alignment, 1px width) */}
-        <div className="absolute left-[48px] -translate-x-1/2 top-2 bottom-2 w-[1px] bg-slate-200 dark:bg-slate-800" />
+        {/* Track Line Container (1px width, smooth spring indicator) */}
+        <div
+          className="absolute -translate-x-1/2 top-2 bottom-2 w-[1px] bg-slate-200 dark:bg-slate-800 transition-all duration-300"
+          style={{ left: `${trackLeft}px` }}
+        />
 
         {/* Dynamic Smooth Spring Cursor Indicator Dot */}
         <div className="absolute left-0 right-0 top-2 bottom-2 pointer-events-none">
           <motion.div
-            className="absolute left-[48px] -translate-x-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20"
-            style={{ top: topPercent }}
+            className="absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20"
+            style={{ left: `${trackLeft}px`, top: topPercent }}
           >
             <div className="w-2 h-2 rounded-full bg-blue-600 dark:bg-slate-200 ring-2 ring-white dark:ring-slate-900 transition-colors" />
           </motion.div>
         </div>
 
         {/* Date Milestones along the Ruler */}
-        <div className="relative z-10 w-full h-full flex flex-col justify-between pointer-events-auto pl-[58px]">
+        <div
+          className="relative z-10 w-full h-full flex flex-col justify-between pointer-events-auto transition-all duration-300"
+          style={{ paddingLeft: `${trackLeft + 10}px` }}
+        >
           {projects.map((project) => {
             const isActive = project.id === activeId;
             const { month, year } = formatRulerDate(project.date);
