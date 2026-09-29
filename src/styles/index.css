@@ -45,6 +45,53 @@
   z-index: 9999;
 }
 
+/* Mouse-Aware Radial Button Ripple Effect */
+.btn-ripple {
+  position: relative !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+}
+
+.btn-ripple::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: #2563eb;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  clip-path: circle(0px at 0 0);
+}
+
+html.dark .btn-ripple::before,
+.dark .btn-ripple::before {
+  background-color: #3b82f6;
+}
+
+.btn-ripple > * {
+  position: relative;
+  z-index: 2;
+  transition: color 200ms ease;
+}
+
+.btn-ripple:hover,
+.btn-ripple.is-hovered {
+  color: #ffffff !important;
+}
+
+.btn-ripple:hover *,
+.btn-ripple.is-hovered * {
+  color: #ffffff !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-ripple:hover::before {
+    clip-path: none !important;
+    opacity: 1 !important;
+  }
+}
+
 /* Custom subtle scrollbar */
 ::-webkit-scrollbar {
   width: 5px;

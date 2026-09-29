@@ -57,7 +57,7 @@ export const Header: React.FC = () => {
               onClick={() => {
                 window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-slate-900 hover:bg-blue-600 text-white dark:bg-slate-100 dark:hover:bg-blue-500 dark:text-slate-900 dark:hover:text-white font-medium cursor-pointer"
+              className="btn-ripple inline-flex items-center gap-1.5 px-3 py-2 rounded bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-medium cursor-pointer"
             >
               <FileText size={13} />
               <span>Resume</span>
@@ -65,7 +65,7 @@ export const Header: React.FC = () => {
 
             <button
               onClick={toggleTheme}
-              className="p-2 rounded bg-slate-200 hover:bg-blue-600 text-slate-900 hover:text-white dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer"
+              className="btn-ripple p-2 rounded bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
               title="Toggle Light / Dark Mode"
             >
               {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}

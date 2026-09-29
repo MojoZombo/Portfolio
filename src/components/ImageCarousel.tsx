@@ -62,7 +62,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
                 e.stopPropagation();
                 prevSlide();
               }}
-              className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white hover:bg-blue-600 hover:text-white text-slate-700 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer z-10"
+              className="btn-ripple absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer z-10"
               aria-label="Previous Image"
             >
               <ChevronLeft size={16} />
@@ -72,7 +72,7 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
                 e.stopPropagation();
                 nextSlide();
               }}
-              className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white hover:bg-blue-600 hover:text-white text-slate-700 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer z-10"
+              className="btn-ripple absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200 cursor-pointer z-10"
               aria-label="Next Image"
             >
               <ChevronRight size={16} />

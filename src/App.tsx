@@ -11,8 +11,12 @@ import { ResumeModal } from './components/ResumeModal';
 import { projectsData } from './data/projectsData';
 import { Project } from './types/project';
 import { ExternalLink, Cpu, Camera } from 'lucide-react';
+import { initButtonRipple } from './utils/buttonRipple';
 
 export const App: React.FC = () => {
+  useEffect(() => {
+    return initButtonRipple();
+  }, []);
   const [selectedProject, setSelectedProject] = useState<Project | null>(() => {
     const rawHash = window.location.hash.replace(/^#\/?/, '');
     if (rawHash && rawHash !== 'resume' && rawHash !== 'studio' && rawHash !== 'baker') {

@@ -99,7 +99,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                     href={project.projectWebsiteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-800 dark:hover:bg-blue-500 dark:hover:text-white dark:text-slate-200 cursor-pointer"
+                    className="btn-ripple hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
                   >
                     <span>Project Webpage</span>
                     <ExternalLink size={12} />
@@ -107,7 +107,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                 )}
                 <button
                   onClick={onClose}
-                  className="w-8 h-8 p-0 flex items-center justify-center rounded text-slate-500 hover:text-white dark:text-slate-400 dark:hover:text-white hover:bg-blue-600 dark:hover:bg-blue-500 cursor-pointer"
+                  className="btn-ripple w-8 h-8 p-0 flex items-center justify-center rounded text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 cursor-pointer"
                   aria-label="Close modal"
                 >
                   <svg
@@ -138,7 +138,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                   <button
                     type="button"
                     onClick={() => setIs3DFullscreen(true)}
-                    className="group flex items-center gap-1.5 px-3 py-1.5 rounded bg-white hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-900 dark:hover:bg-blue-500 dark:hover:text-white dark:text-slate-200 text-xs font-mono font-medium pointer-events-auto cursor-pointer"
+                    className="btn-ripple group flex items-center gap-1.5 px-3 py-1.5 rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 text-xs font-mono font-medium pointer-events-auto cursor-pointer"
                     title="Open Fullscreen 3D Model Inspector"
                   >
                     <Maximize2 size={13} className="text-blue-600 dark:text-blue-400 group-hover:text-white" />
@@ -537,7 +537,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                 <button
                   type="button"
                   onClick={() => setIs3DFullscreen(false)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono font-medium text-slate-700 bg-white hover:bg-blue-600 hover:text-white dark:text-slate-200 dark:bg-slate-900/90 dark:hover:bg-blue-500 dark:hover:text-white cursor-pointer"
+                  className="btn-ripple inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono font-medium text-slate-700 bg-white dark:text-slate-200 dark:bg-slate-900/90 cursor-pointer"
                 >
                   <Minimize2 size={13} className="text-blue-500 dark:text-blue-400" />
                   <span>Exit Fullscreen</span>

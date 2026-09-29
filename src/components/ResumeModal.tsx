@@ -63,7 +63,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
               <a
                 href="./Jaden_Fann_Resume.pdf"
                 download="Jaden_Fann_Resume.pdf"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer"
+                className="btn-ripple inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
               >
                 <span>Download</span>
                 <Download size={12} />
@@ -72,14 +72,14 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => 
                 href="./Jaden_Fann_Resume.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-800 dark:bg-slate-800 dark:hover:bg-blue-500 dark:text-slate-200 dark:hover:text-white cursor-pointer"
+                className="btn-ripple inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
               >
                 <span>Open PDF</span>
                 <ExternalLink size={12} />
               </a>
               <button
                 onClick={onClose}
-                className="w-8 h-8 p-0 flex items-center justify-center rounded text-slate-500 hover:text-white dark:text-slate-400 dark:hover:text-white hover:bg-blue-600 dark:hover:bg-blue-500 cursor-pointer"
+                className="btn-ripple w-8 h-8 p-0 flex items-center justify-center rounded text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 cursor-pointer"
                 aria-label="Close modal"
               >
                 <svg
