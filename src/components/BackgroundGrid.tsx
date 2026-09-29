@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
 
@@ -144,6 +144,55 @@ export const BackgroundGrid: React.FC = () => {
     };
   }, [theme]);
 
+  // Generate high-resolution tactile static / dither grain texture tile
+  const grainDataUrl = useMemo(() => {
+    if (typeof document === 'undefined') return '';
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '';
+    const imgData = ctx.createImageData(128, 128);
+    const d = imgData.data;
+    const isDark = theme === 'dark';
+
+    for (let i = 0; i < d.length; i += 4) {
+      const rand = Math.random();
+      if (rand < 0.22) {
+        if (isDark) {
+          // Subtle phosphor & slate CRT static
+          d[i] = 148;
+          d[i + 1] = 163;
+          d[i + 2] = 184;
+          d[i + 3] = Math.floor(Math.random() * 85 + 35);
+        } else {
+          // Fine drafting ink / graphite paper dither
+          d[i] = 15;
+          d[i + 1] = 23;
+          d[i + 2] = 42;
+          d[i + 3] = Math.floor(Math.random() * 75 + 30);
+        }
+      } else if (rand < 0.32) {
+        // Subtle secondary electric / highlight speckle
+        if (isDark) {
+          d[i] = 56;
+          d[i + 1] = 189;
+          d[i + 2] = 248; // cyan CAD glow
+          d[i + 3] = Math.floor(Math.random() * 70 + 20);
+        } else {
+          d[i] = 51;
+          d[i + 1] = 65;
+          d[i + 2] = 85;
+          d[i + 3] = Math.floor(Math.random() * 55 + 20);
+        }
+      } else {
+        d[i + 3] = 0;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    return canvas.toDataURL();
+  }, [theme]);
+
   // Dynamic animation transition:
   // When scrolling: responsive 0.35s ease-out to animatedly expand and move away
   // When stopping: silky 1.15s gentle ease-out to slowly glide back into place
@@ -193,7 +242,32 @@ export const BackgroundGrid: React.FC = () => {
         }}
       />
 
-      {/* 3. Perimeter Edge Fades:
+      {/* 3. Staticky Dither / Film Grain Vignette Edge:
+          - Sits right along the transition boundary of the vignette
+          - Gives the perimeter a tactile, staticky, dithered dissolve
+          - Moves away dynamically on scroll, then softly glides back in
+      */}
+      {grainDataUrl && (
+        <motion.div
+          initial={false}
+          animate={{
+            scale: isScrolling ? 1.22 : 1.0,
+            opacity: isScrolling ? 0.30 : 0.65,
+          }}
+          transition={transition}
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url(${grainDataUrl})`,
+            backgroundRepeat: 'repeat',
+            maskImage:
+              'radial-gradient(ellipse 76% 70% at 50% 50%, transparent 40%, rgba(0,0,0,0.55) 65%, black 86%, transparent 100%)',
+            WebkitMaskImage:
+              'radial-gradient(ellipse 76% 70% at 50% 50%, transparent 40%, rgba(0,0,0,0.55) 65%, black 86%, transparent 100%)',
+          }}
+        />
+      )}
+
+      {/* 4. Perimeter Edge Fades:
           - Dynamically move outward away from the viewport edges during scroll
           - Slowly glide back in when scroll ceases
       */}
