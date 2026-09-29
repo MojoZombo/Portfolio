@@ -205,7 +205,7 @@ export const BackgroundGrid: React.FC = () => {
           opacity: isScrolling ? 0.35 : 1,
         }}
         transition={transition}
-        className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-slate-50 dark:from-[#141C28] via-slate-50/70 dark:via-[#141C28]/70 to-transparent pointer-events-none transition-colors duration-300"
+        className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-slate-50 dark:from-[#141C28] via-slate-50/70 dark:via-[#141C28]/70 to-transparent pointer-events-none"
       />
       {/* Bottom Edge Fade */}
       <motion.div
@@ -215,7 +215,7 @@ export const BackgroundGrid: React.FC = () => {
           opacity: isScrolling ? 0.35 : 1,
         }}
         transition={transition}
-        className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-slate-50 dark:from-[#141C28] via-slate-50/70 dark:via-[#141C28]/70 to-transparent pointer-events-none transition-colors duration-300"
+        className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-slate-50 dark:from-[#141C28] via-slate-50/70 dark:via-[#141C28]/70 to-transparent pointer-events-none"
       />
       {/* Left Edge Fade */}
       <motion.div
@@ -225,7 +225,7 @@ export const BackgroundGrid: React.FC = () => {
           opacity: isScrolling ? 0.35 : 1,
         }}
         transition={transition}
-        className="absolute inset-y-0 left-0 w-24 sm:w-32 bg-gradient-to-r from-slate-50 dark:from-[#141C28] to-transparent pointer-events-none transition-colors duration-300"
+        className="absolute inset-y-0 left-0 w-24 sm:w-32 bg-gradient-to-r from-slate-50 dark:from-[#141C28] to-transparent pointer-events-none"
       />
       {/* Right Edge Fade */}
       <motion.div
@@ -235,7 +235,7 @@ export const BackgroundGrid: React.FC = () => {
           opacity: isScrolling ? 0.35 : 1,
         }}
         transition={transition}
-        className="absolute inset-y-0 right-0 w-24 sm:w-32 bg-gradient-to-l from-slate-50 dark:from-[#141C28] to-transparent pointer-events-none transition-colors duration-300"
+        className="absolute inset-y-0 right-0 w-24 sm:w-32 bg-gradient-to-l from-slate-50 dark:from-[#141C28] to-transparent pointer-events-none"
       />
     </div>
   );
