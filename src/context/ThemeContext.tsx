@@ -12,8 +12,8 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem('cad-theme');
-    return (saved === 'light' || saved === 'dark') ? saved : 'dark';
+    const saved = localStorage.getItem('cad-theme-v2');
+    return (saved === 'light' || saved === 'dark') ? saved : 'light';
   });
 
   useEffect(() => {
@@ -30,6 +30,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     root.style.backgroundColor = '';
     document.body.style.backgroundColor = '';
     
+    localStorage.setItem('cad-theme-v2', theme);
     localStorage.setItem('cad-theme', theme);
   }, [theme]);
 

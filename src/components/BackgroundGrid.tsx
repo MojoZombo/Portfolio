@@ -69,29 +69,6 @@ export const BackgroundGrid: React.FC = () => {
         ctx.lineTo(width, y);
       }
       ctx.stroke();
-
-      // Soft Radial Vignette Fade at the screen edges
-      const gradient = ctx.createRadialGradient(
-        width / 2,
-        height / 2,
-        Math.min(width, height) * 0.35,
-        width / 2,
-        height / 2,
-        Math.max(width, height) * 0.8
-      );
-
-      if (isDark) {
-        gradient.addColorStop(0, 'rgba(20, 28, 40, 0)');
-        gradient.addColorStop(0.7, 'rgba(20, 28, 40, 0.35)');
-        gradient.addColorStop(1, 'rgba(20, 28, 40, 0.95)');
-      } else {
-        gradient.addColorStop(0, 'rgba(248, 250, 252, 0)');
-        gradient.addColorStop(0.7, 'rgba(248, 250, 252, 0.35)');
-        gradient.addColorStop(1, 'rgba(248, 250, 252, 0.95)');
-      }
-
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
     };
 
     const handleScroll = () => {
@@ -135,11 +112,33 @@ export const BackgroundGrid: React.FC = () => {
   }, [theme]);
 
   return (
-    <div ref={containerRef} className="fixed inset-0 pointer-events-none z-0 overflow-hidden w-full h-full">
-      <canvas
-        ref={canvasRef}
-        className="w-full h-full block"
-      />
+    <div
+      ref={containerRef}
+      className="fixed inset-0 pointer-events-none z-0 overflow-hidden w-full h-full select-none"
+    >
+      {/* Grid Canvas with smooth elliptical radial vignette mask */}
+      <div
+        className="w-full h-full"
+        style={{
+          maskImage: 'radial-gradient(ellipse 75% 70% at 50% 50%, #000 25%, transparent 88%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 75% 70% at 50% 50%, #000 25%, transparent 88%)',
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          className="w-full h-full block"
+        />
+      </div>
+
+      {/* Perimeter Vignette Fades into site background color */}
+      {/* Top Edge Fade */}
+      <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-slate-50 dark:from-[#141C28] via-slate-50/70 dark:via-[#141C28]/70 to-transparent pointer-events-none transition-colors duration-300" />
+      {/* Bottom Edge Fade */}
+      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-slate-50 dark:from-[#141C28] via-slate-50/70 dark:via-[#141C28]/70 to-transparent pointer-events-none transition-colors duration-300" />
+      {/* Left Edge Fade */}
+      <div className="absolute inset-y-0 left-0 w-24 sm:w-32 bg-gradient-to-r from-slate-50 dark:from-[#141C28] to-transparent pointer-events-none transition-colors duration-300" />
+      {/* Right Edge Fade */}
+      <div className="absolute inset-y-0 right-0 w-24 sm:w-32 bg-gradient-to-l from-slate-50 dark:from-[#141C28] to-transparent pointer-events-none transition-colors duration-300" />
     </div>
   );
 };
