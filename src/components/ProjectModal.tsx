@@ -477,26 +477,28 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-lg flex flex-col items-center justify-center p-4 select-none cursor-pointer"
+            className="fixed inset-0 z-[100] bg-slate-100/85 dark:bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none cursor-pointer"
             onClick={() => setSelectedImage(null)}
           >
-            <button
-              onClick={() => setSelectedImage(null)}
-              className="absolute top-6 right-6 w-9 h-9 p-0 flex items-center justify-center text-white bg-slate-800 hover:bg-slate-700 rounded z-20 cursor-pointer"
-              aria-label="Close Lightbox"
-            >
-              <svg
-                className="w-4 h-4 shrink-0"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <div className="absolute top-6 right-6 z-20">
+              <button
+                onClick={() => setSelectedImage(null)}
+                className="btn-ripple w-9 h-9 p-0 flex items-center justify-center rounded text-slate-700 bg-slate-200/90 dark:text-slate-200 dark:bg-slate-800/90 cursor-pointer"
+                aria-label="Close Lightbox"
               >
-                <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
-              </svg>
-            </button>
+                <svg
+                  className="w-4 h-4 shrink-0"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
+                </svg>
+              </button>
+            </div>
             <div
               className="max-w-5xl max-h-[88vh] flex flex-col items-center justify-center cursor-default"
               onClick={(e) => e.stopPropagation()}
@@ -504,10 +506,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
               <img
                 src={selectedImage.url}
                 alt={selectedImage.caption || 'Expanded photo'}
-                className="max-h-[82vh] w-auto rounded-lg object-contain shadow-2xl"
+                className="max-h-[82vh] w-auto rounded-lg object-contain"
               />
               {selectedImage.caption && (
-                <p className="text-slate-200 font-mono text-xs sm:text-sm mt-3 text-center bg-slate-900/90 px-4 py-2 rounded-lg max-w-2xl">
+                <p className="text-slate-800 dark:text-slate-200 font-mono text-xs sm:text-sm mt-3 text-center max-w-2xl">
                   {selectedImage.caption}
                 </p>
               )}
@@ -527,8 +529,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
           >
             {/* Floating Top Header Bar */}
             <div className="absolute top-4 left-4 right-4 sm:left-6 sm:right-6 flex items-center justify-between z-30 pointer-events-none">
-              <div className="flex items-center gap-2.5 bg-white text-slate-900 dark:bg-slate-900/90 dark:text-white px-3.5 py-1.5 rounded pointer-events-auto">
-                <h3 className="text-sm sm:text-base font-bold tracking-tight font-mono">
+              <div className="flex items-center gap-2.5 pointer-events-auto">
+                <h3 className="text-sm sm:text-base font-bold tracking-tight font-mono text-slate-900 dark:text-white drop-shadow-sm">
                   {project.title}
                 </h3>
               </div>
@@ -541,9 +543,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                 >
                   <Minimize2 size={13} className="text-blue-500 dark:text-blue-400" />
                   <span>Exit Fullscreen</span>
-                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-white/10 text-[10px] dark:text-slate-300">
-                    ESC
-                  </span>
                 </button>
               </div>
             </div>
