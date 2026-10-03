@@ -22,32 +22,27 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
   const localTimeRef = useRef(0);
 
   useEffect(() => {
-    if (!isActive || !isRotating) {
+    if (!isActive) {
       if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
       currentSpeedRef.current = 0;
-    }
-    if (!isActive || !isAnimating) {
       localTimeRef.current = 0;
       if (stage1Ref.current) stage1Ref.current.position.y = 0;
       if (stage2Ref.current) stage2Ref.current.position.y = 0;
     }
-  }, [isActive, isRotating, isAnimating]);
+  }, [isActive]);
 
   useFrame((_state, delta) => {
     delta = Math.min(delta, 0.035);
 
-    if (!isActive || !isRotating) {
-      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+    if (!isActive) {
+      if (groupRef.current) {
+        groupRef.current.rotation.set(0, 0, 0);
+        groupRef.current.scale.setScalar(1.55);
+      }
       currentSpeedRef.current = 0;
-    }
-    if (!isActive || !isAnimating) {
       localTimeRef.current = 0;
       if (stage1Ref.current) stage1Ref.current.position.y = 0;
       if (stage2Ref.current) stage2Ref.current.position.y = 0;
-    }
-
-    if (!isActive) {
-      if (groupRef.current) groupRef.current.scale.setScalar(1.55);
       return;
     }
 
@@ -71,8 +66,8 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
       }
     }
 
-    // Kinematic Extension (Starts smoothly from 0 at rest)
-    const stroke = isAnimating ? (-Math.cos(time * 1.6) * 0.5 + 0.5) * 0.45 : 0;
+    // Kinematic Extension (Starts smoothly from 0 at rest, pauses in place when isAnimating is false)
+    const stroke = (-Math.cos(time * 1.6) * 0.5 + 0.5) * 0.45;
 
     if (stage1Ref.current) {
       stage1Ref.current.position.y = stroke * 0.5;

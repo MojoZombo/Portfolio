@@ -5,6 +5,7 @@ import { ImageCarousel } from './ImageCarousel';
 import { CompanyLogo } from './CompanyLogo';
 import { ExternalLink, ZoomIn, Maximize2, Minimize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { revertAllButtonRipples } from '../utils/buttonRipple';
 
 interface ProjectModalProps {
   project: Project | null;
@@ -14,6 +15,12 @@ interface ProjectModalProps {
 export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) => {
   const [selectedImage, setSelectedImage] = useState<{ url: string; caption?: string } | null>(null);
   const [is3DFullscreen, setIs3DFullscreen] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      revertAllButtonRipples();
+    };
+  }, []);
 
   // Close on Escape key press
   useEffect(() => {
@@ -141,7 +148,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                     className="btn-ripple group flex items-center gap-1.5 px-3 py-1.5 rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 text-xs font-mono font-medium pointer-events-auto cursor-pointer"
                     title="Open Fullscreen 3D Model Inspector"
                   >
-                    <Maximize2 size={13} className="text-blue-600 dark:text-blue-400 group-hover:text-white" />
+                    <Maximize2 size={13} className="text-blue-600 dark:text-blue-400" />
                     <span>Fullscreen 3D</span>
                   </button>
                 </div>

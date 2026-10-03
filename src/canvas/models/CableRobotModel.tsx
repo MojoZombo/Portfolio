@@ -215,11 +215,13 @@ const CDPRRig: React.FC<{
   useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
     if (!config.enabled) return;
 
-    if (isAnimating) {
+    if (!isActive && !isCalibrating) {
+      localTimeRef.current = 0;
+    } else if (isAnimating) {
       localTimeRef.current += delta;
     }
     const time = localTimeRef.current;
-    const isMoving = (isActive || isCalibrating) && isAnimating;
+    const isMoving = (isActive || isCalibrating);
     const speed = config.motionSpeed;
 
     let targetX = 0;
@@ -733,11 +735,9 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
   const localTimeRef = useRef(0);
 
   useEffect(() => {
-    if (!isModelCalibrating && (!isActive || !isRotating)) {
+    if (!isModelCalibrating && !isActive) {
       if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
       currentSpeedRef.current = 0;
-    }
-    if (!isModelCalibrating && (!isActive || !isAnimating)) {
       localTimeRef.current = 0;
       if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
@@ -746,7 +746,7 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
         });
       }
     }
-  }, [isActive, isRotating, isAnimating, isModelCalibrating]);
+  }, [isActive, isModelCalibrating]);
 
   useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
     // Dynamically adjust calibration transforms in frame loop without scene re-cloning
@@ -759,24 +759,19 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
       );
     }
 
-    if (!isModelCalibrating && (!isActive || !isRotating)) {
-      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+    // 1. If static blueprint mode, keep strictly still in rest position and return
+    if (!isActive && !isModelCalibrating) {
+      if (groupRef.current) {
+        groupRef.current.rotation.set(0, 0, 0);
+        groupRef.current.scale.setScalar(DEFAULT_SCALE);
+      }
       currentSpeedRef.current = 0;
-    }
-    if (!isModelCalibrating && (!isActive || !isAnimating)) {
       localTimeRef.current = 0;
       if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
           node.mesh.rotation.copy(node.initialRot);
         });
-      }
-    }
-
-    // 1. If static blueprint mode, keep strictly still in rest position and return
-    if (!isActive && !isModelCalibrating) {
-      if (groupRef.current) {
-        groupRef.current.scale.setScalar(DEFAULT_SCALE);
       }
       return;
     }
@@ -804,7 +799,7 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
 
     // 3. Execute Live Kinematics Animations around Center of Mass / Custom Pivot
     const time = localTimeRef.current;
-    if (isAnimating && meshNodesRef.current.length > 0) {
+    if ((isAnimating || isModelCalibrating) && meshNodesRef.current.length > 0) {
       const computedTransforms = new Map<
         number,
         { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion }

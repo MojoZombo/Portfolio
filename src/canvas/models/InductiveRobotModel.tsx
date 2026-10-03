@@ -26,11 +26,9 @@ export const InductiveRobotModel: React.FC<ModelProps> = ({
   const localTimeRef = useRef(0);
 
   useEffect(() => {
-    if (!isActive || !isRotating) {
+    if (!isActive) {
       if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
       currentSpeedRef.current = 0;
-    }
-    if (!isActive || !isAnimating) {
       localTimeRef.current = 0;
       if (armBaseRef.current) armBaseRef.current.rotation.y = 0;
       if (armUpperRef.current) armUpperRef.current.rotation.z = 0;
@@ -39,16 +37,17 @@ export const InductiveRobotModel: React.FC<ModelProps> = ({
       if (wheelRL.current) wheelRL.current.rotation.x = 0;
       if (wheelRR.current) wheelRR.current.rotation.x = 0;
     }
-  }, [isActive, isRotating, isAnimating]);
+  }, [isActive]);
 
   useFrame((_state, delta) => {
     delta = Math.min(delta, 0.035);
 
-    if (!isActive || !isRotating) {
-      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+    if (!isActive) {
+      if (groupRef.current) {
+        groupRef.current.rotation.set(0, 0, 0);
+        groupRef.current.scale.setScalar(1.4);
+      }
       currentSpeedRef.current = 0;
-    }
-    if (!isActive || !isAnimating) {
       localTimeRef.current = 0;
       if (armBaseRef.current) armBaseRef.current.rotation.y = 0;
       if (armUpperRef.current) armUpperRef.current.rotation.z = 0;
@@ -56,10 +55,6 @@ export const InductiveRobotModel: React.FC<ModelProps> = ({
       if (wheelFR.current) wheelFR.current.rotation.x = 0;
       if (wheelRL.current) wheelRL.current.rotation.x = 0;
       if (wheelRR.current) wheelRR.current.rotation.x = 0;
-    }
-
-    if (!isActive) {
-      if (groupRef.current) groupRef.current.scale.setScalar(1.4);
       return;
     }
 
@@ -83,19 +78,19 @@ export const InductiveRobotModel: React.FC<ModelProps> = ({
       }
     }
 
-    // Kinematic slow motion for charging arm & wheels (Starts smoothly from 0 at rest)
+    // Kinematic slow motion for charging arm & wheels (Starts smoothly from 0 at rest, pauses in place)
     if (armBaseRef.current) {
-      armBaseRef.current.rotation.y = isAnimating ? Math.sin(time * 0.8) * 0.4 : 0;
+      armBaseRef.current.rotation.y = Math.sin(time * 0.8) * 0.4;
     }
     if (armUpperRef.current) {
-      armUpperRef.current.rotation.z = isAnimating ? Math.sin(time * 1.2) * 0.25 : 0;
+      armUpperRef.current.rotation.z = Math.sin(time * 1.2) * 0.25;
     }
 
     const wheelSpin = time * 2.0;
-    if (wheelFL.current) wheelFL.current.rotation.x = isAnimating ? wheelSpin : 0;
-    if (wheelFR.current) wheelFR.current.rotation.x = isAnimating ? wheelSpin : 0;
-    if (wheelRL.current) wheelRL.current.rotation.x = isAnimating ? wheelSpin : 0;
-    if (wheelRR.current) wheelRR.current.rotation.x = isAnimating ? wheelSpin : 0;
+    if (wheelFL.current) wheelFL.current.rotation.x = wheelSpin;
+    if (wheelFR.current) wheelFR.current.rotation.x = wheelSpin;
+    if (wheelRL.current) wheelRL.current.rotation.x = wheelSpin;
+    if (wheelRR.current) wheelRR.current.rotation.x = wheelSpin;
   });
 
   // Clearpath Husky Signature Colors + Industrial EV Battery Hardware

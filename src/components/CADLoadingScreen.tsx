@@ -31,7 +31,7 @@ export const CADLoadingScreen: React.FC = () => {
       {!isDone && (
         <motion.div
           initial={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' }}
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-50 dark:bg-[#141C28] text-slate-900 dark:text-slate-100 select-none overflow-hidden transition-colors duration-300"
         >

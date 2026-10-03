@@ -11,7 +11,7 @@ import { ResumeModal } from './components/ResumeModal';
 import { projectsData } from './data/projectsData';
 import { Project } from './types/project';
 import { ExternalLink, Cpu, Camera } from 'lucide-react';
-import { initButtonRipple } from './utils/buttonRipple';
+import { initButtonRipple, revertAllButtonRipples } from './utils/buttonRipple';
 
 export const App: React.FC = () => {
   useEffect(() => {
@@ -79,6 +79,7 @@ export const App: React.FC = () => {
   }, []);
 
   const handleSelectProject = React.useCallback((p: Project) => {
+    revertAllButtonRipples();
     setSelectedProject(p);
     if (window.location.hash.replace(/^#\/?/, '') !== p.id) {
       window.history.pushState(null, '', `#${p.id}`);
@@ -86,6 +87,7 @@ export const App: React.FC = () => {
   }, []);
 
   const handleCloseProjectModal = React.useCallback(() => {
+    revertAllButtonRipples();
     setSelectedProject(null);
     const currentHash = window.location.hash.replace(/^#\/?/, '');
     if (currentHash && currentHash !== 'resume' && currentHash !== 'studio' && currentHash !== 'baker') {
@@ -126,7 +128,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="relative min-h-screen flex flex-col font-sans transition-colors selection:bg-blue-500 selection:text-white">
+    <div className="relative min-h-screen flex flex-col font-sans selection:bg-blue-500 selection:text-white">
       {/* High-Tech Animated CAD Boot & Loading Screen */}
       <CADLoadingScreen />
 
@@ -163,6 +165,7 @@ export const App: React.FC = () => {
       <ResumeModal
         isOpen={isResumeOpen}
         onClose={() => {
+          revertAllButtonRipples();
           setIsResumeOpen(false);
           if (window.location.hash === '#resume') {
             window.history.pushState(null, '', window.location.pathname);

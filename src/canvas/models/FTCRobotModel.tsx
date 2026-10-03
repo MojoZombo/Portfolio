@@ -19,32 +19,27 @@ export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotati
   const localTimeRef = useRef(0);
 
   useEffect(() => {
-    if (!isActive || !isRotating) {
+    if (!isActive) {
       if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
       currentSpeedRef.current = 0;
-    }
-    if (!isActive || !isAnimating) {
       localTimeRef.current = 0;
       if (intakeRef.current) intakeRef.current.rotation.x = 0;
       if (armRef.current) armRef.current.rotation.z = -0.2;
     }
-  }, [isActive, isRotating, isAnimating]);
+  }, [isActive]);
 
   useFrame((_state, delta) => {
     delta = Math.min(delta, 0.035);
 
-    if (!isActive || !isRotating) {
-      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+    if (!isActive) {
+      if (groupRef.current) {
+        groupRef.current.rotation.set(0, 0, 0);
+        groupRef.current.scale.setScalar(1.2);
+      }
       currentSpeedRef.current = 0;
-    }
-    if (!isActive || !isAnimating) {
       localTimeRef.current = 0;
       if (intakeRef.current) intakeRef.current.rotation.x = 0;
       if (armRef.current) armRef.current.rotation.z = -0.2;
-    }
-
-    if (!isActive) {
-      if (groupRef.current) groupRef.current.scale.setScalar(1.2);
       return;
     }
 
@@ -68,20 +63,12 @@ export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotati
       }
     }
 
-    if (intakeRef.current) {
-      if (isAnimating) {
-        intakeRef.current.rotation.x += delta * 5;
-      } else {
-        intakeRef.current.rotation.x = 0;
-      }
+    if (intakeRef.current && isAnimating) {
+      intakeRef.current.rotation.x += delta * 5;
     }
 
     if (armRef.current) {
-      if (isAnimating) {
-        armRef.current.rotation.z = Math.sin(t * 1.5) * 0.25 - 0.2;
-      } else {
-        armRef.current.rotation.z = -0.2;
-      }
+      armRef.current.rotation.z = Math.sin(t * 1.5) * 0.25 - 0.2;
     }
   });
 

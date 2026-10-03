@@ -101,8 +101,8 @@ export const Header: React.FC = () => {
       >
         <div
           onClick={handleTitleClick}
-          className={`relative pointer-events-auto select-none inline-flex items-center px-2.5 py-1 -mx-2.5 -my-1 rounded-lg ${
-            isScrolled ? 'cursor-pointer' : ''
+          className={`relative pointer-events-auto inline-flex items-center px-2.5 py-1 -mx-2.5 -my-1 rounded-lg ${
+            isScrolled ? 'cursor-pointer select-none' : 'select-text'
           }`}
           title={isScrolled ? 'Click to scroll to top' : undefined}
         >
@@ -126,8 +126,12 @@ export const Header: React.FC = () => {
         <div className="pointer-events-auto flex items-center gap-2.5 font-mono text-xs shrink-0">
           <a
             href="#resume"
-            onClick={() => {
-              window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            onClick={(e) => {
+              e.preventDefault();
+              if (window.location.hash !== '#resume') {
+                window.history.pushState(null, '', '#resume');
+                window.dispatchEvent(new HashChangeEvent('hashchange'));
+              }
             }}
             className="btn-ripple inline-flex items-center gap-1.5 px-3 py-2 rounded bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-medium cursor-pointer"
           >
@@ -137,17 +141,18 @@ export const Header: React.FC = () => {
 
           <button
             onClick={toggleTheme}
-            className="btn-ripple p-2 rounded bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+            data-theme-toggle="true"
+            className="btn-ripple w-[30px] h-[30px] p-0 flex items-center justify-center rounded bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
             title="Toggle Light / Dark Mode"
           >
-            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            {theme === 'dark' ? <Sun size={14} className="pointer-events-none" /> : <Moon size={14} className="pointer-events-none" />}
           </button>
         </div>
       </div>
 
       {/* Main Header Container in document flow - spaced generously from top on big screens */}
-      <header className="relative z-30 w-full bg-transparent pt-10 sm:pt-14 md:pt-16 pb-4 transition-colors">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+      <header className="relative z-30 w-full bg-transparent pt-10 sm:pt-14 md:pt-16 pb-4 pointer-events-none">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 pointer-events-auto">
           {/* Top Row: Always Name on the Left, Buttons on the Right regardless of screen size */}
           <div className="flex items-center justify-between gap-4 w-full">
             {/* Anchor Placeholder for Title to maintain exact height and alignment */}
@@ -163,7 +168,7 @@ export const Header: React.FC = () => {
                 <FileText size={13} />
                 <span>Resume</span>
               </div>
-              <div className="p-2 rounded">
+              <div className="w-[30px] h-[30px] flex items-center justify-center rounded">
                 <Sun size={14} />
               </div>
             </div>

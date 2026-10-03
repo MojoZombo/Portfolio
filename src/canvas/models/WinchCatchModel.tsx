@@ -961,11 +961,9 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
   const localTimeRef = useRef(0);
 
   useEffect(() => {
-    if (!isModelCalibrating && (!isActive || !isRotating)) {
+    if (!isModelCalibrating && !isActive) {
       if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
       currentSpeedRef.current = 0;
-    }
-    if (!isModelCalibrating && (!isActive || !isAnimating)) {
       localTimeRef.current = 0;
       if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
@@ -974,7 +972,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
         });
       }
     }
-  }, [isActive, isRotating, isAnimating, isModelCalibrating]);
+  }, [isActive, isModelCalibrating]);
 
   useFrame((_state, delta) => {
     delta = Math.min(delta, 0.035);
@@ -991,23 +989,18 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
       pivotRef.current.position.set(offsetX, offsetY, offsetZ);
     }
 
-    if (!isModelCalibrating && (!isActive || !isRotating)) {
-      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+    if (!isActive && !isModelCalibrating) {
+      if (groupRef.current) {
+        groupRef.current.rotation.set(0, 0, 0);
+        groupRef.current.scale.setScalar(DEFAULT_SCALE);
+      }
       currentSpeedRef.current = 0;
-    }
-    if (!isModelCalibrating && (!isActive || !isAnimating)) {
       localTimeRef.current = 0;
       if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
           node.mesh.rotation.copy(node.initialRot);
         });
-      }
-    }
-
-    if (!isActive && !isModelCalibrating) {
-      if (groupRef.current) {
-        groupRef.current.scale.setScalar(DEFAULT_SCALE);
       }
       return;
     }
@@ -1033,7 +1026,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
     }
 
     const time = localTimeRef.current;
-    if (isAnimating && meshNodesRef.current.length > 0) {
+    if ((isAnimating || isModelCalibrating) && meshNodesRef.current.length > 0) {
       const computedTransforms = new Map<
         number,
         { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion }
@@ -1189,17 +1182,15 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
               const distPosM = ((animConfig.amplitudePositive !== undefined ? animConfig.amplitudePositive : (animConfig.amplitude || 10)) / 100);
               const distNegM = ((animConfig.amplitudeNegative !== undefined ? animConfig.amplitudeNegative : (animConfig.amplitude || 10)) / 100);
               let displacementScalar = 0;
-              if (isAnimating) {
-                if (distNegM === 0) {
-                  const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
-                  displacementScalar = progress * distPosM * dir;
-                } else if (distPosM === 0) {
-                  const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
-                  displacementScalar = -progress * distNegM * dir;
-                } else {
-                  const s = Math.sin(time * omega + phaseRad);
-                  displacementScalar = (s >= 0 ? s * distPosM : s * distNegM) * dir;
-                }
+              if (distNegM === 0) {
+                const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
+                displacementScalar = progress * distPosM * dir;
+              } else if (distPosM === 0) {
+                const progress = (1 - Math.cos(time * omega + phaseRad)) / 2;
+                displacementScalar = -progress * distNegM * dir;
+              } else {
+                const s = Math.sin(time * omega + phaseRad);
+                displacementScalar = (s >= 0 ? s * distPosM : s * distNegM) * dir;
               }
               const displacement = axisVec.clone().multiplyScalar(displacementScalar);
               currentPos.add(displacement);

@@ -18,30 +18,25 @@ export const OutriggerModel: React.FC<ModelProps> = ({ isActive = false, isRotat
   const localTimeRef = useRef(0);
 
   useEffect(() => {
-    if (!isActive || !isRotating) {
+    if (!isActive) {
       if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
       currentSpeedRef.current = 0;
-    }
-    if (!isActive || !isAnimating) {
       localTimeRef.current = 0;
       if (pistonRef.current) pistonRef.current.position.y = -0.3;
     }
-  }, [isActive, isRotating, isAnimating]);
+  }, [isActive]);
 
   useFrame((_state, delta) => {
     delta = Math.min(delta, 0.035);
 
-    if (!isActive || !isRotating) {
-      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+    if (!isActive) {
+      if (groupRef.current) {
+        groupRef.current.rotation.set(0, 0, 0);
+        groupRef.current.scale.setScalar(1.25);
+      }
       currentSpeedRef.current = 0;
-    }
-    if (!isActive || !isAnimating) {
       localTimeRef.current = 0;
       if (pistonRef.current) pistonRef.current.position.y = -0.3;
-    }
-
-    if (!isActive) {
-      if (groupRef.current) groupRef.current.scale.setScalar(1.25);
       return;
     }
 
@@ -64,7 +59,7 @@ export const OutriggerModel: React.FC<ModelProps> = ({ isActive = false, isRotat
     }
 
     if (pistonRef.current) {
-      pistonRef.current.position.y = isAnimating ? -0.3 + Math.sin(time * 1.5) * 0.15 : -0.3;
+      pistonRef.current.position.y = -0.3 + Math.sin(time * 1.5) * 0.15;
     }
   });
 

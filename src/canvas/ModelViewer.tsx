@@ -146,6 +146,35 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     };
   }, []);
 
+  // Handle reload/navigation: cleanly hide 3D canvas before WebGL context is destroyed to prevent white flash
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (containerRef.current) {
+        containerRef.current.style.opacity = '0';
+      }
+    };
+    const handleRestore = () => {
+      if (containerRef.current) {
+        containerRef.current.style.opacity = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pageshow', handleRestore);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        handleRestore();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pageshow', handleRestore);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
   // Mount WebGL ONLY when slide animation is finished AND user has paused scrolling
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -257,7 +286,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             ? 'opacity-0 transition-opacity duration-200 ease-out'
             : `transition-opacity ${fadeDuration} ease-in-out ${showShadedStatic ? 'opacity-100' : 'opacity-0'}`
         }`}
-        loading="lazy"
+        loading={isActive || allowZoom ? 'eager' : 'lazy'}
         decoding="async"
       />
 
@@ -270,13 +299,23 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         >
           <Canvas
             className={allowZoom ? "grab-cursor" : "grab-cursor !touch-pan-y"}
+            style={{ background: 'transparent' }}
             frameloop={isActive || allowZoom || isHovered ? 'always' : 'demand'}
             dpr={1.6}
             gl={{
               antialias: true,
               alpha: true,
               powerPreference: 'high-performance',
-              preserveDrawingBuffer: true,
+              preserveDrawingBuffer: false,
+            }}
+            onCreated={({ gl }) => {
+              gl.setClearColor(0x000000, 0);
+              gl.domElement.addEventListener('webglcontextlost', (e) => {
+                e.preventDefault();
+                setShouldMountWebGL(false);
+                setIsCanvasReady(false);
+                setIsFadeComplete(false);
+              });
             }}
             onWheel={handleCanvasInteraction}
           >
@@ -342,15 +381,19 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               setIsAnimationPlaying(next);
               setIsRotating(next);
             }}
-            className="btn-ripple group px-3 py-1.5 rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 backdrop-blur-sm cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
+            className="btn-ripple group px-3 py-1.5 rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 backdrop-blur-sm cursor-pointer flex items-center justify-center gap-1.5 text-xs font-mono font-medium w-[80px] shrink-0 select-none"
             title={isAnimationPlaying ? 'Pause 3D animation and rotation' : 'Play 3D animation and rotation'}
           >
-            {isAnimationPlaying ? (
-              <Pause size={12} className="text-blue-600 dark:text-blue-400 group-hover:text-white" />
-            ) : (
-              <Play size={12} className="text-amber-600 dark:text-amber-400 group-hover:text-white" />
-            )}
-            <span>{isAnimationPlaying ? 'Pause' : 'Play'}</span>
+            <span className="w-3.5 flex items-center justify-center shrink-0">
+              {isAnimationPlaying ? (
+                <Pause size={12} className="text-blue-600 dark:text-blue-400" />
+              ) : (
+                <Play size={12} className="text-amber-600 dark:text-amber-400" />
+              )}
+            </span>
+            <span className="w-[36px] text-left shrink-0">
+              {isAnimationPlaying ? 'Pause' : 'Play'}
+            </span>
           </button>
 
           {/* Reset Model / Camera View Button (Only appears if user has zoomed in / moved camera) */}
@@ -366,7 +409,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               className="btn-ripple group px-3 py-1.5 rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 backdrop-blur-sm cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
               title="Reset 3D model zoom and position"
             >
-              <RotateCcw size={12} className="text-blue-600 dark:text-blue-400 group-hover:text-white" />
+              <RotateCcw size={12} className="text-blue-600 dark:text-blue-400" />
               <span>Reset View</span>
             </button>
           )}

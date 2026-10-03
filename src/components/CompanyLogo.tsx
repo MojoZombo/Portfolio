@@ -143,7 +143,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
           <img
             src={effectiveLogoUrl}
             alt={`${company} logo`}
-            className={`w-full h-full ${imgFit} ${imgScale} rounded-sm transition-transform`}
+            className={`w-full h-full ${imgFit} ${imgScale} rounded-sm`}
             onError={() => setHasImageError(true)}
             loading="eager"
           />
@@ -233,8 +233,10 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
 
   const badgeContent = (
     <>
-      {renderBrandIcon()}
-      <span className="tracking-tight leading-none transition-colors duration-150 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-active:text-blue-700 dark:group-active:text-blue-300">
+      <div className="pointer-events-none flex items-center shrink-0">
+        {renderBrandIcon()}
+      </div>
+      <span className="pointer-events-none tracking-tight leading-none transition-colors duration-150 ease-out group-hover:text-blue-600 dark:group-hover:text-blue-400 group-active:text-blue-700 dark:group-active:text-blue-300">
         {company}
       </span>
     </>
@@ -248,7 +250,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
         title={`Visit ${company} website (${resolvedUrl})`}
-        className={`group inline-flex items-center font-mono font-medium rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/90 dark:hover:bg-slate-700/90 text-slate-700 dark:text-slate-300 backdrop-blur transition-colors cursor-pointer select-none ${badgeSizeClasses[size]} ${className}`}
+        className={`group inline-flex items-center font-mono font-medium rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-[background-color,color] duration-150 ease-out cursor-pointer select-none transform-gpu isolation-isolate [-webkit-backface-visibility:hidden] backface-hidden ${badgeSizeClasses[size]} ${className}`}
       >
         {badgeContent}
       </a>
@@ -257,7 +259,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
 
   return (
     <div
-      className={`inline-flex items-center font-mono font-medium rounded bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 backdrop-blur ${badgeSizeClasses[size]} ${className}`}
+      className={`inline-flex items-center font-mono font-medium rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 transform-gpu isolation-isolate [-webkit-backface-visibility:hidden] backface-hidden ${badgeSizeClasses[size]} ${className}`}
     >
       {badgeContent}
     </div>

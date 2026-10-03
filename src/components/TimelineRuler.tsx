@@ -56,11 +56,13 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
     if (rulerRect.width === 0 || rulerRect.height === 0) return;
 
     // Buffer margin so ruler fades out cleanly before text directly touches it
-    const margin = 16;
+    const margin = 12;
     const rulerTop = rulerRect.top - margin;
     const rulerBottom = rulerRect.bottom + margin;
     const rulerLeft = rulerRect.left - margin;
-    const rulerRight = rulerRect.right + margin;
+    // Active content boundary is calibrated to trackLeft + milestone text width (~48px)
+    const contentRight = rulerRect.left + trackLeft + 48;
+    const rulerRight = Math.min(rulerRect.right, contentRight) + margin;
 
     // Text elements across header and main that could overlap with the timeline
     const textEls = document.querySelectorAll(
@@ -86,7 +88,7 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
     }
 
     setIsOverlapping(overlap);
-  }, []);
+  }, [trackLeft]);
 
   const updateProgress = useCallback(() => {
     const n = projects.length;
@@ -180,7 +182,7 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
   return (
     <aside
       ref={rulerRef}
-      className={`fixed left-0 top-36 md:top-40 bottom-16 w-36 z-20 hidden md:flex flex-col justify-between select-none pointer-events-none font-mono text-[10px] transition-opacity duration-300 ease-out ${
+      className={`fixed left-0 top-36 md:top-40 bottom-16 w-32 z-30 hidden md:flex flex-col justify-between select-none pointer-events-none font-mono text-[10px] transition-opacity duration-300 ease-out ${
         isOverlapping ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
     >
@@ -188,7 +190,7 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
       <div className="relative h-full w-full py-2">
         {/* Track Line Container (1px width, smooth spring indicator) */}
         <div
-          className="absolute -translate-x-1/2 top-2 bottom-2 w-[1px] bg-slate-200 dark:bg-slate-800 transition-all duration-300"
+          className="absolute -translate-x-1/2 top-2 bottom-2 w-[1px] bg-slate-200 dark:bg-slate-800 transition-[left] duration-300"
           style={{ left: `${trackLeft}px` }}
         />
 
@@ -198,13 +200,13 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
             className="absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20"
             style={{ left: `${trackLeft}px`, top: topPercent }}
           >
-            <div className="w-2 h-2 rounded-full bg-blue-600 dark:bg-slate-200 ring-2 ring-white dark:ring-slate-900 transition-colors" />
+            <div className="w-2 h-2 rounded-full bg-blue-600 dark:bg-slate-200 ring-2 ring-white dark:ring-slate-900" />
           </motion.div>
         </div>
 
         {/* Date Milestones along the Ruler */}
         <div
-          className="relative z-10 w-full h-full flex flex-col justify-between pointer-events-auto transition-all duration-300"
+          className="relative z-10 w-full h-full flex flex-col justify-between pointer-events-auto transition-[padding-left] duration-300"
           style={{ paddingLeft: `${trackLeft + 10}px` }}
         >
           {projects.map((project) => {
@@ -215,7 +217,7 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
               <button
                 key={project.id}
                 onClick={() => scrollToProject(project.id)}
-                className={`group flex items-center text-left transition-colors py-0.5 cursor-pointer ${
+                className={`group flex items-center text-left transition-colors py-0.5 cursor-pointer w-fit self-start ${
                   isActive
                     ? 'text-blue-600 dark:text-slate-100 font-bold'
                     : 'text-slate-400 dark:text-slate-600 hover:text-slate-700 dark:hover:text-slate-300'

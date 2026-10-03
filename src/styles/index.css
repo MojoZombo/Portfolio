@@ -15,11 +15,13 @@
     --text-secondary: #475569;
   }
 
+  html.dark,
   html.dark body {
     background-color: #141C28;
     color: #F1F5F9;
   }
 
+  html.light,
   html.light body {
     background-color: #F8FAFC;
     color: #0F172A;
@@ -31,10 +33,14 @@
 }
 
 /* Circular Theme Toggle View Transition */
+::view-transition,
+::view-transition-group(root),
+::view-transition-image-pair(root),
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
+  pointer-events: none !important;
 }
 
 ::view-transition-old(root) {
@@ -45,11 +51,22 @@
   z-index: 9999;
 }
 
+/* Disable concurrent CSS transitions/animations during theme wipe to eliminate delayed screen/timeline flashes */
+html.is-theme-transitioning,
+html.is-theme-transitioning *,
+html.is-theme-transitioning *::before,
+html.is-theme-transitioning *::after {
+  transition: none !important;
+  animation-duration: 0s !important;
+}
+
 /* Mouse-Aware Radial Button Ripple Effect */
 .btn-ripple {
   position: relative !important;
   overflow: hidden !important;
   isolation: isolate !important;
+  touch-action: none;
+  transition: color 200ms ease;
 }
 
 .btn-ripple::before {
@@ -69,23 +86,25 @@ html.dark .btn-ripple::before,
   background-color: #3b82f6;
 }
 
-.btn-ripple > * {
+.btn-ripple > *,
+.btn-ripple svg,
+.btn-ripple span {
   position: relative;
   z-index: 2;
+  pointer-events: none;
   transition: color 200ms ease;
 }
 
-.btn-ripple:hover,
-.btn-ripple.is-hovered {
-  color: #ffffff !important;
-}
-
-.btn-ripple:hover *,
+.btn-ripple.is-hovered,
 .btn-ripple.is-hovered * {
   color: #ffffff !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .btn-ripple:hover,
+  .btn-ripple:hover * {
+    color: #ffffff !important;
+  }
   .btn-ripple:hover::before {
     clip-path: none !important;
     opacity: 1 !important;
@@ -111,7 +130,10 @@ html.dark .btn-ripple::before,
   background: rgba(148, 163, 184, 0.45);
 }
 
-/* Canvas cursor styling */
+/* Canvas cursor and transparency styling */
+canvas {
+  background-color: transparent !important;
+}
 .grab-cursor {
   cursor: grab;
 }

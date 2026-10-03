@@ -1369,7 +1369,8 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
-            className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+            data-theme-toggle="true"
+            className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors"
             title="Toggle Canvas Theme"
           >
             {isDark ? <Sun size={14} className="text-amber-400" /> : <Moon size={14} className="text-blue-400" />}

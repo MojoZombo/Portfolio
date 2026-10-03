@@ -656,11 +656,9 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
   const localTimeRef = useRef(0);
 
   useEffect(() => {
-    if (!isModelCalibrating && (!isActive || !isRotating)) {
+    if (!isModelCalibrating && !isActive) {
       if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
       currentSpeedRef.current = 0;
-    }
-    if (!isModelCalibrating && (!isActive || !isAnimating)) {
       localTimeRef.current = 0;
       if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
@@ -669,7 +667,7 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
         });
       }
     }
-  }, [isActive, isRotating, isAnimating, isModelCalibrating]);
+  }, [isActive, isModelCalibrating]);
 
   useFrame((_state, delta) => {
     delta = Math.min(delta, 0.035);
@@ -686,23 +684,18 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
       pivotRef.current.position.set(offsetX, offsetY, offsetZ);
     }
 
-    if (!isModelCalibrating && (!isActive || !isRotating)) {
-      if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
+    if (!isActive && !isModelCalibrating) {
+      if (groupRef.current) {
+        groupRef.current.rotation.set(0, 0, 0);
+        groupRef.current.scale.setScalar(DEFAULT_SCALE);
+      }
       currentSpeedRef.current = 0;
-    }
-    if (!isModelCalibrating && (!isActive || !isAnimating)) {
       localTimeRef.current = 0;
       if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
           node.mesh.rotation.copy(node.initialRot);
         });
-      }
-    }
-
-    if (!isActive && !isModelCalibrating) {
-      if (groupRef.current) {
-        groupRef.current.scale.setScalar(DEFAULT_SCALE);
       }
       return;
     }
@@ -727,8 +720,8 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
       }
     }
 
-    const time = isAnimating ? localTimeRef.current : 0;
-    if (meshNodesRef.current.length > 0) {
+    const time = localTimeRef.current;
+    if ((isAnimating || isModelCalibrating) && meshNodesRef.current.length > 0) {
       const computedTransforms = new Map<
         number,
         { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion }
@@ -932,7 +925,7 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
 
           const ballRadius = 0.018;
 
-          if (!isAnimating) {
+          if (!isActive && !isModelCalibrating) {
             // Rest pose: resting flush on top of paddle surface
             ballNode.mesh.position.set(contactX, contactY + ballRadius, contactZ);
             ballNode.mesh.scale.set(1, 1, 1);

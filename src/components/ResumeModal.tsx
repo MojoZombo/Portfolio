@@ -4,6 +4,7 @@ import {
   Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { revertAllButtonRipples } from '../utils/buttonRipple';
 
 interface ResumeModalProps {
   isOpen: boolean;
@@ -11,6 +12,11 @@ interface ResumeModalProps {
 }
 
 export const ResumeModal: React.FC<ResumeModalProps> = ({ isOpen, onClose }) => {
+  useEffect(() => {
+    return () => {
+      revertAllButtonRipples();
+    };
+  }, []);
   // Close on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
