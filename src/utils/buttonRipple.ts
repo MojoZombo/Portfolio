@@ -34,9 +34,10 @@ interface ActiveTouchAnimation {
   endRadius: number;
   startTime: number;
   duration: number;
-  anim: Animation;
-  state: 'holding' | 'fading' | 'undone';
-  fadeTimer?: ReturnType<typeof setTimeout> | null;
+  enterAnim: Animation;
+  fadeAnim?: Animation | null;
+  state: 'entering' | 'holding' | 'fading';
+  isReleased: boolean;
 }
 
 const activeMouseAnims = new WeakMap<HTMLElement, ActiveButtonAnimation>();
@@ -62,9 +63,17 @@ function projectToNearestEdge(x: number, y: number, width: number, height: numbe
 
 /**
  * Reverts a button ripple back to its clean unhovered/unclicked state.
- * Cancels any active web animations on ::before and removes .is-hovered.
+ * Cancels active mouse animations on ::before and removes .is-hovered.
+ * Note: Does NOT abort in-flight mobile touch tap animations, allowing
+ * them to complete their full expansion and fade out smoothly.
  */
-export function revertButtonRipple(btn: HTMLElement): void {
+export function revertButtonRipple(btn: HTMLElement, forceTouch: boolean = false): void {
+  // If forceTouch is false and this button is running a mobile touch tap,
+  // let it finish expanding and fade out naturally!
+  if (!forceTouch && btnTouchMap.has(btn)) {
+    return;
+  }
+
   btn.classList.remove('is-hovered');
   const data = activeMouseAnims.get(btn);
   if (data?.anim) {
@@ -75,17 +84,17 @@ export function revertButtonRipple(btn: HTMLElement): void {
   }
   activeMouseAnims.delete(btn);
 
-  // Clean up any touch animation
-  const touchData = btnTouchMap.get(btn);
-  if (touchData) {
-    if (touchData.fadeTimer) {
-      clearTimeout(touchData.fadeTimer);
-      touchData.fadeTimer = null;
+  if (forceTouch) {
+    const touchData = btnTouchMap.get(btn);
+    if (touchData) {
+      if (touchData.enterAnim) {
+        try { touchData.enterAnim.cancel(); } catch {}
+      }
+      if (touchData.fadeAnim) {
+        try { touchData.fadeAnim.cancel(); } catch {}
+      }
+      btnTouchMap.delete(btn);
     }
-    if (touchData.anim) {
-      try { touchData.anim.cancel(); } catch {}
-    }
-    btnTouchMap.delete(btn);
   }
 }
 
@@ -112,6 +121,8 @@ export function revertAllOrphanedRipples(): void {
   if (typeof document === 'undefined') return;
   const hovered = document.querySelectorAll<HTMLElement>('.btn-ripple.is-hovered');
   hovered.forEach((btn) => {
+    // If a mobile touch tap animation is in progress, do not kill it!
+    if (btnTouchMap.has(btn)) return;
     if (!isMousePhysicallyOver(btn)) {
       revertButtonRipple(btn);
     }
@@ -122,13 +133,15 @@ let suppressMouseEnterUntil = 0;
 
 /**
  * Reverts all button ripples unconditionally (e.g. when opening/closing modals or changing views),
- * while preserving active buttons that are still directly under the user's cursor.
+ * while preserving active buttons that are still directly under the user's cursor or running touch taps.
  */
 export function revertAllButtonRipples(): void {
   suppressMouseEnterUntil = Date.now() + 350;
   if (typeof document === 'undefined') return;
   const hovered = document.querySelectorAll<HTMLElement>('.btn-ripple.is-hovered');
   hovered.forEach((btn) => {
+    // If a mobile touch tap animation is in progress, do not kill it!
+    if (btnTouchMap.has(btn)) return;
     if (isMousePhysicallyOver(btn)) return;
     revertButtonRipple(btn);
   });
@@ -373,12 +386,16 @@ export function initButtonRipple(): () => void {
 
   const handleMouseMove = (e: MouseEvent) => {
     lastMouseCoords = { x: e.clientX, y: e.clientY };
+    if (Date.now() - lastTouchTime < 1000) return;
+    if ((e as any).sourceCapabilities?.firesTouchEvents) return;
     // Whenever the mouse moves, check if any buttons with .is-hovered were orphaned (no longer under cursor)
     revertAllOrphanedRipples();
   };
 
   const handleClick = (e: MouseEvent) => {
     lastMouseCoords = { x: e.clientX, y: e.clientY };
+    if (Date.now() - lastTouchTime < 1000) return;
+    if ((e as any).sourceCapabilities?.firesTouchEvents) return;
     // A click might trigger a modal, navigation, or state update that leaves a button orphaned
     requestAnimationFrame(() => {
       revertAllOrphanedRipples();
@@ -399,6 +416,42 @@ export function initButtonRipple(): () => void {
   // -------------------------------------------------------------
   // MOBILE TOUCH HANDLERS (POINTER EVENTS)
   // -------------------------------------------------------------
+  const TOUCH_ENTER_DURATION = 260;
+  const TOUCH_FADE_DURATION = 240;
+
+  const triggerTouchFade = (touchData: ActiveTouchAnimation) => {
+    if (touchData.state === 'fading') return;
+    touchData.state = 'fading';
+
+    // Smoothly transition text color back
+    touchData.btn.classList.remove('is-hovered');
+
+    try {
+      const fadeAnim = touchData.btn.animate(
+        [
+          { clipPath: `circle(${touchData.endRadius}px at ${touchData.touchX}px ${touchData.touchY}px)`, opacity: 1 },
+          { clipPath: `circle(${touchData.endRadius}px at ${touchData.touchX}px ${touchData.touchY}px)`, opacity: 0 }
+        ],
+        {
+          duration: TOUCH_FADE_DURATION,
+          easing: 'ease-out',
+          fill: 'forwards',
+          pseudoElement: '::before'
+        }
+      );
+      touchData.fadeAnim = fadeAnim;
+
+      fadeAnim.onfinish = () => {
+        try { fadeAnim.cancel(); } catch {}
+        try { touchData.enterAnim.cancel(); } catch {}
+        btnTouchMap.delete(touchData.btn);
+      };
+    } catch {
+      try { touchData.enterAnim.cancel(); } catch {}
+      btnTouchMap.delete(touchData.btn);
+    }
+  };
+
   const handlePointerDown = (e: PointerEvent) => {
     const isTouch = e.pointerType === 'touch' || e.pointerType === 'pen';
 
@@ -409,35 +462,31 @@ export function initButtonRipple(): () => void {
       const btn = target.closest<HTMLElement>('.btn-ripple');
       if (!btn) return;
 
-      // Capture pointer so dragging off button continues delivering pointermove/pointerup
-      try {
-        btn.setPointerCapture(e.pointerId);
-      } catch {}
-
-      // Clean up any existing anim or pending fade timers on this button or pointer
+      // Clean up any existing active animation on this button or pointer
       const existingBtnTouch = btnTouchMap.get(btn);
       if (existingBtnTouch) {
-        if (existingBtnTouch.fadeTimer) {
-          clearTimeout(existingBtnTouch.fadeTimer);
-          existingBtnTouch.fadeTimer = null;
+        if (existingBtnTouch.fadeAnim) {
+          try { existingBtnTouch.fadeAnim.cancel(); } catch {}
         }
-        if (existingBtnTouch.anim) {
-          try { existingBtnTouch.anim.cancel(); } catch {}
+        if (existingBtnTouch.enterAnim) {
+          try { existingBtnTouch.enterAnim.cancel(); } catch {}
         }
+        btnTouchMap.delete(btn);
       }
 
       const existingPointerTouch = activeTouchMap.get(e.pointerId);
       if (existingPointerTouch && existingPointerTouch !== existingBtnTouch) {
-        if (existingPointerTouch.fadeTimer) {
-          clearTimeout(existingPointerTouch.fadeTimer);
+        if (existingPointerTouch.fadeAnim) {
+          try { existingPointerTouch.fadeAnim.cancel(); } catch {}
         }
-        if (existingPointerTouch.anim) {
-          try { existingPointerTouch.anim.cancel(); } catch {}
+        if (existingPointerTouch.enterAnim) {
+          try { existingPointerTouch.enterAnim.cancel(); } catch {}
         }
+        activeTouchMap.delete(e.pointerId);
       }
 
       const rect = btn.getBoundingClientRect();
-      // Activate animation from exactly where tapped
+      // Activate animation from exactly where touched
       const touchX = e.clientX - rect.left;
       const touchY = e.clientY - rect.top;
       const endRadius = Math.hypot(
@@ -454,7 +503,7 @@ export function initButtonRipple(): () => void {
             { clipPath: `circle(${endRadius}px at ${touchX}px ${touchY}px)`, opacity: 1 }
           ],
           {
-            duration: ENTER_DURATION,
+            duration: TOUCH_ENTER_DURATION,
             easing: 'cubic-bezier(0.2, 0.8, 0.25, 1)',
             fill: 'forwards',
             pseudoElement: '::before'
@@ -467,10 +516,19 @@ export function initButtonRipple(): () => void {
           touchY,
           endRadius,
           startTime: performance.now(),
-          duration: ENTER_DURATION,
-          anim: enterAnim,
-          state: 'holding',
-          fadeTimer: null
+          duration: TOUCH_ENTER_DURATION,
+          enterAnim,
+          fadeAnim: null,
+          state: 'entering',
+          isReleased: false
+        };
+
+        enterAnim.onfinish = () => {
+          if (touchData.isReleased) {
+            triggerTouchFade(touchData);
+          } else {
+            touchData.state = 'holding';
+          }
         };
 
         activeTouchMap.set(e.pointerId, touchData);
@@ -507,24 +565,20 @@ export function initButtonRipple(): () => void {
     if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
 
     const data = activeTouchMap.get(e.pointerId);
-    if (!data || data.state !== 'holding') return;
+    if (!data || data.state === 'fading') return;
 
     const rect = data.btn.getBoundingClientRect();
-    // Allow slight finger wobble margin of 8px
+    // Allow slight finger wobble margin of 12px
     const isInside =
-      e.clientX >= rect.left - 8 &&
-      e.clientX <= rect.right + 8 &&
-      e.clientY >= rect.top - 8 &&
-      e.clientY <= rect.bottom + 8;
+      e.clientX >= rect.left - 12 &&
+      e.clientX <= rect.right + 12 &&
+      e.clientY >= rect.top - 12 &&
+      e.clientY <= rect.bottom + 12;
 
-    if (!isInside) {
-      // Finger moved off the button -> undo the animation
-      data.state = 'undone';
+    if (!isInside && !data.isReleased) {
+      // Finger moved intentionally off the button before release -> abort/reverse
       activeTouchMap.delete(e.pointerId);
-
-      try {
-        data.btn.releasePointerCapture(e.pointerId);
-      } catch {}
+      btnTouchMap.delete(data.btn);
 
       const elapsed = performance.now() - data.startTime;
       const rawProgress = Math.min(1, Math.max(0.05, elapsed / data.duration));
@@ -533,7 +587,7 @@ export function initButtonRipple(): () => void {
       const reverseDuration = Math.max(100, Math.round(180 * rawProgress));
 
       try {
-        data.anim.cancel();
+        data.enterAnim.cancel();
       } catch {}
 
       try {
@@ -550,16 +604,12 @@ export function initButtonRipple(): () => void {
           }
         );
 
-        data.anim = reverseAnim;
-
         reverseAnim.onfinish = () => {
           try { reverseAnim.cancel(); } catch {}
           data.btn.classList.remove('is-hovered');
-          btnTouchMap.delete(data.btn);
         };
       } catch {
         data.btn.classList.remove('is-hovered');
-        btnTouchMap.delete(data.btn);
       }
     }
   };
@@ -572,46 +622,13 @@ export function initButtonRipple(): () => void {
     if (!data) return;
     activeTouchMap.delete(e.pointerId);
 
-    try {
-      data.btn.releasePointerCapture(e.pointerId);
-    } catch {}
+    data.isReleased = true;
 
-    if (data.state !== 'holding') return;
-    data.state = 'fading';
-
-    // If tap was quick, let the enter ripple complete expanding before fading away
-    const elapsed = performance.now() - data.startTime;
-    const remainingEnter = Math.max(0, data.duration - elapsed);
-
-    data.fadeTimer = setTimeout(() => {
-      data.fadeTimer = null;
-      // Fade away smoothly back to the original background
-      const FADE_DURATION = 240;
-      try {
-        const fadeAnim = data.btn.animate(
-          [
-            { clipPath: `circle(${data.endRadius}px at ${data.touchX}px ${data.touchY}px)`, opacity: 1 },
-            { clipPath: `circle(${data.endRadius}px at ${data.touchX}px ${data.touchY}px)`, opacity: 0 }
-          ],
-          {
-            duration: FADE_DURATION,
-            easing: 'ease-out',
-            fill: 'forwards',
-            pseudoElement: '::before'
-          }
-        );
-
-        data.btn.classList.remove('is-hovered');
-
-        fadeAnim.onfinish = () => {
-          try { fadeAnim.cancel(); } catch {}
-          btnTouchMap.delete(data.btn);
-        };
-      } catch {
-        data.btn.classList.remove('is-hovered');
-        btnTouchMap.delete(data.btn);
-      }
-    }, remainingEnter);
+    if (data.state === 'holding') {
+      triggerTouchFade(data);
+    }
+    // If still in 'entering' state, enterAnim will finish expanding fully to endRadius,
+    // and its onfinish callback will automatically trigger triggerTouchFade(data).
   };
 
   const handlePointerCancel = (e: PointerEvent) => {
@@ -619,20 +636,13 @@ export function initButtonRipple(): () => void {
       lastTouchTime = Date.now();
     }
     const data = activeTouchMap.get(e.pointerId);
-    if (data) {
-      activeTouchMap.delete(e.pointerId);
-      btnTouchMap.delete(data.btn);
-      if (data.fadeTimer) {
-        clearTimeout(data.fadeTimer);
-        data.fadeTimer = null;
-      }
-      try {
-        data.btn.releasePointerCapture(e.pointerId);
-      } catch {}
-      try {
-        data.anim.cancel();
-      } catch {}
-      data.btn.classList.remove('is-hovered');
+    if (!data) return;
+    activeTouchMap.delete(e.pointerId);
+
+    // Treat cancel as release so in-flight tap finishes expanding fully and fades out smoothly
+    data.isReleased = true;
+    if (data.state === 'holding') {
+      triggerTouchFade(data);
     }
   };
 

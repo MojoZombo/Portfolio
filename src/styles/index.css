@@ -65,7 +65,7 @@ html.is-theme-transitioning *::after {
   position: relative !important;
   overflow: hidden !important;
   isolation: isolate !important;
-  touch-action: none;
+  touch-action: manipulation;
   transition: color 200ms ease;
 }
 
