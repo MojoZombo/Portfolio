@@ -180,13 +180,13 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
                   size="sm"
                 />
               )}
-              <span className="font-mono text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <span className="font-mono text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium select-text">
                 {project.date.toUpperCase()}
               </span>
             </div>
 
             {/* Title */}
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight select-text">
               {project.title}
             </h2>
 

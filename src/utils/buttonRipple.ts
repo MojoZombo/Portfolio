@@ -388,8 +388,15 @@ export function initButtonRipple(): () => void {
     lastMouseCoords = { x: e.clientX, y: e.clientY };
     if (Date.now() - lastTouchTime < 1000) return;
     if ((e as any).sourceCapabilities?.firesTouchEvents) return;
-    // Whenever the mouse moves, check if any buttons with .is-hovered were orphaned (no longer under cursor)
-    revertAllOrphanedRipples();
+    // Whenever the mouse moves, check if any buttons with .is-hovered were orphaned (no longer under cursor).
+    // Animate them out smoothly (reverse/exit) instead of hard-cancelling, since this commonly happens when
+    // a mouseleave on the exact edge was ignored by the isInside check.
+    document.querySelectorAll<HTMLElement>('.btn-ripple.is-hovered').forEach((btn) => {
+      if (btnTouchMap.has(btn)) return;
+      if (!isMousePhysicallyOver(btn)) {
+        triggerMouseExit(btn, e.clientX, e.clientY);
+      }
+    });
   };
 
   const handleClick = (e: MouseEvent) => {

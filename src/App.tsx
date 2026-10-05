@@ -15,7 +15,47 @@ import { initButtonRipple, revertAllButtonRipples } from './utils/buttonRipple';
 
 export const App: React.FC = () => {
   useEffect(() => {
-    return initButtonRipple();
+    let lastMousedownTime = 0;
+    let lastMousedownTarget: HTMLElement | null = null;
+    let clickCount = 0;
+
+    const blockLayoutSelection = (e: MouseEvent) => {
+      const now = Date.now();
+      if (now - lastMousedownTime < 400) {
+        clickCount++;
+      } else {
+        clickCount = 1;
+      }
+      lastMousedownTime = now;
+      lastMousedownTarget = e.target as HTMLElement;
+
+      if (clickCount > 1) {
+        if (lastMousedownTarget && ['div', 'main', 'header', 'footer', 'section', 'svg', 'path', 'a', 'button', 'img', 'nav', 'ul', 'li'].includes(lastMousedownTarget.tagName.toLowerCase())) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    const handleSelectStart = (e: Event) => {
+      // If a selection starts immediately after a multi-click on a structural/button element, block it.
+      // This catches chromium bugs where it jumps to the next DOM text node.
+      if (clickCount > 1 && Date.now() - lastMousedownTime < 100 && lastMousedownTarget) {
+        if (['div', 'main', 'header', 'footer', 'section', 'svg', 'path', 'a', 'button', 'img', 'nav', 'ul', 'li'].includes(lastMousedownTarget.tagName.toLowerCase())) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    window.addEventListener('mousedown', blockLayoutSelection, { passive: false });
+    window.addEventListener('selectstart', handleSelectStart, { passive: false });
+    
+    const cleanupRipple = initButtonRipple();
+    
+    return () => {
+      window.removeEventListener('mousedown', blockLayoutSelection);
+      window.removeEventListener('selectstart', handleSelectStart);
+      cleanupRipple();
+    };
   }, []);
   const [selectedProject, setSelectedProject] = useState<Project | null>(() => {
     const rawHash = window.location.hash.replace(/^#\/?/, '');

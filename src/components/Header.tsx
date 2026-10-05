@@ -3,7 +3,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Sun, Moon, FileText, MapPin, GraduationCap, Mail, Linkedin, ArrowUpRight } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { theme, toggleTheme } = useTheme();
+  const { toggleTheme } = useTheme();
 
   const titleAnchorRef = useRef<HTMLDivElement>(null);
   const buttonsAnchorRef = useRef<HTMLDivElement>(null);
@@ -123,7 +123,7 @@ export const Header: React.FC = () => {
         style={{ position: 'fixed', top: 0, left: 0, zIndex: 40 }}
         className="pointer-events-none will-change-transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
       >
-        <div className="pointer-events-auto flex items-center gap-2.5 font-mono text-xs shrink-0">
+        <div className="pointer-events-auto flex items-center gap-2.5 font-mono text-xs shrink-0 select-none">
           <a
             href="#resume"
             onClick={(e) => {
@@ -133,7 +133,8 @@ export const Header: React.FC = () => {
                 window.dispatchEvent(new HashChangeEvent('hashchange'));
               }
             }}
-            className="btn-ripple inline-flex items-center gap-1.5 px-3 py-2 rounded bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-medium cursor-pointer"
+            onMouseDown={(e) => e.preventDefault()}
+            className="btn-ripple inline-flex items-center gap-1.5 px-3 py-2 rounded bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-medium cursor-pointer select-none"
           >
             <FileText size={13} />
             <span>Resume</span>
@@ -141,11 +142,18 @@ export const Header: React.FC = () => {
 
           <button
             onClick={toggleTheme}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              // Rapid double/triple clicks can otherwise select nearby header text
+              if (e.detail > 1) window.getSelection()?.removeAllRanges();
+            }}
+            onDoubleClick={() => window.getSelection()?.removeAllRanges()}
             data-theme-toggle="true"
-            className="btn-ripple w-[30px] h-[30px] p-0 flex items-center justify-center rounded bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
+            className="btn-ripple theme-toggle-vt w-[30px] h-[30px] p-0 flex items-center justify-center rounded bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-200 cursor-pointer select-none"
             title="Toggle Light / Dark Mode"
           >
-            {theme === 'dark' ? <Sun size={14} className="pointer-events-none" /> : <Moon size={14} className="pointer-events-none" />}
+            <Sun size={14} className="theme-icon-sun pointer-events-none" />
+            <Moon size={14} className="theme-icon-moon pointer-events-none" />
           </button>
         </div>
       </div>

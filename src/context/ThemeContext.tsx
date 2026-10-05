@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+﻿import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { flushSync } from 'react-dom';
 
 type Theme = 'dark' | 'light';
@@ -89,6 +89,30 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('cad-theme', t);
   };
 
+  // The header toggle is lifted into its own live view-transition layer (see .theme-toggle-vt in index.css)
+  // so its ripple keeps animating during the page wipe. Its colors/icon follow `data-toggle-theme` on <html>
+  // rather than the live theme, and that attribute is only swapped once the button's own tap ripple has
+  // fully covered it â€” so the ripple fades out onto the correct color instead of the button snapping.
+  const TOGGLE_SWAP_DELAY = 0; // swap right away; CSS eases the colors and crossfades the icon
+  const toggleSwapTimerRef = useRef<number | null>(null);
+  const setToggleDisplay = (t: Theme) => {
+    if (toggleSwapTimerRef.current !== null) window.clearTimeout(toggleSwapTimerRef.current);
+    toggleSwapTimerRef.current = null;
+    document.documentElement.setAttribute('data-toggle-theme', t);
+  };
+  const scheduleToggleDisplay = (t: Theme) => {
+    if (toggleSwapTimerRef.current !== null) window.clearTimeout(toggleSwapTimerRef.current);
+    toggleSwapTimerRef.current = window.setTimeout(() => {
+      toggleSwapTimerRef.current = null;
+      document.documentElement.setAttribute('data-toggle-theme', t);
+    }, TOGGLE_SWAP_DELAY);
+  };
+
+  useEffect(() => {
+    if (toggleSwapTimerRef.current === null) setToggleDisplay(theme);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toggleTheme = (_event?: React.MouseEvent | MouseEvent | { clientX: number; clientY: number }) => {
     const now = performance.now();
     if (now - lastToggleCallRef.current < 80) return;
@@ -101,6 +125,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     ) {
       const nextTheme = theme === 'dark' ? 'light' : 'dark';
+      scheduleToggleDisplay(nextTheme);
       setTheme(nextTheme);
       return;
     }
@@ -156,7 +181,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           });
         }
       };
-
+      scheduleToggleDisplay(sourceThemeRef.current);
       activeAnimRef.current = revAnim;
       return;
     }
@@ -185,7 +210,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           pseudoElement: '::view-transition-new(root)',
         }
       );
-
+      scheduleToggleDisplay(targetThemeRef.current);
       activeAnimRef.current = fwdAnim;
       return;
     }
@@ -238,6 +263,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const duration = isMobile ? 520 : isTablet ? 580 : isLargeDesktop ? 700 : 640;
     const easing = 'cubic-bezier(0.2, 0.85, 0.32, 1)';
 
+    // Button keeps showing the current theme until its tap ripple covers it, then swaps underneath
+    setToggleDisplay(currentTheme);
+    scheduleToggleDisplay(nextTheme);
+
     const transition = (document as any).startViewTransition(() => {
       // Suppress concurrent CSS transitions and synchronously update root DOM inside the transition callback
       document.documentElement.classList.add('is-theme-transitioning');
@@ -268,7 +297,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           pseudoElement: '::view-transition-new(root)',
         }
       );
-
       activeAnimRef.current = anim;
     }).catch(() => {});
 
@@ -289,6 +317,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const handleSetTheme = (newTheme: Theme) => {
+    setToggleDisplay(newTheme);
     if (activeTransitionRef.current) {
       try { activeTransitionRef.current.skipTransition(); } catch {}
       activeTransitionRef.current = null;
@@ -333,8 +362,24 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     window.addEventListener('click', handleWindowIntercept, true);
 
+    // Clicks during a view transition hit <html>, so double/triple clicks would select page text.
+    // Suppress multi-click selection while the wipe runs and briefly after it ends.
+    let lastWipeActiveAt = 0;
+    const handleMouseDownGuard = (e: MouseEvent) => {
+      const now = performance.now();
+      if (activeTransitionRef.current || document.documentElement.classList.contains('is-theme-transitioning')) {
+        lastWipeActiveAt = now;
+      }
+      if (e.detail > 1 && now - lastWipeActiveAt < 600) {
+        e.preventDefault();
+        window.getSelection()?.removeAllRanges();
+      }
+    };
+    window.addEventListener('mousedown', handleMouseDownGuard, true);
+
     return () => {
       window.removeEventListener('click', handleWindowIntercept, true);
+      window.removeEventListener('mousedown', handleMouseDownGuard, true);
     };
   }, []);
 

@@ -51,6 +51,84 @@
   z-index: 9999;
 }
 
+/* Render the header theme toggle as its own live layer above the wipe, so its ripple keeps
+   animating (and fades out) instead of freezing inside the static old-root snapshot when reversing */
+.theme-toggle-vt {
+  view-transition-name: theme-toggle;
+}
+
+::view-transition-group(theme-toggle) {
+  z-index: 10000;
+  animation: none;
+  pointer-events: none !important;
+}
+
+::view-transition-old(theme-toggle) {
+  display: none;
+}
+
+::view-transition-new(theme-toggle) {
+  animation: none;
+}
+
+/* ---- Header theme toggle ----
+   Both icons are stacked; the active one is shown and the other is rotated/scaled out, so switching
+   theme crossfades the icon and eases the button colors instead of snapping mid-animation. */
+html .theme-toggle-vt svg,
+html.is-theme-transitioning .theme-toggle-vt svg {
+  position: absolute !important;
+  inset: 0;
+  margin: auto;
+  transition: opacity 300ms ease, transform 400ms cubic-bezier(0.2, 0.85, 0.32, 1), color 300ms ease !important;
+}
+.theme-icon-sun,
+html[data-toggle-theme='light'] .theme-toggle-vt .theme-icon-sun {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.4);
+}
+.theme-icon-moon,
+html[data-toggle-theme='light'] .theme-toggle-vt .theme-icon-moon {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+html.dark .theme-icon-sun,
+html[data-toggle-theme='dark'] .theme-toggle-vt .theme-icon-sun {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+html.dark .theme-icon-moon,
+html[data-toggle-theme='dark'] .theme-toggle-vt .theme-icon-moon {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.4);
+}
+
+/* Button colors follow data-toggle-theme (set by ThemeContext) and ease between themes.
+   Higher specificity + !important keeps these transitions alive during .is-theme-transitioning. */
+html .theme-toggle-vt,
+html.is-theme-transitioning .theme-toggle-vt {
+  transition: background-color 300ms ease, color 300ms ease !important;
+}
+html[data-toggle-theme='light'] .theme-toggle-vt {
+  background-color: #e2e8f0 !important; /* slate-200 */
+  color: #0f172a !important;            /* slate-900 */
+}
+html[data-toggle-theme='dark'] .theme-toggle-vt {
+  background-color: #1e293b !important; /* slate-800 */
+  color: #e2e8f0 !important;            /* slate-200 */
+}
+html[data-toggle-theme='light'] .theme-toggle-vt::before { background-color: #2563eb !important; }
+html[data-toggle-theme='dark'] .theme-toggle-vt::before { background-color: #3b82f6 !important; }
+html[data-toggle-theme] .theme-toggle-vt.is-hovered,
+html[data-toggle-theme] .theme-toggle-vt.is-hovered svg { color: #ffffff !important; }
+
+/* During a view transition the browser routes clicks to <html>, so a double-click anywhere could
+   select page text. Disable selection for the duration of the theme wipe. */
+html.is-theme-transitioning,
+html.is-theme-transitioning * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
 /* Disable concurrent CSS transitions/animations during theme wipe to eliminate delayed screen/timeline flashes */
 html.is-theme-transitioning,
 html.is-theme-transitioning *,
@@ -79,6 +157,7 @@ html.is-theme-transitioning *::after {
   z-index: 1;
   opacity: 0;
   clip-path: circle(0px at 0 0);
+  will-change: clip-path, opacity;
 }
 
 html.dark .btn-ripple::before,
