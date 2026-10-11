@@ -128,6 +128,19 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     }
   }, []);
 
+  const [isMobileWidth, setIsMobileWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileWidth(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobileMode = !allowZoom && (isTouchDevice || isMobileWidth);
+
   // Track window scrolling activity to guarantee 0 WebGL mount overhead while scrolling
   useEffect(() => {
     let scrollTimer: ReturnType<typeof setTimeout>;
@@ -298,7 +311,13 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
           }`}
         >
           <Canvas
-            className={allowZoom ? "grab-cursor" : "grab-cursor !touch-pan-y"}
+            className={
+              allowZoom
+                ? "grab-cursor"
+                : isMobileMode
+                ? "cursor-pointer !touch-pan-y"
+                : "grab-cursor !touch-pan-y"
+            }
             style={{ background: 'transparent' }}
             frameloop={isActive || allowZoom || isHovered ? 'always' : 'demand'}
             dpr={[1, 1.6]}
@@ -348,8 +367,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             <CameraStateDetector onZoomChange={setIsZoomedIn} />
 
             {/* OrbitControls intercepts native touchstart events via addEventListener, which hijacks scrolling.
-                To completely fix mobile scrolling, we conditionally unmount OrbitControls when on the main page (allowZoom=false) on touch devices! */}
-            {(allowZoom || !isTouchDevice) && (
+                To completely fix mobile scrolling, we conditionally unmount OrbitControls when on the main page (allowZoom=false) on touch devices or mobile viewports! */}
+            {(allowZoom || (!isTouchDevice && !isMobileWidth)) && (
               <OrbitControls
                 target={[0, 0, 0]}
                 enableZoom={allowZoom}

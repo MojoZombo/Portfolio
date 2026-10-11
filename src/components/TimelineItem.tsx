@@ -79,6 +79,117 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
 
+  // Mobile-only tap detection:
+  // Tapping the 3D model in mobile mode opens detail view (onSelect(project)).
+  // Strictly ignores scrolling gestures (touch delta > 8px, scroll delta > 6px, duration > 350ms).
+  // Desktop mode is strictly excluded (isDesktop === true returns immediately).
+  const touchStartRef = useRef<{ x: number; y: number; time: number; scrollY: number } | null>(null);
+  const touchMovedRef = useRef<boolean>(false);
+  const lastTapHandledRef = useRef<number>(0);
+  const mouseDownPosRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  const handleModelTouchStart = (e: React.TouchEvent) => {
+    if (isDesktop) return;
+    if (e.touches.length !== 1) {
+      touchMovedRef.current = true;
+      touchStartRef.current = null;
+      return;
+    }
+    const touch = e.touches[0];
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: Date.now(),
+      scrollY: window.scrollY || window.pageYOffset || 0,
+    };
+    touchMovedRef.current = false;
+  };
+
+  const handleModelTouchMove = (e: React.TouchEvent) => {
+    if (isDesktop) return;
+    if (!touchStartRef.current || e.touches.length !== 1) {
+      touchMovedRef.current = true;
+      return;
+    }
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchStartRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartRef.current.y);
+    if (dx > 8 || dy > 8) {
+      touchMovedRef.current = true;
+    }
+  };
+
+  const handleModelTouchEnd = (e: React.TouchEvent) => {
+    if (isDesktop) return;
+    if (!touchStartRef.current) return;
+
+    const startInfo = touchStartRef.current;
+    touchStartRef.current = null;
+
+    if (touchMovedRef.current) return;
+
+    const duration = Date.now() - startInfo.time;
+    if (duration > 350) return;
+
+    const currentScrollY = window.scrollY || window.pageYOffset || 0;
+    if (Math.abs(currentScrollY - startInfo.scrollY) > 6) return;
+
+    if (e.changedTouches.length > 0) {
+      const touch = e.changedTouches[0];
+      const endDx = Math.abs(touch.clientX - startInfo.x);
+      const endDy = Math.abs(touch.clientY - startInfo.y);
+      if (endDx > 8 || endDy > 8) return;
+    }
+
+    lastTapHandledRef.current = Date.now();
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+    onSelect(project);
+  };
+
+  const handleModelTouchCancel = () => {
+    touchMovedRef.current = true;
+    touchStartRef.current = null;
+  };
+
+  const handleModelMouseDown = (e: React.MouseEvent) => {
+    if (isDesktop) return;
+    mouseDownPosRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      time: Date.now(),
+    };
+  };
+
+  const handleModelClick = (e: React.MouseEvent) => {
+    if (isDesktop) return;
+
+    // Debounce synthetic click if touch tap was already handled
+    if (Date.now() - lastTapHandledRef.current < 600) {
+      return;
+    }
+
+    // If mouse was dragged (e.g. testing in responsive view with mouse), do not trigger
+    if (mouseDownPosRef.current) {
+      const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
+      const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
+      const duration = Date.now() - mouseDownPosRef.current.time;
+      mouseDownPosRef.current = null;
+      if (dx > 8 || dy > 8 || duration > 400) return;
+    }
+
+    onSelect(project);
+  };
+
+  const handleModelKeyDown = (e: React.KeyboardEvent) => {
+    if (isDesktop) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onSelect(project);
+    }
+  };
+
   const docCenterYRef = useRef(0);
 
   const measureDocCenter = useCallback(() => {
@@ -220,7 +331,21 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           }}
           className="w-full flex items-center justify-center overflow-visible will-change-transform"
         >
-          <div className="w-full max-w-2xl flex items-center justify-center overflow-visible">
+          <div
+            className={`w-full max-w-2xl flex items-center justify-center overflow-visible ${
+              !isDesktop ? 'cursor-pointer focus:outline-none' : ''
+            }`}
+            onClick={handleModelClick}
+            onTouchStart={handleModelTouchStart}
+            onTouchMove={handleModelTouchMove}
+            onTouchEnd={handleModelTouchEnd}
+            onTouchCancel={handleModelTouchCancel}
+            onMouseDown={handleModelMouseDown}
+            role={!isDesktop ? 'button' : undefined}
+            tabIndex={!isDesktop ? 0 : undefined}
+            aria-label={!isDesktop ? `View details for ${project.title}` : undefined}
+            onKeyDown={!isDesktop ? handleModelKeyDown : undefined}
+          >
             <ModelViewer
               modelType={project.modelType}
               isActive={isActive}
