@@ -140,11 +140,15 @@ html.is-theme-transitioning *::after {
 
 /* Mouse-Aware Radial Button Ripple Effect */
 .btn-ripple {
-  position: relative !important;
+  position: relative;
   overflow: hidden !important;
   isolation: isolate !important;
   touch-action: manipulation;
   transition: color 200ms ease;
+}
+
+.btn-ripple.absolute {
+  position: absolute !important;
 }
 
 .btn-ripple::before {

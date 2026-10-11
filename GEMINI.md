@@ -16,3 +16,11 @@
   - Rely exclusively on **background color differentiation and contrast** (e.g., solid surface tones like `dark:bg-[#0c121e]`, elevated cards like `dark:bg-slate-800/60`, headers like `dark:bg-slate-950`).
   - Use whitespace, padding, rounded corners, and subtle typography hierarchy (font weights, muted mono captions).
   - For button hover states, use clean solid color fills (e.g. vibrant blue `#2563eb` / `#3b82f6` with instant color switching) with **zero borders**.
+
+### STRICT RULE: DISCOURAGE DROP SHADOWS
+- **Avoid drop shadows on UI elements, buttons, cards, containers, and images.**
+- Do NOT add prominent Tailwind shadow utility classes (e.g., `shadow`, `shadow-md`, `shadow-lg`, `shadow-xl`, `shadow-2xl`).
+- Maintain a clean, flat, high-precision aesthetic. Visual separation, hierarchy, and depth must be established through:
+  - **Color differentiation & contrast** (e.g., solid surface tones, elevated backgrounds, vibrant accent fills).
+  - Clean whitespace, padding, rounded corners, and typography hierarchy.
+- For buttons and controls that need to stand out or "pop", rely purely on **bold, high-contrast solid color fills** (e.g., brand blue fills like `bg-blue-600 dark:bg-blue-500` with crisp white icons/text), never artificial drop shadows or borders.
