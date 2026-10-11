@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BackgroundGrid } from './components/BackgroundGrid';
 import { Header } from './components/Header';
 import { TimelineItem } from './components/TimelineItem';
 import { TimelineRuler } from './components/TimelineRuler';
 import { ProjectModal } from './components/ProjectModal';
-import { CADStudioWorkbench } from './components/studio/CADStudioWorkbench';
-import { PosterBakerPage } from './components/poster/PosterBakerPage';
+// Authoring tools: loaded only when #studio / #baker is opened
+const CADStudioWorkbench = lazy(() =>
+  import('./components/studio/CADStudioWorkbench').then((m) => ({ default: m.CADStudioWorkbench }))
+);
+const PosterBakerPage = lazy(() =>
+  import('./components/poster/PosterBakerPage').then((m) => ({ default: m.PosterBakerPage }))
+);
 import { CADLoadingScreen } from './components/CADLoadingScreen';
 import { ResumeModal } from './components/ResumeModal';
 import { projectsData } from './data/projectsData';
@@ -142,28 +147,32 @@ export const App: React.FC = () => {
   // If in dedicated Poster Baker mode, render full-screen Poster Baker
   if (isBakerOpen) {
     return (
-      <PosterBakerPage
-        onExit={() => {
-          setIsBakerOpen(false);
-          if (window.location.hash === '#baker') {
-            window.history.pushState(null, '', window.location.pathname);
-          }
-        }}
-      />
+      <Suspense fallback={null}>
+        <PosterBakerPage
+          onExit={() => {
+            setIsBakerOpen(false);
+            if (window.location.hash === '#baker') {
+              window.history.pushState(null, '', window.location.pathname);
+            }
+          }}
+        />
+      </Suspense>
     );
   }
 
   // If in dedicated Studio mode, render full-screen Studio Workbench
   if (isStudioOpen) {
     return (
-      <CADStudioWorkbench
-        onExit={() => {
-          setIsStudioOpen(false);
-          if (window.location.hash === '#studio') {
-            window.history.pushState(null, '', window.location.pathname);
-          }
-        }}
-      />
+      <Suspense fallback={null}>
+        <CADStudioWorkbench
+          onExit={() => {
+            setIsStudioOpen(false);
+            if (window.location.hash === '#studio') {
+              window.history.pushState(null, '', window.location.pathname);
+            }
+          }}
+        />
+      </Suspense>
     );
   }
 
