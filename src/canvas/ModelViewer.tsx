@@ -301,7 +301,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             className={allowZoom ? "grab-cursor" : "grab-cursor !touch-pan-y"}
             style={{ background: 'transparent' }}
             frameloop={isActive || allowZoom || isHovered ? 'always' : 'demand'}
-            dpr={1.6}
+            dpr={[1, 1.6]}
             gl={{
               antialias: true,
               alpha: true,
