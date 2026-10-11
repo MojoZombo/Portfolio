@@ -762,4 +762,3 @@ export const ModularGripperModel: React.FC<ModelProps> = ({
   );
 };
 
-useGLTF.preload('./models/RaiseGripper.glb');

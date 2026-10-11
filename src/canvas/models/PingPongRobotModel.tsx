@@ -976,4 +976,3 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
   );
 };
 
-useGLTF.preload('./models/pingpongtest.glb');

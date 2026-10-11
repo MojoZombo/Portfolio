@@ -778,5 +778,4 @@ export const BottleScrubberModel: React.FC<ModelProps> = ({
   );
 };
 
-useGLTF.preload('./models/Scrubtious.glb', '/draco/gltf/');
 

@@ -860,4 +860,3 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
   );
 };
 
-useGLTF.preload('./models/underwater-robot-split.glb');

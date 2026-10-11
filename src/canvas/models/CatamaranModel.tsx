@@ -841,5 +841,4 @@ export const CatamaranModel: React.FC<ModelProps> = ({
   );
 };
 
-useGLTF.preload('./models/Sailboat.glb');
 

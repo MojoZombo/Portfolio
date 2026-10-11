@@ -1227,4 +1227,3 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
   );
 };
 
-useGLTF.preload('./models/CableRobotWinchV2.glb');

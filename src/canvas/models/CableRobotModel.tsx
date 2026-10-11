@@ -1013,4 +1013,3 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
 };
 
 // Preload the CAD model
-useGLTF.preload('./models/CableRobotV2Decimated.glb');

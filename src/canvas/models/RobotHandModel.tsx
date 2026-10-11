@@ -1159,4 +1159,3 @@ export const RobotHandModel: React.FC<ModelProps> = ({ isActive = false, isRotat
 };
 
 // Preload the CAD model
-useGLTF.preload('./models/HandSplit.glb');

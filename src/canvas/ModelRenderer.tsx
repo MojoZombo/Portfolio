@@ -1,17 +1,19 @@
-import React from 'react';
-import { RobotHandModel } from './models/RobotHandModel';
-import { CableRobotModel } from './models/CableRobotModel';
-import { PingPongRobotModel } from './models/PingPongRobotModel';
-import { CatamaranModel } from './models/CatamaranModel';
-import { WinchCatchModel } from './models/WinchCatchModel';
-import { OutriggerModel } from './models/OutriggerModel';
-import { ModularGripperModel } from './models/ModularGripperModel';
-import { UnderwaterRobotModel } from './models/UnderwaterRobotModel';
-import { AntiTangleWinchModel } from './models/AntiTangleWinchModel';
-import { BottleScrubberModel } from './models/BottleScrubberModel';
-import { FTCRobotModel } from './models/FTCRobotModel';
-import { TeslaActuatorModel } from './models/TeslaActuatorModel';
-import { InductiveRobotModel } from './models/InductiveRobotModel';
+import React, { lazy } from 'react';
+
+// Each model is code-split and fetched on demand (rendered inside ModelViewer's <Suspense>)
+const RobotHandModel = lazy(() => import('./models/RobotHandModel').then((m) => ({ default: m.RobotHandModel })));
+const CableRobotModel = lazy(() => import('./models/CableRobotModel').then((m) => ({ default: m.CableRobotModel })));
+const PingPongRobotModel = lazy(() => import('./models/PingPongRobotModel').then((m) => ({ default: m.PingPongRobotModel })));
+const CatamaranModel = lazy(() => import('./models/CatamaranModel').then((m) => ({ default: m.CatamaranModel })));
+const WinchCatchModel = lazy(() => import('./models/WinchCatchModel').then((m) => ({ default: m.WinchCatchModel })));
+const OutriggerModel = lazy(() => import('./models/OutriggerModel').then((m) => ({ default: m.OutriggerModel })));
+const ModularGripperModel = lazy(() => import('./models/ModularGripperModel').then((m) => ({ default: m.ModularGripperModel })));
+const UnderwaterRobotModel = lazy(() => import('./models/UnderwaterRobotModel').then((m) => ({ default: m.UnderwaterRobotModel })));
+const AntiTangleWinchModel = lazy(() => import('./models/AntiTangleWinchModel').then((m) => ({ default: m.AntiTangleWinchModel })));
+const BottleScrubberModel = lazy(() => import('./models/BottleScrubberModel').then((m) => ({ default: m.BottleScrubberModel })));
+const FTCRobotModel = lazy(() => import('./models/FTCRobotModel').then((m) => ({ default: m.FTCRobotModel })));
+const TeslaActuatorModel = lazy(() => import('./models/TeslaActuatorModel').then((m) => ({ default: m.TeslaActuatorModel })));
+const InductiveRobotModel = lazy(() => import('./models/InductiveRobotModel').then((m) => ({ default: m.InductiveRobotModel })));
 
 interface ModelRendererProps {
   modelType: string;

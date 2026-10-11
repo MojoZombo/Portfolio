@@ -869,4 +869,3 @@ export const AntiTangleWinchModel: React.FC<ModelProps> = ({
   );
 };
 
-useGLTF.preload('./models/Winch.glb');
