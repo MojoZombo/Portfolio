@@ -206,6 +206,8 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
                 alt=""
                 className="max-h-[300px] sm:max-h-[360px] max-w-full object-contain rounded-lg select-none pointer-events-none"
                 draggable={false}
+                loading="lazy"
+                decoding="async"
               />
             </div>
           </motion.div>
@@ -241,6 +243,8 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
                 alt={images[renderedPrevIndex].caption || 'Previous photo'}
                 className="max-h-[300px] sm:max-h-[360px] max-w-full object-contain rounded-lg select-none pointer-events-none"
                 draggable={false}
+                loading="lazy"
+                decoding="async"
               />
               {/* Hover highlight: removed instantly (not faded) once the slide animation starts */}
               {prevHovered && (
@@ -314,6 +318,8 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
               alt={currentImg.caption || currentImg.title || 'Project image'}
               className="max-h-[300px] sm:max-h-[360px] max-w-full object-contain rounded-lg pointer-events-none select-none"
               draggable={false}
+                loading="lazy"
+                decoding="async"
             />
             <div
               className="absolute top-2.5 right-2.5 p-1.5 rounded bg-slate-900/80 hover:bg-slate-900 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity select-none pointer-events-none"
@@ -354,6 +360,8 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
                 alt={images[renderedNextIndex].caption || 'Next photo'}
                 className="max-h-[300px] sm:max-h-[360px] max-w-full object-contain rounded-lg select-none pointer-events-none"
                 draggable={false}
+                loading="lazy"
+                decoding="async"
               />
               {/* Hover highlight: removed instantly (not faded) once the slide animation starts */}
               {nextHovered && (
@@ -380,6 +388,8 @@ export const ImageCarousel: React.FC<ImageCarouselProps> = ({ images, onImageCli
                 alt=""
                 className="max-h-[300px] sm:max-h-[360px] max-w-full object-contain rounded-lg select-none pointer-events-none"
                 draggable={false}
+                loading="lazy"
+                decoding="async"
               />
             </div>
           </motion.div>
