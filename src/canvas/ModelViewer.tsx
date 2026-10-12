@@ -251,7 +251,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [shadedFallback, setShadedFallback] = useState(false);
 
   // Cache-busting version query parameter to force browsers to load fresh baked posters
-  const POSTER_VERSION = '20260912-v3';
+  const POSTER_VERSION = '20261012-v4';
 
   const bpPosterPath = `${
     bpFallback
