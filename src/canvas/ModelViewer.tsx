@@ -251,6 +251,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [shadedFallback, setShadedFallback] = useState(false);
 
   // Cache-busting version query parameter to force browsers to load fresh baked posters
+  // NOTE: keep in sync with the LCP poster preload in index.html
   const POSTER_VERSION = '20261012-v4';
 
   const bpPosterPath = `${
@@ -300,6 +301,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             : `transition-opacity ${fadeDuration} ease-in-out ${showShadedStatic ? 'opacity-100' : 'opacity-0'}`
         }`}
         loading={isActive || allowZoom ? 'eager' : 'lazy'}
+        // Lowercase attribute passes straight through to the DOM in React 18 (LCP hint)
+        {...({ fetchpriority: isActive ? 'high' : 'auto' } as Record<string, string>)}
         decoding="async"
       />
 

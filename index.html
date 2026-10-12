@@ -9,7 +9,9 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Non-render-blocking font load (display=swap shows fallback text until fonts arrive) -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"></noscript>
     <!-- Theme Initializer: executes synchronously before first paint to prevent FOUC / white flash -->
     <script>
       (function() {
@@ -23,6 +25,17 @@
           document.documentElement.classList.add('light');
           document.documentElement.style.backgroundColor = '#f8fafc';
         }
+      })();
+      // Preload the first project's shaded poster (the LCP image) for the active theme.
+      // Must match ModelViewer's URL exactly: first modelType in projectsData + POSTER_VERSION.
+      (function() {
+        var dark = localStorage.getItem('cad-theme-v2') === 'dark';
+        var lcp = document.createElement('link');
+        lcp.rel = 'preload';
+        lcp.as = 'image';
+        lcp.setAttribute('fetchpriority', 'high');
+        lcp.href = './posters/tesla-actuator-shaded-' + (dark ? 'dark' : 'light') + '.png?v=20261012-v4';
+        document.head.appendChild(lcp);
       })();
     </script>
   </head>
