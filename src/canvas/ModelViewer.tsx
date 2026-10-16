@@ -205,8 +205,9 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     }
   }, [isDark, isActive, allowZoom, shouldMountWebGL]);
 
-  // Manage WebGL mounting: mounts immediately when active so it finishes warming during the 380ms slide,
-  // or with an 80ms debounce for adjacent cards in the nearby ring
+  // Manage WebGL mounting:
+  // - Pre-mounts adjacent cards in background via isNearby (before user scrolls to them)
+  // - For active cards, waits until isSettled so mounting NEVER interferes with the 380ms horizontal slide
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     if (allowZoom) {
@@ -214,13 +215,14 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         setShouldMountWebGL(true);
       }, 180);
     } else if (isActive) {
-      // Mount immediately when card enters active zone so it warms up in background during the 380ms horizontal slide
-      setShouldMountWebGL(true);
+      if (isSettled) {
+        setShouldMountWebGL(true);
+      }
     } else if (isNearby) {
       // Pre-mount adjacent cards in background so they are already compiled before user scrolls to them
       timer = setTimeout(() => {
         setShouldMountWebGL(true);
-      }, 80);
+      }, 60);
     } else {
       // Card left proximity ring: unmount WebGL after exit slide completes
       timer = setTimeout(() => {
@@ -230,7 +232,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       }, 420);
     }
     return () => clearTimeout(timer);
-  }, [isActive, isNearby, allowZoom]);
+  }, [isActive, isNearby, isSettled, allowZoom]);
 
   // Reset active reveal state, camera view, zoom status, and controls ONLY when model becomes inactive
   useEffect(() => {

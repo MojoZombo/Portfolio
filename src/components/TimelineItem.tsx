@@ -256,8 +256,8 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           const exitThreshold = windowHeight * (isMobileDevice ? 0.36 : 0.32);
 
           // Proximity pre-mount ring (adjacent cards N-1 and N+1) with hysteresis
-          const nearbyEnterThreshold = windowHeight * 0.78;
-          const nearbyExitThreshold = windowHeight * 0.98;
+          const nearbyEnterThreshold = windowHeight * 1.15;
+          const nearbyExitThreshold = windowHeight * 1.35;
           let nextNearby = isNearbyRef.current;
           if (distance < nearbyEnterThreshold) {
             nextNearby = true;
