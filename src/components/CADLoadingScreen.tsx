@@ -1,30 +1,75 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useProgress } from '@react-three/drei';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const CADLoadingScreen: React.FC = () => {
-  const { active, progress } = useProgress();
+  const { active, progress, total } = useProgress();
+  const [displayProgress, setDisplayProgress] = useState(0);
   const [isDone, setIsDone] = useState(false);
+  const maxProgressRef = useRef(0);
+  const hasStartedRef = useRef(false);
 
-  // Guaranteed max 500ms duration so loading screen never hangs or blocks the UI
+  // Track Drei progress monotonically (strictly non-decreasing, never goes backwards)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsDone(true);
-    }, 500);
-    return () => clearTimeout(timer);
+    if (active || total > 0) {
+      hasStartedRef.current = true;
+    }
+
+    if (hasStartedRef.current && typeof progress === 'number' && !isNaN(progress)) {
+      const rounded = Math.min(100, Math.max(0, Math.round(progress)));
+      if (rounded > maxProgressRef.current) {
+        maxProgressRef.current = rounded;
+        setDisplayProgress(rounded);
+      }
+    }
+  }, [active, progress, total]);
+
+  // Smooth cadence ticker: guarantees steady forward progress even during asset discovery/gaps
+  useEffect(() => {
+    const startTime = Date.now();
+    const minDuration = 450; // smooth forward ramp over 450ms
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const timePercent = Math.min(95, Math.round((elapsed / minDuration) * 95));
+
+      if (timePercent > maxProgressRef.current) {
+        maxProgressRef.current = timePercent;
+        setDisplayProgress(timePercent);
+      }
+    }, 25);
+
+    return () => clearInterval(interval);
   }, []);
 
-  // When assets are ready before the timeout, fade out smoothly
+  // Completion controller: once assets complete or maximum duration reached, snap to 100% and fade out
   useEffect(() => {
-    if (!active || progress >= 100) {
-      const exitTimer = setTimeout(() => {
+    let exitTimer: ReturnType<typeof setTimeout>;
+
+    const completeAndExit = () => {
+      maxProgressRef.current = 100;
+      setDisplayProgress(100);
+      exitTimer = setTimeout(() => {
         setIsDone(true);
-      }, 100);
+      }, 140);
+    };
+
+    // If Drei reports all assets finished loading
+    if (hasStartedRef.current && (!active || progress >= 100)) {
+      completeAndExit();
       return () => clearTimeout(exitTimer);
     }
-  }, [active, progress]);
 
-  const displayProgress = Math.min(100, Math.round(progress || 100));
+    // Safety timeout: never block UI for more than 550ms regardless of network state
+    const safetyTimer = setTimeout(() => {
+      completeAndExit();
+    }, 550);
+
+    return () => {
+      clearTimeout(exitTimer);
+      clearTimeout(safetyTimer);
+    };
+  }, [active, progress]);
 
   return (
     <AnimatePresence>
