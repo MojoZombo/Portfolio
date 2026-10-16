@@ -1,6 +1,9 @@
 import React from 'react';
 import { useGLTF } from '@react-three/drei';
 
+// Use self-hosted Draco WASM decoder for all GLB models (eliminates external gstatic CDN fetches)
+useGLTF.setDecoderPath('./draco/gltf/');
+
 export const POSTER_VERSION = '20261012-v4';
 
 export interface ModelComponentProps {
@@ -12,7 +15,6 @@ export interface ModelComponentProps {
 
 interface ModelAssetEntry {
   glbPath?: string;
-  dracoPath?: string;
   loader: () => Promise<{ default: React.ComponentType<ModelComponentProps> }>;
 }
 
@@ -60,7 +62,6 @@ const MODEL_REGISTRY: Record<string, ModelAssetEntry> = {
   },
   'bottle-scrubber': {
     glbPath: './models/Scrubtious.glb',
-    dracoPath: '/draco/gltf/',
     loader: () => import('./models/BottleScrubberModel').then((m) => ({ default: m.BottleScrubberModel })),
   },
   'ftc-robot': {
@@ -139,11 +140,7 @@ export function preloadModelGLB(modelType: string): void {
   if (preloadedGLBs.has(modelType)) return;
 
   preloadedGLBs.add(modelType);
-  if (entry.dracoPath) {
-    useGLTF.preload(entry.glbPath, entry.dracoPath);
-  } else {
-    useGLTF.preload(entry.glbPath);
-  }
+  useGLTF.preload(entry.glbPath);
 }
 
 const idleQueue: Array<() => void> = [];

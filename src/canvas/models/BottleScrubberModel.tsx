@@ -259,8 +259,8 @@ export const BottleScrubberModel: React.FC<ModelProps> = ({
     settings,
   } = useTransformCalibration();
 
-  // Load the CAD assembly from public/models/Scrubtious.glb with local/CDN Draco support
-  const { scene } = useGLTF('./models/Scrubtious.glb', '/draco/gltf/');
+  // Load the CAD assembly from public/models/Scrubtious.glb with local Draco support
+  const { scene } = useGLTF('./models/Scrubtious.glb');
 
   // Blueprint line colors
   const blueprintLineColor = isDark ? '#94A8C4' : '#1E293B';
