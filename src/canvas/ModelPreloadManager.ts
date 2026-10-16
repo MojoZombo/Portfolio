@@ -4,7 +4,7 @@ import { useGLTF } from '@react-three/drei';
 // Use self-hosted Draco WASM decoder for all GLB models (eliminates external gstatic CDN fetches)
 useGLTF.setDecoderPath('./draco/gltf/');
 
-export const POSTER_VERSION = '20261012-v4';
+export const POSTER_VERSION = '20261016-v1';
 
 let isWindowScrolling = false;
 let scrollStopTimer: ReturnType<typeof setTimeout> | null = null;
