@@ -56,7 +56,7 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
     const time = localTimeRef.current;
 
     const targetSpeed = isRotating && isAnimating ? 0.2 : 0;
-    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 3.2, delta);
 
     if (groupRef.current && isRotating) {
       groupRef.current.rotation.x = 0;

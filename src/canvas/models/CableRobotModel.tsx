@@ -6,7 +6,7 @@ import { createToonGradientMap } from '../materials';
 import { useTheme } from '../../context/ThemeContext';
 import { useTransformCalibration, PartColorInfo, PartAnimationConfig, CDPRConfig } from '../../context/TransformCalibrationContext';
 import { CADPivotGizmo } from '../CADPivotGizmo';
-import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, getAssemblyRoot } from '../../utils/meshSplitter';
+import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, getAssemblyRoot, shouldBuildBlueprintEdges } from '../../utils/meshSplitter';
 
 interface ModelProps {
   isActive?: boolean;
@@ -466,9 +466,13 @@ function buildMasterCableRobot2Prototype(sourceScene: THREE.Group) {
         });
       }
 
+      computeGeometryCenterOfMass(mesh.geometry);
+
       try {
-        const bpEdges = new THREE.EdgesGeometry(mesh.geometry, 8);
-        staticEdgesList.push(bpEdges);
+        if (shouldBuildBlueprintEdges()) {
+          const bpEdges = new THREE.EdgesGeometry(mesh.geometry, 8);
+          staticEdgesList.push(bpEdges);
+        }
 
         const celEdges = new THREE.EdgesGeometry(mesh.geometry, 28);
         activeEdgesList.push(celEdges);
@@ -789,7 +793,7 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
     // Auto rotate parent with smooth acceleration from 0 RPM
     const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.2;
     const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed : 0);
-    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 3.2, delta);
 
     if (groupRef.current && (isRotating || isModelCalibrating)) {
       if (currentSpeedRef.current > 0.001) {
@@ -835,6 +839,21 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
           : DEFAULT_PART_ANIMATIONS[node.index];
 
         const parentIdx = anim?.parentPartIndex;
+        if (
+          !isModelCalibrating &&
+          (!anim || anim.type === 'none') &&
+          (parentIdx === undefined || parentIdx === null || parentIdx === partIdx || !nodeMap.has(parentIdx))
+        ) {
+          const staticResult = {
+            pos: node.initialPos,
+            quat: node.initialQuat,
+            deltaPos: new THREE.Vector3(),
+            deltaQuat: new THREE.Quaternion(),
+          };
+          computedTransforms.set(partIdx, staticResult);
+          return staticResult;
+        }
+
         let basePos = node.initialPos.clone();
         let baseQuat = node.initialQuat.clone();
         let parentDeltaQuat = new THREE.Quaternion();
@@ -986,7 +1005,14 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
         return result;
       };
 
-      nodeMap.forEach((_, pIdx) => {
+      nodeMap.forEach((node, pIdx) => {
+        if (!isModelCalibrating) {
+          const anim = DEFAULT_PART_ANIMATIONS[node.index];
+          const pParent = anim?.parentPartIndex;
+          if ((!anim || anim.type === 'none') && (pParent === undefined || pParent === null)) {
+            return;
+          }
+        }
         solveKinematics(pIdx);
       });
     }

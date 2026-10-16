@@ -233,10 +233,10 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       // Immediately hide live canvas and reset fade state so scrolling back never shows a stale rotated frame
       setIsCanvasReady(false);
       setIsFadeComplete(false);
-      // Unmount WebGL ONLY after the exit slide animation completely finishes (550ms)
+      // Unmount WebGL ONLY after the exit slide animation completely finishes (380ms)
       timer = setTimeout(() => {
         setShouldMountWebGL(false);
-      }, 600);
+      }, 450);
     } else if (!isSettled) {
       setIsCanvasReady(false);
       setIsFadeComplete(false);
@@ -254,8 +254,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     }
   }, [isActive, allowZoom]);
 
-  // Duration for transitions: smooth 200ms fade
-  const fadeDuration = isActive || allowZoom ? 'duration-200' : 'duration-150';
+  // Duration for transitions: crisp 100ms handoff once WebGL rest-pose frame is warm
+  const fadeDuration = isActive || allowZoom ? 'duration-100' : 'duration-150';
 
   const isReadyToWarm = allowZoom || (isActive && isSettled);
   const showLiveCanvas = isReadyToWarm && isCanvasReady;
@@ -266,13 +266,13 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   // Or immediately when isActive becomes false (so it fades to blueprint).
   const showShadedStatic = (isActive || allowZoom) && !isFadeComplete;
 
-  // Track fade completion to sync animations (220ms gives full 200ms CSS transition + 20ms visual settle buffer)
+  // Track fade completion to sync animations (90ms matches the 100ms CSS opacity reveal)
   // Keeping isRotating and isAnimating false until isFadeComplete ensures the 3D model is 100% stationary
   // in the exact same pose and position as the static shaded image during the entire crossfade.
   useEffect(() => {
     let fadeTimer: ReturnType<typeof setTimeout>;
     if (showLiveCanvas) {
-      fadeTimer = setTimeout(() => setIsFadeComplete(true), 220);
+      fadeTimer = setTimeout(() => setIsFadeComplete(true), 90);
     } else {
       setIsFadeComplete(false);
     }

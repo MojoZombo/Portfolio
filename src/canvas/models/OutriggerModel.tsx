@@ -50,7 +50,7 @@ export const OutriggerModel: React.FC<ModelProps> = ({ isActive = false, isRotat
     const time = localTimeRef.current;
 
     const targetSpeed = isRotating && isAnimating ? 0.2 : 0;
-    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 1.8, delta);
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 3.2, delta);
 
     if (groupRef.current && isRotating) {
       if (currentSpeedRef.current > 0.001) {

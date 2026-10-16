@@ -311,7 +311,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             y: isDesktop ? (isActive ? 0 : textShiftY) : (isActive ? 0 : 28),
             pointerEvents: isActive ? 'auto' : 'none',
           }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="w-full md:w-5/12 md:absolute md:left-4 lg:left-8 z-20"
         >
           <div className="space-y-2.5 p-0">
@@ -354,7 +354,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             x: isDesktop && isActive ? modelShiftX : 0,
             y: isDesktop && isActive ? modelShiftY : 0,
           }}
-          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.38, ease: [0.25, 0.9, 0.3, 1] }}
           onAnimationStart={() => {
             setIsSettled(false);
           }}

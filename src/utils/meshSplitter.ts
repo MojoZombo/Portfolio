@@ -371,10 +371,32 @@ export function decomposeSceneDisconnectedIslands(root: THREE.Object3D): number 
 }
 
 /**
+ * Returns true only when in #baker or #studio authoring modes where 3D blueprint wireframes are used.
+ * On the main timeline and ProjectModal, 2D baked blueprint PNGs are used for inactive states
+ * and WebGL only renders shaded cel-outlined meshes (isShaded = true), skipping 5°/8° blueprint edge generation.
+ */
+export function shouldBuildBlueprintEdges(): boolean {
+  if (typeof window === 'undefined') return false;
+  const hash = window.location.hash;
+  const search = window.location.search;
+  return (
+    hash.includes('baker') ||
+    hash.includes('studio') ||
+    search.includes('baker=true') ||
+    search.includes('studio=true')
+  );
+}
+
+/**
  * Computes the geometric center of mass (area-weighted triangle centroid) for a BufferGeometry.
+ * Caches the result on geometry.userData.__cachedCenterOfMass for O(1) subsequent lookups.
  * Falls back to bounding box center for points/lines or degenerate geometries.
  */
 export function computeGeometryCenterOfMass(geometry: THREE.BufferGeometry): THREE.Vector3 {
+  if (geometry.userData?.__cachedCenterOfMass instanceof THREE.Vector3) {
+    return (geometry.userData.__cachedCenterOfMass as THREE.Vector3).clone();
+  }
+
   const pos = geometry.attributes.position;
   if (!pos || pos.count === 0) return new THREE.Vector3();
 
@@ -411,13 +433,18 @@ export function computeGeometryCenterOfMass(geometry: THREE.BufferGeometry): THR
     }
   }
 
+  let result: THREE.Vector3;
   if (totalArea > 0) {
     weightedCom.divideScalar(totalArea);
-    return weightedCom;
+    result = weightedCom;
+  } else {
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    result = geometry.boundingBox ? geometry.boundingBox.getCenter(new THREE.Vector3()) : new THREE.Vector3();
   }
 
-  if (!geometry.boundingBox) geometry.computeBoundingBox();
-  return geometry.boundingBox ? geometry.boundingBox.getCenter(new THREE.Vector3()) : new THREE.Vector3();
+  if (!geometry.userData) geometry.userData = {};
+  geometry.userData.__cachedCenterOfMass = result.clone();
+  return result;
 }
 
 /**
