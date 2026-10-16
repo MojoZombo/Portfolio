@@ -1,10 +1,11 @@
-﻿import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { flushSync } from 'react-dom';
 
 type Theme = 'dark' | 'light';
 
 interface ThemeContextType {
   theme: Theme;
+  isThemeTransitioning: boolean;
   toggleTheme: (event?: React.MouseEvent | MouseEvent | { clientX: number; clientY: number }) => void;
   setTheme: (theme: Theme) => void;
 }
@@ -44,6 +45,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const saved = localStorage.getItem('cad-theme-v2');
     return (saved === 'light' || saved === 'dark') ? saved : 'light';
   });
+  const [isThemeTransitioning, setIsThemeTransitioning] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -72,6 +74,28 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const sourceThemeRef = useRef<Theme>('light');
   const targetThemeRef = useRef<Theme>('dark');
   const lastToggleCallRef = useRef<number>(0);
+  const transitionSafetyTimerRef = useRef<number | null>(null);
+
+  const startThemeTransition = () => {
+    if (transitionSafetyTimerRef.current !== null) {
+      window.clearTimeout(transitionSafetyTimerRef.current);
+    }
+    flushSync(() => {
+      setIsThemeTransitioning(true);
+    });
+    transitionSafetyTimerRef.current = window.setTimeout(() => {
+      setIsThemeTransitioning(false);
+      transitionSafetyTimerRef.current = null;
+    }, 1400);
+  };
+
+  const endThemeTransition = () => {
+    if (transitionSafetyTimerRef.current !== null) {
+      window.clearTimeout(transitionSafetyTimerRef.current);
+      transitionSafetyTimerRef.current = null;
+    }
+    setIsThemeTransitioning(false);
+  };
 
   const updateRootDOM = (t: Theme) => {
     const root = document.documentElement;
@@ -164,6 +188,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           updateRootDOM(desiredTheme);
           flushSync(() => {
             setTheme(desiredTheme);
+            endThemeTransition();
           });
 
           // Conclude the view transition cleanly now that live DOM is restored
@@ -221,6 +246,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       activeTransitionRef.current = null;
       activeAnimRef.current = null;
       directionRef.current = 'idle';
+      endThemeTransition();
     }
 
     // 3. START FRESH TRANSITION
@@ -267,14 +293,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setToggleDisplay(currentTheme);
     scheduleToggleDisplay(nextTheme);
 
-    const transition = (document as any).startViewTransition(() => {
-      // Suppress concurrent CSS transitions and synchronously update root DOM inside the transition callback
-      document.documentElement.classList.add('is-theme-transitioning');
-      updateRootDOM(nextTheme);
-      flushSync(() => {
-        setTheme(nextTheme);
+    startThemeTransition();
+
+    let transition: any;
+    try {
+      transition = (document as any).startViewTransition(() => {
+        // Suppress concurrent CSS transitions and synchronously update root DOM inside the transition callback
+        document.documentElement.classList.add('is-theme-transitioning');
+        updateRootDOM(nextTheme);
+        flushSync(() => {
+          setTheme(nextTheme);
+        });
       });
-    });
+    } catch {
+      endThemeTransition();
+      return;
+    }
 
     activeTransitionRef.current = transition;
 
@@ -298,15 +332,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       );
       activeAnimRef.current = anim;
-    }).catch(() => {});
+    }).catch(() => {
+      endThemeTransition();
+    });
 
     transition.finished
       .catch(() => {})
       .finally(() => {
+        const wasReversing = directionRef.current === 'reverse';
         if (activeTransitionRef.current === transition) {
           activeTransitionRef.current = null;
           activeAnimRef.current = null;
-          directionRef.current = 'idle';
+          if (!wasReversing) {
+            directionRef.current = 'idle';
+          }
+        }
+        if (!wasReversing) {
+          endThemeTransition();
         }
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -324,6 +366,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       activeAnimRef.current = null;
       directionRef.current = 'idle';
     }
+    endThemeTransition();
     setTheme(newTheme);
   };
 
@@ -384,7 +427,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme: handleSetTheme }}>
+    <ThemeContext.Provider value={{ theme, isThemeTransitioning, toggleTheme, setTheme: handleSetTheme }}>
       {children}
     </ThemeContext.Provider>
   );

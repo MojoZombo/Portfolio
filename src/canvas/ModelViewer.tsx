@@ -125,7 +125,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   className = 'h-[340px] sm:h-[480px] md:h-[560px] w-full',
   allowZoom = false,
 }) => {
-  const { theme } = useTheme();
+  const { theme, isThemeTransitioning } = useTheme();
   const isDark = theme === 'dark';
   const [isRotating, setIsRotating] = useState(true);
   const [isAnimationPlaying, setIsAnimationPlaying] = useState(true);
@@ -387,8 +387,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                   modelType={modelType}
                   isActive={isActiveAndSettled}
                   isHovered={isHovered}
-                  isRotating={isAnimationPlaying && isRotating && isAnimationsStarted}
-                  isAnimating={isAnimationPlaying && isAnimationsStarted}
+                  isRotating={isAnimationPlaying && isRotating && isAnimationsStarted && !isThemeTransitioning}
+                  isAnimating={isAnimationPlaying && isAnimationsStarted && !isThemeTransitioning}
                 />
               </ModelErrorBoundary>
               <CanvasDrawDetector
