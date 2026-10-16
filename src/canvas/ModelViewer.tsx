@@ -161,6 +161,35 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
 
   const isMobileMode = !allowZoom && (isTouchDevice || isMobileWidth);
 
+  // Dynamically scale DPR inversely to container height so 1px WebGL line thickness
+  // mathematically matches the scaled 490px static poster PNG on all devices (especially phones).
+  const [dynamicDpr, setDynamicDpr] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1.6;
+    const isMobile = window.innerWidth < 768;
+    const h = isMobile ? (window.innerWidth < 480 ? 270 : 310) : 490;
+    const maxDpr = window.devicePixelRatio || 2;
+    return Math.min(maxDpr, Math.max(1, +(1.6 * (490 / h)).toFixed(2)));
+  });
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const height = entry.contentRect.height;
+        if (height > 0) {
+          const maxDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 2 : 2;
+          const calculated = Math.min(maxDpr, Math.max(1, +(1.6 * (490 / height)).toFixed(2)));
+          setDynamicDpr((prev) => (Math.abs(prev - calculated) > 0.05 ? calculated : prev));
+        }
+      }
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Handle reload/navigation: cleanly hide 3D canvas before WebGL context is destroyed to prevent white flash
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -322,7 +351,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             }
             style={{ background: 'transparent' }}
             frameloop={showLiveCanvas || isDrawingActiveReveal ? 'always' : 'never'}
-            dpr={isMobileMode ? [1, 1.25] : [1, 1.6]}
+            dpr={dynamicDpr}
             gl={{
               antialias: true,
               alpha: true,
