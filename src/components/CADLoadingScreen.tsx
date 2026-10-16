@@ -3,73 +3,65 @@ import { useProgress } from '@react-three/drei';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const CADLoadingScreen: React.FC = () => {
-  const { active, progress, total } = useProgress();
+  const { active, progress, total, loaded } = useProgress();
   const [displayProgress, setDisplayProgress] = useState(0);
   const [isDone, setIsDone] = useState(false);
   const maxProgressRef = useRef(0);
-  const hasStartedRef = useRef(false);
+  const hasExitedRef = useRef(false);
 
-  // Track Drei progress monotonically (strictly non-decreasing, never goes backwards)
+  // Helper to trigger 100% completion and fade out
+  const triggerExit = (delayMs = 80) => {
+    if (hasExitedRef.current) return;
+    hasExitedRef.current = true;
+    maxProgressRef.current = 100;
+    setDisplayProgress(100);
+    setTimeout(() => {
+      setIsDone(true);
+    }, delayMs);
+  };
+
+  // 1. Monotonically track actual 3D asset progress (never goes backwards)
   useEffect(() => {
-    if (active || total > 0) {
-      hasStartedRef.current = true;
-    }
+    if (hasExitedRef.current) return;
 
-    if (hasStartedRef.current && typeof progress === 'number' && !isNaN(progress)) {
+    if (total > 0 && typeof progress === 'number' && !isNaN(progress)) {
       const rounded = Math.min(100, Math.max(0, Math.round(progress)));
       if (rounded > maxProgressRef.current) {
         maxProgressRef.current = rounded;
         setDisplayProgress(rounded);
       }
-    }
-  }, [active, progress, total]);
 
-  // Smooth cadence ticker: guarantees steady forward progress even during asset discovery/gaps
-  useEffect(() => {
-    const startTime = Date.now();
-    const minDuration = 450; // smooth forward ramp over 450ms
-
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const timePercent = Math.min(95, Math.round((elapsed / minDuration) * 95));
-
-      if (timePercent > maxProgressRef.current) {
-        maxProgressRef.current = timePercent;
-        setDisplayProgress(timePercent);
+      // If Drei reports loading has completed, exit immediately
+      if (progress >= 100 || (!active && loaded >= total)) {
+        triggerExit(80);
       }
-    }, 25);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Completion controller: once assets complete or maximum duration reached, snap to 100% and fade out
-  useEffect(() => {
-    let exitTimer: ReturnType<typeof setTimeout>;
-
-    const completeAndExit = () => {
-      maxProgressRef.current = 100;
-      setDisplayProgress(100);
-      exitTimer = setTimeout(() => {
-        setIsDone(true);
-      }, 140);
-    };
-
-    // If Drei reports all assets finished loading
-    if (hasStartedRef.current && (!active || progress >= 100)) {
-      completeAndExit();
-      return () => clearTimeout(exitTimer);
     }
+  }, [active, progress, total, loaded]);
 
-    // Safety timeout: never block UI for more than 550ms regardless of network state
+  // 2. Fast-path for procedural models, memory/HTTP cached assets, or quick network
+  useEffect(() => {
+    if (hasExitedRef.current) return;
+
+    // Small tick (50ms) to allow Three.js canvas to register any initial GLB asset requests
+    const checkTimer = setTimeout(() => {
+      if (hasExitedRef.current) return;
+
+      // If no assets were queued or everything is already resolved
+      if (total === 0 || (!active && loaded >= total)) {
+        triggerExit(60);
+      }
+    }, 50);
+
+    // Safety timeout: never hang or block user on slow/offline connections (> 2.5s)
     const safetyTimer = setTimeout(() => {
-      completeAndExit();
-    }, 550);
+      triggerExit(60);
+    }, 2500);
 
     return () => {
-      clearTimeout(exitTimer);
+      clearTimeout(checkTimer);
       clearTimeout(safetyTimer);
     };
-  }, [active, progress]);
+  }, [total, active, loaded]);
 
   return (
     <AnimatePresence>
@@ -93,7 +85,7 @@ export const CADLoadingScreen: React.FC = () => {
                 className="h-full bg-slate-900 dark:bg-slate-200 rounded-full"
                 initial={{ width: '0%' }}
                 animate={{ width: `${displayProgress}%` }}
-                transition={{ ease: 'easeOut', duration: 0.2 }}
+                transition={{ ease: 'easeOut', duration: 0.15 }}
               />
             </div>
 
