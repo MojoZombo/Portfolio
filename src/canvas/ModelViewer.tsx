@@ -40,12 +40,14 @@ class ModelErrorBoundary extends Component<{ children: ReactNode; fallback?: Rea
   }
 }
 
-// Frame-accurate draw detector: confirms WebGL has drawn 2 fresh frames in the active or warm-up loop
+// Frame-accurate draw detector: confirms WebGL has drawn targetFrames in the active or warm-up loop
 function CanvasDrawDetector({
   active,
+  targetFrames = 2,
   onDrawn,
 }: {
   active: boolean;
+  targetFrames?: number;
   onDrawn: () => void;
 }) {
   const frameCount = useRef(0);
@@ -62,7 +64,7 @@ function CanvasDrawDetector({
       return;
     }
     frameCount.current++;
-    if (frameCount.current === 2) {
+    if (frameCount.current >= targetFrames) {
       onDrawn();
     }
   });
@@ -134,10 +136,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [shouldMountWebGL, setShouldMountWebGL] = useState(false);
-  const [isAnimationsStarted, setIsAnimationsStarted] = useState(false);
-  const [isFadeComplete, setIsFadeComplete] = useState(false);
-  const [isFastScrolling, setIsFastScrolling] = useState(false);
-  const [isScrollIdle, setIsScrollIdle] = useState(true);
 
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   useEffect(() => {
@@ -162,45 +160,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   }, []);
 
   const isMobileMode = !allowZoom && (isTouchDevice || isMobileWidth);
-
-  // Velocity-aware scroll tracking + scroll-idle detector (420ms quiet window so background pre-mounts never overlap slides)
-  useEffect(() => {
-    if (allowZoom) return;
-    let fastScrollTimer: ReturnType<typeof setTimeout>;
-    let idleScrollTimer: ReturnType<typeof setTimeout>;
-    let lastScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
-    let lastScrollTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
-
-    const handleWindowScroll = () => {
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      const currentY = window.scrollY;
-      const dt = Math.max(1, now - lastScrollTime);
-      const velocity = Math.abs(currentY - lastScrollY) / dt;
-      lastScrollY = currentY;
-      lastScrollTime = now;
-
-      setIsScrollIdle(false);
-      clearTimeout(idleScrollTimer);
-      idleScrollTimer = setTimeout(() => {
-        setIsScrollIdle(true);
-      }, 420);
-
-      if (velocity > 1.8) {
-        setIsFastScrolling(true);
-        clearTimeout(fastScrollTimer);
-        fastScrollTimer = setTimeout(() => {
-          setIsFastScrolling(false);
-        }, 65);
-      }
-    };
-
-    window.addEventListener('scroll', handleWindowScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleWindowScroll);
-      clearTimeout(fastScrollTimer);
-      clearTimeout(idleScrollTimer);
-    };
-  }, [allowZoom]);
 
   // Handle reload/navigation: cleanly hide 3D canvas before WebGL context is destroyed to prevent white flash
   useEffect(() => {
@@ -246,7 +205,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     }
   }, [isDark, isActive, allowZoom, shouldMountWebGL]);
 
-  // Manage WebGL mounting and background proximity pre-warming
+  // Manage WebGL mounting: mounts immediately when active so it finishes warming during the 380ms slide,
+  // or with an 80ms debounce for adjacent cards in the nearby ring
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     if (allowZoom) {
@@ -254,14 +214,13 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         setShouldMountWebGL(true);
       }, 180);
     } else if (isActive) {
-      if (isSettled && !isFastScrolling) {
-        setShouldMountWebGL(true);
-      }
+      // Mount immediately when card enters active zone so it warms up in background during the 380ms horizontal slide
+      setShouldMountWebGL(true);
     } else if (isNearby) {
-      // Mount in background once scroll has been idle for 420ms (after active card's 380ms slide finishes)
-      if (isScrollIdle && !isFastScrolling) {
+      // Pre-mount adjacent cards in background so they are already compiled before user scrolls to them
+      timer = setTimeout(() => {
         setShouldMountWebGL(true);
-      }
+      }, 80);
     } else {
       // Card left proximity ring: unmount WebGL after exit slide completes
       timer = setTimeout(() => {
@@ -271,14 +230,12 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       }, 420);
     }
     return () => clearTimeout(timer);
-  }, [isActive, isNearby, isSettled, isScrollIdle, isFastScrolling, allowZoom]);
+  }, [isActive, isNearby, allowZoom]);
 
   // Reset active reveal state, camera view, zoom status, and controls ONLY when model becomes inactive
   useEffect(() => {
     if (!isActive && !allowZoom) {
       setIsCanvasReady(false);
-      setIsAnimationsStarted(false);
-      setIsFadeComplete(false);
       setResetTrigger((prev) => prev + 1);
       setIsRotating(true);
       setIsAnimationPlaying(true);
@@ -286,39 +243,11 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     }
   }, [isActive, allowZoom]);
 
-  // Duration for transitions: smooth 150ms crossfade over solid static shaded underlay
-  const fadeDuration = 'duration-150';
-
   const isActiveAndSettled = allowZoom || (isActive && isSettled);
-  const isBackgroundWarming =
-    shouldMountWebGL && !isPrewarmed && !isActive && isNearby && isScrollIdle && !isFastScrolling;
+  const isBackgroundWarming = shouldMountWebGL && !isPrewarmed && !isActive;
   const isDrawingActiveReveal = shouldMountWebGL && isActiveAndSettled && !isCanvasReady;
   const showLiveCanvas = isActiveAndSettled && isCanvasReady;
-
-  // Keep the shaded static image 100% solid underneath WebGL until the 150ms crossfade is completely finished
-  const showShadedStatic = (isActive || allowZoom) && !isFadeComplete;
-
-  // Start rotation/kinematics smoothly right after reveal starts (35ms),
-  // and hide the static shaded underlay only after the 150ms opacity reveal finishes (165ms).
-  useEffect(() => {
-    let startTimer: ReturnType<typeof setTimeout>;
-    let fadeTimer: ReturnType<typeof setTimeout>;
-    if (showLiveCanvas) {
-      startTimer = setTimeout(() => {
-        setIsAnimationsStarted(true);
-      }, 35);
-      fadeTimer = setTimeout(() => {
-        setIsFadeComplete(true);
-      }, 165);
-    } else {
-      setIsAnimationsStarted(false);
-      setIsFadeComplete(false);
-    }
-    return () => {
-      clearTimeout(startTimer);
-      clearTimeout(fadeTimer);
-    };
-  }, [showLiveCanvas]);
+  const isAnimationsStarted = showLiveCanvas;
 
   // Image Paths (theme-specific with fallback)
   const themeSuffix = isDark ? 'dark' : 'light';
@@ -354,22 +283,24 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         src={bpPosterPath}
         alt={`${modelType} blueprint`}
         onError={() => setBpFallback(true)}
-        className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-0 transition-opacity ${fadeDuration} ease-in-out ${
+        className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-0 transition-opacity duration-150 ease-in-out ${
           isActive || allowZoom ? 'opacity-0' : 'opacity-100'
         }`}
         loading={isActive ? 'eager' : 'lazy'}
         decoding="async"
       />
 
-      {/* 2. LAYER 1: SHADED STATIC (Instant Solid Underlay, vanishes once WebGL is 100% settled) */}
+      {/* 2. LAYER 1: SHADED STATIC (Instant Solid Underlay, cuts to 3D canvas once WebGL is ready) */}
       <img
         src={shadedPosterPath}
         alt={`${modelType} shaded`}
         onError={() => setShadedFallback(true)}
         className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-10 ${
-          isFadeComplete
-            ? 'opacity-0 transition-opacity duration-150 ease-out'
-            : `transition-opacity ${fadeDuration} ease-in-out ${showShadedStatic ? 'opacity-100' : 'opacity-0'}`
+          showLiveCanvas
+            ? 'opacity-0 pointer-events-none'
+            : isActive || allowZoom
+            ? 'opacity-100'
+            : 'opacity-0 transition-opacity duration-150 ease-in-out'
         }`}
         loading={isActive || allowZoom ? 'eager' : 'lazy'}
         // Lowercase attribute passes straight through to the DOM in React 18 (LCP hint)
@@ -377,11 +308,11 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         decoding="async"
       />
 
-      {/* 3. LAYER 2: LIVE WEBGL CANVAS (Mounts after slide settles, fades in stationary, then animates) */}
+      {/* 3. LAYER 2: LIVE WEBGL CANVAS (Instant cut at rest pose, then animates with zero ghosting) */}
       {shouldMountWebGL && (
         <div
-          className={`absolute inset-0 w-full h-full z-20 transition-opacity ${fadeDuration} ease-in-out ${
-            showLiveCanvas ? 'opacity-100' : 'opacity-0'
+          className={`absolute inset-0 w-full h-full z-20 ${
+            showLiveCanvas ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
           <Canvas
@@ -407,8 +338,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                 e.preventDefault();
                 setShouldMountWebGL(false);
                 setIsCanvasReady(false);
-                setIsAnimationsStarted(false);
-                setIsFadeComplete(false);
               });
             }}
             onWheel={handleCanvasInteraction}
@@ -436,8 +365,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                   isAnimating={isAnimationPlaying && isAnimationsStarted}
                 />
               </ModelErrorBoundary>
-              <CanvasDrawDetector active={isBackgroundWarming} onDrawn={() => setIsPrewarmed(true)} />
-              <CanvasDrawDetector active={isDrawingActiveReveal} onDrawn={() => setIsCanvasReady(true)} />
+              <CanvasDrawDetector active={isBackgroundWarming} targetFrames={2} onDrawn={() => setIsPrewarmed(true)} />
+              <CanvasDrawDetector active={isDrawingActiveReveal} targetFrames={isPrewarmed ? 1 : 2} onDrawn={() => setIsCanvasReady(true)} />
             </Suspense>
             <CameraResetController resetTrigger={resetTrigger} />
             <CameraStateDetector onZoomChange={setIsZoomedIn} />
