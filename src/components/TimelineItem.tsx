@@ -72,6 +72,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   const itemRef = useRef<HTMLDivElement | null>(null);
   const [isActive, setIsActive] = useState(index === 0);
   const isActiveRef = useRef(index === 0);
+  const [isSettled, setIsSettled] = useState(index === 0);
   const preloadStageRef = useRef<0 | 1 | 2>(0); // 0: none, 1: outer ring, 2: inner ring (high priority)
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true
@@ -262,6 +263,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           if (nextActive !== isActiveRef.current) {
             isActiveRef.current = nextActive;
             setIsActive(nextActive);
+            setIsSettled(false);
             if (nextActive) {
               onVisible(project.id);
             }
@@ -353,6 +355,14 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             y: isDesktop && isActive ? modelShiftY : 0,
           }}
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+          onAnimationStart={() => {
+            setIsSettled(false);
+          }}
+          onAnimationComplete={() => {
+            if (isActiveRef.current) {
+              setIsSettled(true);
+            }
+          }}
           className="w-full flex items-center justify-center overflow-visible will-change-transform"
         >
           <div
@@ -373,6 +383,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             <ModelViewer
               modelType={project.modelType}
               isActive={isActive}
+              isSettled={!isDesktop || isSettled}
               className="h-[270px] xs:h-[310px] sm:h-[400px] md:h-[490px] w-full"
             />
           </div>

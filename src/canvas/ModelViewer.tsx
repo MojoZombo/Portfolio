@@ -40,12 +40,23 @@ class ModelErrorBoundary extends Component<{ children: ReactNode; fallback?: Rea
 }
 
 // Pre-warm detector: confirms WebGL has completed shader compilation, 
-// OrbitControls has settled, and all useEffects have fired (wait 3 frames)
-function CanvasWarmDetector({ onDrawn }: { onDrawn: () => void }) {
+// OrbitControls has settled, and all useEffects have fired in rest pose
+function CanvasWarmDetector({ active, onDrawn }: { active: boolean; onDrawn: () => void }) {
   const frameCount = useRef(0);
+
+  useEffect(() => {
+    if (!active) {
+      frameCount.current = 0;
+    }
+  }, [active]);
+
   useFrame(() => {
+    if (!active) {
+      frameCount.current = 0;
+      return;
+    }
     frameCount.current++;
-    if (frameCount.current === 1) {
+    if (frameCount.current === 2) {
       onDrawn();
     }
   });
@@ -114,7 +125,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const [shouldMountWebGL, setShouldMountWebGL] = useState(() => isActive || allowZoom);
+  const [shouldMountWebGL, setShouldMountWebGL] = useState(false);
   const [isFadeComplete, setIsFadeComplete] = useState(false);
   const [isFastScrolling, setIsFastScrolling] = useState(false);
 
@@ -143,7 +154,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const isMobileMode = !allowZoom && (isTouchDevice || isMobileWidth);
 
   // Velocity-aware scroll tracking: only defer WebGL mounting during high-speed scroll flings (> 1.8 px/ms)
-  // Normal scrolling or decelerating into an item mounts immediately with zero artificial latency.
   useEffect(() => {
     if (allowZoom) return;
     let scrollTimer: ReturnType<typeof setTimeout>;
@@ -210,21 +220,26 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     }
   }, [isActive, allowZoom, modelType, isDark]);
 
-  // Mount WebGL immediately on activation (unless flinging past at high velocity)
+  // Mount WebGL ONLY after the horizontal slide animation settles (isSettled) so WebGL init never freezes the slide
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     if (allowZoom) {
-      setShouldMountWebGL(true);
+      timer = setTimeout(() => {
+        setShouldMountWebGL(true);
+      }, 180);
     } else if (isActive && isSettled && !isFastScrolling) {
       setShouldMountWebGL(true);
     } else if (!isActive) {
+      // Immediately hide live canvas and reset fade state so scrolling back never shows a stale rotated frame
+      setIsCanvasReady(false);
+      setIsFadeComplete(false);
       // Unmount WebGL ONLY after the exit slide animation completely finishes (550ms)
-      // Destroying the WebGL context blocks the thread and causes UI freezing if done mid-slide!
       timer = setTimeout(() => {
         setShouldMountWebGL(false);
-        setIsCanvasReady(false);
-        setIsFadeComplete(false);
       }, 600);
+    } else if (!isSettled) {
+      setIsCanvasReady(false);
+      setIsFadeComplete(false);
     }
     return () => clearTimeout(timer);
   }, [isActive, isSettled, isFastScrolling, allowZoom]);
@@ -239,10 +254,11 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     }
   }, [isActive, allowZoom]);
 
-  // Fast crisp transitions (<150ms) for instantaneous feel
-  const fadeDuration = 'duration-150';
+  // Duration for transitions: smooth 200ms fade
+  const fadeDuration = isActive || allowZoom ? 'duration-200' : 'duration-150';
 
-  const showLiveCanvas = (isActive || allowZoom) && isCanvasReady;
+  const isReadyToWarm = allowZoom || (isActive && isSettled);
+  const showLiveCanvas = isReadyToWarm && isCanvasReady;
   
   // Keep the shaded static image perfectly solid underneath WebGL while it fades in.
   // This eliminates the 'crossfade dip' where both layers would hit 50% opacity and look dark.
@@ -250,11 +266,13 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   // Or immediately when isActive becomes false (so it fades to blueprint).
   const showShadedStatic = (isActive || allowZoom) && !isFadeComplete;
 
-  // Settle static underlay right after the 150ms WebGL fade completes
+  // Track fade completion to sync animations (220ms gives full 200ms CSS transition + 20ms visual settle buffer)
+  // Keeping isRotating and isAnimating false until isFadeComplete ensures the 3D model is 100% stationary
+  // in the exact same pose and position as the static shaded image during the entire crossfade.
   useEffect(() => {
     let fadeTimer: ReturnType<typeof setTimeout>;
     if (showLiveCanvas) {
-      fadeTimer = setTimeout(() => setIsFadeComplete(true), 160);
+      fadeTimer = setTimeout(() => setIsFadeComplete(true), 220);
     } else {
       setIsFadeComplete(false);
     }
@@ -295,7 +313,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         src={bpPosterPath}
         alt={`${modelType} blueprint`}
         onError={() => setBpFallback(true)}
-        className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-0 transition-opacity ${fadeDuration} ease-out ${
+        className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-0 transition-opacity ${fadeDuration} ease-in-out ${
           isActive || allowZoom ? 'opacity-0' : 'opacity-100'
         }`}
         loading={isActive ? 'eager' : 'lazy'}
@@ -310,7 +328,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-10 ${
           isFadeComplete
             ? 'opacity-0 transition-opacity duration-150 ease-out'
-            : `transition-opacity ${fadeDuration} ease-out ${showShadedStatic ? 'opacity-100' : 'opacity-0'}`
+            : `transition-opacity ${fadeDuration} ease-in-out ${showShadedStatic ? 'opacity-100' : 'opacity-0'}`
         }`}
         loading={isActive || allowZoom ? 'eager' : 'lazy'}
         // Lowercase attribute passes straight through to the DOM in React 18 (LCP hint)
@@ -318,10 +336,10 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         decoding="async"
       />
 
-      {/* 3. LAYER 2: LIVE WEBGL CANVAS (Mounts immediately on activation, fades in when ready) */}
+      {/* 3. LAYER 2: LIVE WEBGL CANVAS (Mounts after slide settles, fades in stationary, then animates) */}
       {shouldMountWebGL && (
         <div
-          className={`absolute inset-0 w-full h-full z-20 transition-opacity ${fadeDuration} ease-out ${
+          className={`absolute inset-0 w-full h-full z-20 transition-opacity ${fadeDuration} ease-in-out ${
             showLiveCanvas ? 'opacity-100' : 'opacity-0'
           }`}
         >
@@ -372,11 +390,11 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                   modelType={modelType}
                   isActive={isActive}
                   isHovered={isHovered}
-                  isRotating={isAnimationPlaying && isRotating && showLiveCanvas}
-                  isAnimating={isAnimationPlaying && showLiveCanvas}
+                  isRotating={isAnimationPlaying && isRotating && isFadeComplete}
+                  isAnimating={isAnimationPlaying && isFadeComplete}
                 />
               </ModelErrorBoundary>
-              <CanvasWarmDetector onDrawn={() => setIsCanvasReady(true)} />
+              <CanvasWarmDetector active={isReadyToWarm} onDrawn={() => setIsCanvasReady(true)} />
             </Suspense>
             <CameraResetController resetTrigger={resetTrigger} />
             <CameraStateDetector onZoomChange={setIsZoomedIn} />
