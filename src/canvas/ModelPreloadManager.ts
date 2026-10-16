@@ -6,6 +6,43 @@ useGLTF.setDecoderPath('./draco/gltf/');
 
 export const POSTER_VERSION = '20261012-v4';
 
+let isWindowScrolling = false;
+let scrollStopTimer: ReturnType<typeof setTimeout> | null = null;
+const scrollStatusListeners = new Set<(isScrolling: boolean) => void>();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (!isWindowScrolling) {
+        isWindowScrolling = true;
+        scrollStatusListeners.forEach((fn) => fn(true));
+      }
+      if (scrollStopTimer) clearTimeout(scrollStopTimer);
+      scrollStopTimer = setTimeout(() => {
+        isWindowScrolling = false;
+        scrollStatusListeners.forEach((fn) => fn(false));
+      }, 200);
+    },
+    { passive: true }
+  );
+}
+
+/**
+ * Lightweight global hook that reports whether the page is actively being scrolled.
+ * Updates ONLY on scroll-start and scroll-stop (zero re-renders during active scroll frames).
+ */
+export function useIsScrolling(): boolean {
+  const [scrolling, setScrolling] = React.useState(isWindowScrolling);
+  React.useEffect(() => {
+    scrollStatusListeners.add(setScrolling);
+    return () => {
+      scrollStatusListeners.delete(setScrolling);
+    };
+  }, []);
+  return scrolling;
+}
+
 export interface ModelComponentProps {
   isActive?: boolean;
   isHovered?: boolean;

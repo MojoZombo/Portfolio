@@ -3,7 +3,7 @@ import React, { Suspense, useState, useRef, useEffect, Component, ErrorInfo, Rea
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { ModelRenderer } from './ModelRenderer';
-import { POSTER_VERSION, preloadModelAssets } from './ModelPreloadManager';
+import { POSTER_VERSION, preloadModelAssets, useIsScrolling } from './ModelPreloadManager';
 import { useTheme } from '../context/ThemeContext';
 import { Pause, Play, RotateCcw } from 'lucide-react';
 
@@ -136,6 +136,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [shouldMountWebGL, setShouldMountWebGL] = useState(false);
+  const isScrolling = useIsScrolling();
 
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   useEffect(() => {
@@ -206,7 +207,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   }, [isDark, isActive, allowZoom, shouldMountWebGL]);
 
   // Manage WebGL mounting:
-  // - Pre-mounts adjacent cards in background via isNearby (before user scrolls to them)
+  // - Pre-mounts adjacent cards in background via isNearby (before user scrolls to them) ONLY when scroll is idle
   // - For active cards, waits until isSettled so mounting NEVER interferes with the 380ms horizontal slide
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -218,12 +219,12 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       if (isSettled) {
         setShouldMountWebGL(true);
       }
-    } else if (isNearby) {
-      // Pre-mount adjacent cards in background so they are already compiled before user scrolls to them
+    } else if (isNearby && !isScrolling) {
+      // Only pre-mount adjacent cards in background when user is completely IDLE
       timer = setTimeout(() => {
         setShouldMountWebGL(true);
-      }, 60);
-    } else {
+      }, 150);
+    } else if (!isNearby) {
       // Card left proximity ring: unmount WebGL after exit slide completes
       timer = setTimeout(() => {
         setShouldMountWebGL(false);
@@ -232,7 +233,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       }, 420);
     }
     return () => clearTimeout(timer);
-  }, [isActive, isNearby, isSettled, allowZoom]);
+  }, [isActive, isNearby, isSettled, isScrolling, allowZoom]);
 
   // Reset active reveal state, camera view, zoom status, and controls ONLY when model becomes inactive
   useEffect(() => {
