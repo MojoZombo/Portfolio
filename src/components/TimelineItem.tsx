@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Project } from '../types/project';
 import { ModelViewer } from '../canvas/ModelViewer';
+import { preloadModelAssets } from '../canvas/ModelPreloadManager';
+import { useTheme } from '../context/ThemeContext';
 import { ArrowUpRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { CompanyLogo } from './CompanyLogo';
@@ -62,13 +64,29 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
     project.animationTranslation?.textY ??
     DEFAULT_TEXT_TRANSLATE_Y;
 
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const isDarkRef = useRef(isDark);
+  isDarkRef.current = isDark;
+
   const itemRef = useRef<HTMLDivElement | null>(null);
   const [isActive, setIsActive] = useState(index === 0);
   const isActiveRef = useRef(index === 0);
-  const [isSettled, setIsSettled] = useState(index === 0);
+  const preloadStageRef = useRef<0 | 1 | 2>(0); // 0: none, 1: outer ring, 2: inner ring (high priority)
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true
   );
+
+  // Immediately pre-warm top 2 timeline items on initial boot
+  useEffect(() => {
+    if (index <= 1) {
+      preloadStageRef.current = 2;
+      preloadModelAssets(project.modelType, isDark, 'high');
+    } else if (index === 2) {
+      preloadStageRef.current = Math.max(preloadStageRef.current, 1) as 0 | 1 | 2;
+      preloadModelAssets(project.modelType, isDark, 'low');
+    }
+  }, [index, project.modelType, isDark]);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -202,7 +220,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   useEffect(() => {
     let ticking = false;
 
-    // Detect active center zone using instant arithmetic against cached position (ZERO reflows)
+    // Detect active center zone and predictive preload rings using instant arithmetic against cached position (ZERO reflows)
     const checkVisibility = () => {
       if (!ticking) {
         window.requestAnimationFrame(() => {
@@ -213,6 +231,21 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           const windowHeight = window.innerHeight;
           const currentDocCenter = (window.scrollY || window.pageYOffset || 0) + windowHeight / 2;
           const distance = Math.abs(docCenterYRef.current - currentDocCenter);
+
+          // Two-ring predictive preloading:
+          // Inner ring (< 0.95 * vh): high-priority preload (adjacent items N-1, N+1)
+          // Outer ring (< 1.85 * vh): idle low-priority preload (2-3 items ahead)
+          if (distance < windowHeight * 0.95) {
+            if (preloadStageRef.current < 2) {
+              preloadStageRef.current = 2;
+              preloadModelAssets(project.modelType, isDarkRef.current, 'high');
+            }
+          } else if (distance < windowHeight * 1.85) {
+            if (preloadStageRef.current < 1) {
+              preloadStageRef.current = 1;
+              preloadModelAssets(project.modelType, isDarkRef.current, 'low');
+            }
+          }
 
           // Adaptive threshold for mobile vs desktop with compact spacing
           const isMobileDevice = window.innerWidth < 768;
@@ -229,7 +262,6 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           if (nextActive !== isActiveRef.current) {
             isActiveRef.current = nextActive;
             setIsActive(nextActive);
-            setIsSettled(false);
             if (nextActive) {
               onVisible(project.id);
             }
@@ -255,7 +287,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
       window.removeEventListener('scroll', checkVisibility);
       window.removeEventListener('resize', handleResize);
     };
-  }, [project.id, onVisible, measureDocCenter]);
+  }, [project.id, project.modelType, onVisible, measureDocCenter]);
 
   return (
     <section
@@ -321,14 +353,6 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             y: isDesktop && isActive ? modelShiftY : 0,
           }}
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-          onAnimationStart={() => {
-            setIsSettled(false);
-          }}
-          onAnimationComplete={() => {
-            if (isActiveRef.current) {
-              setIsSettled(true);
-            }
-          }}
           className="w-full flex items-center justify-center overflow-visible will-change-transform"
         >
           <div
@@ -349,7 +373,6 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             <ModelViewer
               modelType={project.modelType}
               isActive={isActive}
-              isSettled={!isDesktop || isSettled}
               className="h-[270px] xs:h-[310px] sm:h-[400px] md:h-[490px] w-full"
             />
           </div>

@@ -1,19 +1,26 @@
 import React, { lazy } from 'react';
+import {
+  getCachedModelComponent,
+  loadModelComponentChunk,
+  ModelComponentProps,
+} from './ModelPreloadManager';
 
-// Each model is code-split and fetched on demand (rendered inside ModelViewer's <Suspense>)
-const RobotHandModel = lazy(() => import('./models/RobotHandModel').then((m) => ({ default: m.RobotHandModel })));
-const CableRobotModel = lazy(() => import('./models/CableRobotModel').then((m) => ({ default: m.CableRobotModel })));
-const PingPongRobotModel = lazy(() => import('./models/PingPongRobotModel').then((m) => ({ default: m.PingPongRobotModel })));
-const CatamaranModel = lazy(() => import('./models/CatamaranModel').then((m) => ({ default: m.CatamaranModel })));
-const WinchCatchModel = lazy(() => import('./models/WinchCatchModel').then((m) => ({ default: m.WinchCatchModel })));
-const OutriggerModel = lazy(() => import('./models/OutriggerModel').then((m) => ({ default: m.OutriggerModel })));
-const ModularGripperModel = lazy(() => import('./models/ModularGripperModel').then((m) => ({ default: m.ModularGripperModel })));
-const UnderwaterRobotModel = lazy(() => import('./models/UnderwaterRobotModel').then((m) => ({ default: m.UnderwaterRobotModel })));
-const AntiTangleWinchModel = lazy(() => import('./models/AntiTangleWinchModel').then((m) => ({ default: m.AntiTangleWinchModel })));
-const BottleScrubberModel = lazy(() => import('./models/BottleScrubberModel').then((m) => ({ default: m.BottleScrubberModel })));
-const FTCRobotModel = lazy(() => import('./models/FTCRobotModel').then((m) => ({ default: m.FTCRobotModel })));
-const TeslaActuatorModel = lazy(() => import('./models/TeslaActuatorModel').then((m) => ({ default: m.TeslaActuatorModel })));
-const InductiveRobotModel = lazy(() => import('./models/InductiveRobotModel').then((m) => ({ default: m.InductiveRobotModel })));
+// Lazy fallbacks sharing the exact same module promises as ModelPreloadManager
+const lazyModelComponents: Record<string, React.LazyExoticComponent<React.ComponentType<ModelComponentProps>>> = {
+  'tesla-actuator': lazy(() => loadModelComponentChunk('tesla-actuator')),
+  'inductive-robot': lazy(() => loadModelComponentChunk('inductive-robot')),
+  'robot-hand': lazy(() => loadModelComponentChunk('robot-hand')),
+  'cable-robot-2': lazy(() => loadModelComponentChunk('cable-robot-2')),
+  'ping-pong': lazy(() => loadModelComponentChunk('ping-pong')),
+  'catamaran': lazy(() => loadModelComponentChunk('catamaran')),
+  'drone-catch': lazy(() => loadModelComponentChunk('drone-catch')),
+  'outrigger': lazy(() => loadModelComponentChunk('outrigger')),
+  'modular-gripper': lazy(() => loadModelComponentChunk('modular-gripper')),
+  'underwater-robot': lazy(() => loadModelComponentChunk('underwater-robot')),
+  'anti-tangle-winch': lazy(() => loadModelComponentChunk('anti-tangle-winch')),
+  'bottle-scrubber': lazy(() => loadModelComponentChunk('bottle-scrubber')),
+  'ftc-robot': lazy(() => loadModelComponentChunk('ftc-robot')),
+};
 
 interface ModelRendererProps {
   modelType: string;
@@ -30,35 +37,15 @@ export const ModelRenderer: React.FC<ModelRendererProps> = ({
   isRotating = true,
   isAnimating = true,
 }) => {
-  const props = { isActive, isHovered, isRotating, isAnimating };
-  switch (modelType) {
-    case 'tesla-actuator':
-      return <TeslaActuatorModel {...props} />;
-    case 'inductive-robot':
-      return <InductiveRobotModel {...props} />;
-    case 'robot-hand':
-      return <RobotHandModel {...props} />;
-    case 'cable-robot-2':
-      return <CableRobotModel {...props} />;
-    case 'ping-pong':
-      return <PingPongRobotModel {...props} />;
-    case 'catamaran':
-      return <CatamaranModel {...props} />;
-    case 'drone-catch':
-      return <WinchCatchModel {...props} />;
-    case 'outrigger':
-      return <OutriggerModel {...props} />;
-    case 'modular-gripper':
-      return <ModularGripperModel {...props} />;
-    case 'underwater-robot':
-      return <UnderwaterRobotModel {...props} />;
-    case 'anti-tangle-winch':
-      return <AntiTangleWinchModel {...props} />;
-    case 'bottle-scrubber':
-      return <BottleScrubberModel {...props} />;
-    case 'ftc-robot':
-      return <FTCRobotModel {...props} />;
-    default:
-      return <RobotHandModel {...props} />;
+  const props: ModelComponentProps = { isActive, isHovered, isRotating, isAnimating };
+
+  // Fast path: if chunk was already preloaded by ModelPreloadManager, render synchronously
+  // without triggering a 1-frame React.lazy Suspense boundary delay.
+  const CachedComponent = getCachedModelComponent(modelType);
+  if (CachedComponent) {
+    return <CachedComponent {...props} />;
   }
+
+  const LazyComponent = lazyModelComponents[modelType] || lazyModelComponents['robot-hand'];
+  return <LazyComponent {...props} />;
 };
