@@ -3,7 +3,7 @@ import React, { Suspense, useState, useRef, useEffect, Component, ErrorInfo, Rea
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { ModelRenderer } from './ModelRenderer';
-import { POSTER_VERSION, preloadModelAssets, useIsScrolling } from './ModelPreloadManager';
+import { POSTER_VERSION, preloadModelAssets } from './ModelPreloadManager';
 import { useTheme } from '../context/ThemeContext';
 import { Pause, Play, RotateCcw } from 'lucide-react';
 
@@ -136,7 +136,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [shouldMountWebGL, setShouldMountWebGL] = useState(false);
-  const isScrolling = useIsScrolling();
 
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   useEffect(() => {
@@ -207,8 +206,9 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   }, [isDark, isActive, allowZoom, shouldMountWebGL]);
 
   // Manage WebGL mounting:
-  // - Pre-mounts adjacent cards in background via isNearby (before user scrolls to them) ONLY when scroll is idle
-  // - For active cards, waits until isSettled so mounting NEVER interferes with the 380ms horizontal slide
+  // - Only mount WebGL when the card is active and settled (or in allowZoom modal view)
+  // - Keeps previously mounted cards resident while nearby with frameloop="never" (0% CPU, instant scroll-back)
+  // - Unmounts WebGL cleanly when card moves far outside proximity ring to free GPU memory
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     if (allowZoom) {
@@ -219,13 +219,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       if (isSettled) {
         setShouldMountWebGL(true);
       }
-    } else if (isNearby && !isScrolling) {
-      // Only pre-mount adjacent cards in background when user is completely IDLE
-      timer = setTimeout(() => {
-        setShouldMountWebGL(true);
-      }, 150);
     } else if (!isNearby) {
-      // Card left proximity ring: unmount WebGL after exit slide completes
+      // Card left proximity ring: unmount WebGL far off-screen
       timer = setTimeout(() => {
         setShouldMountWebGL(false);
         setIsPrewarmed(false);
@@ -233,7 +228,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       }, 420);
     }
     return () => clearTimeout(timer);
-  }, [isActive, isNearby, isSettled, isScrolling, allowZoom]);
+  }, [isActive, isNearby, isSettled, allowZoom]);
 
   // Reset active reveal state, camera view, zoom status, and controls ONLY when model becomes inactive
   useEffect(() => {
@@ -247,7 +242,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   }, [isActive, allowZoom]);
 
   const isActiveAndSettled = allowZoom || (isActive && isSettled);
-  const isBackgroundWarming = shouldMountWebGL && !isPrewarmed && !isActive;
   const isDrawingActiveReveal = shouldMountWebGL && isActiveAndSettled && !isCanvasReady;
   const showLiveCanvas = isActiveAndSettled && isCanvasReady;
   const isAnimationsStarted = showLiveCanvas;
@@ -327,7 +321,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                 : "grab-cursor !touch-pan-y"
             }
             style={{ background: 'transparent' }}
-            frameloop={showLiveCanvas || isBackgroundWarming || isDrawingActiveReveal ? 'always' : 'never'}
+            frameloop={showLiveCanvas || isDrawingActiveReveal ? 'always' : 'never'}
             dpr={isMobileMode ? [1, 1.25] : [1, 1.6]}
             gl={{
               antialias: true,
@@ -362,14 +356,20 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               <ModelErrorBoundary>
                 <ModelRenderer
                   modelType={modelType}
-                  isActive={isActiveAndSettled || isBackgroundWarming}
+                  isActive={isActiveAndSettled}
                   isHovered={isHovered}
                   isRotating={isAnimationPlaying && isRotating && isAnimationsStarted}
                   isAnimating={isAnimationPlaying && isAnimationsStarted}
                 />
               </ModelErrorBoundary>
-              <CanvasDrawDetector active={isBackgroundWarming} targetFrames={2} onDrawn={() => setIsPrewarmed(true)} />
-              <CanvasDrawDetector active={isDrawingActiveReveal} targetFrames={isPrewarmed ? 1 : 2} onDrawn={() => setIsCanvasReady(true)} />
+              <CanvasDrawDetector
+                active={isDrawingActiveReveal}
+                targetFrames={isPrewarmed ? 1 : 2}
+                onDrawn={() => {
+                  setIsCanvasReady(true);
+                  setIsPrewarmed(true);
+                }}
+              />
             </Suspense>
             <CameraResetController resetTrigger={resetTrigger} />
             <CameraStateDetector onZoomChange={setIsZoomedIn} />
