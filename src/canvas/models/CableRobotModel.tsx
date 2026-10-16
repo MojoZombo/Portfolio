@@ -212,6 +212,15 @@ const CDPRRig: React.FC<{
 
   const localTimeRef = useRef(0);
 
+  useEffect(() => {
+    if (!isActive && !isCalibrating) {
+      localTimeRef.current = 0;
+      if (plateRef.current) {
+        plateRef.current.position.set(0, config.plateElevation, 0);
+      }
+    }
+  }, [isActive, isCalibrating, config.plateElevation]);
+
   useFrame((_state, delta) => { delta = Math.min(delta, 0.035);
     if (!config.enabled) return;
 
