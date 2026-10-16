@@ -42,6 +42,18 @@ export const BackgroundGrid: React.FC = () => {
     ease: [0.16, 1, 0.3, 1],
   };
 
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const isDark = theme === 'dark';
 
   return (
@@ -65,17 +77,17 @@ export const BackgroundGrid: React.FC = () => {
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden w-full h-full select-none">
         {/* Dynamic Radial Vignette Overlay:
             - When idle: gently encloses and focuses the center reading area
-            - When scrolling: animatedly scales outward (moves away) and softens
-            - When scrolling stops: slowly and smoothly glides back to its resting frame
+            - When scrolling: animatedly scales outward (moves away) on desktop and softens
+            - On mobile: keeps 1.0x scale to prevent GPU fill-rate re-rasterization pauses during fast flings
         */}
         <motion.div
           initial={false}
           animate={{
-            scale: isScrolling ? 1.22 : 1.0,
+            scale: isMobile ? 1.0 : (isScrolling ? 1.22 : 1.0),
             opacity: isScrolling ? 0.45 : 1.0,
           }}
           transition={transition}
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0 pointer-events-none transform-gpu will-change-transform"
           style={{
             background: isDark
               ? 'radial-gradient(ellipse 75% 70% at 50% 50%, rgba(20,28,40,0) 25%, rgba(20,28,40,0.85) 75%, rgba(20,28,40,1) 95%)'
@@ -91,7 +103,7 @@ export const BackgroundGrid: React.FC = () => {
             opacity: isScrolling ? 0.35 : 1,
           }}
           transition={transition}
-          className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-slate-50 dark:from-[#141C28] via-slate-50/70 dark:via-[#141C28]/70 to-transparent pointer-events-none"
+          className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-slate-50 dark:from-[#141C28] via-slate-50/70 dark:via-[#141C28]/70 to-transparent pointer-events-none transform-gpu will-change-transform"
         />
         {/* Bottom Edge Fade */}
         <motion.div
@@ -101,7 +113,7 @@ export const BackgroundGrid: React.FC = () => {
             opacity: isScrolling ? 0.35 : 1,
           }}
           transition={transition}
-          className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-slate-50 dark:from-[#141C28] via-slate-50/70 dark:via-[#141C28]/70 to-transparent pointer-events-none"
+          className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-slate-50 dark:from-[#141C28] via-slate-50/70 dark:via-[#141C28]/70 to-transparent pointer-events-none transform-gpu will-change-transform"
         />
         {/* Left Edge Fade */}
         <motion.div
@@ -111,7 +123,7 @@ export const BackgroundGrid: React.FC = () => {
             opacity: isScrolling ? 0.35 : 1,
           }}
           transition={transition}
-          className="absolute inset-y-0 left-0 w-24 sm:w-32 bg-gradient-to-r from-slate-50 dark:from-[#141C28] to-transparent pointer-events-none"
+          className="absolute inset-y-0 left-0 w-24 sm:w-32 bg-gradient-to-r from-slate-50 dark:from-[#141C28] to-transparent pointer-events-none transform-gpu will-change-transform"
         />
         {/* Right Edge Fade */}
         <motion.div
@@ -121,7 +133,7 @@ export const BackgroundGrid: React.FC = () => {
             opacity: isScrolling ? 0.35 : 1,
           }}
           transition={transition}
-          className="absolute inset-y-0 right-0 w-24 sm:w-32 bg-gradient-to-l from-slate-50 dark:from-[#141C28] to-transparent pointer-events-none"
+          className="absolute inset-y-0 right-0 w-24 sm:w-32 bg-gradient-to-l from-slate-50 dark:from-[#141C28] to-transparent pointer-events-none transform-gpu will-change-transform"
         />
       </div>
     </>

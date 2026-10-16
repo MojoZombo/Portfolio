@@ -16,9 +16,17 @@ export const Header: React.FC = () => {
   useEffect(() => {
     let animId: number;
 
-    const updatePositions = () => {
+    let lastScrolledState: boolean | null = null;
+
+    const updatePositions = (force = false) => {
       const scrollY = window.scrollY || window.pageYOffset || 0;
       const scrolled = scrollY > 12;
+
+      // Skip getBoundingClientRect layout calculations once locked into top corners
+      if (!force && scrolled && lastScrolledState === true) {
+        return;
+      }
+      lastScrolledState = scrolled;
       setIsScrolled(scrolled);
 
       const titleAnchor = titleAnchorRef.current;
@@ -71,17 +79,22 @@ export const Header: React.FC = () => {
 
     const handleScroll = () => {
       cancelAnimationFrame(animId);
-      animId = requestAnimationFrame(updatePositions);
+      animId = requestAnimationFrame(() => updatePositions(false));
+    };
+
+    const handleResize = () => {
+      cancelAnimationFrame(animId);
+      animId = requestAnimationFrame(() => updatePositions(true));
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleScroll);
-    updatePositions();
+    window.addEventListener('resize', handleResize);
+    updatePositions(true);
 
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleScroll);
+      window.removeEventListener('resize', handleResize);
     };
   }, []);
 

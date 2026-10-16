@@ -9,6 +9,7 @@ export const POSTER_VERSION = '20261012-v4';
 let isWindowScrolling = false;
 let scrollStopTimer: ReturnType<typeof setTimeout> | null = null;
 const scrollStatusListeners = new Set<(isScrolling: boolean) => void>();
+const pendingScrollPreloads = new Map<string, { isDark: boolean; priority: 'high' | 'low' }>();
 
 if (typeof window !== 'undefined') {
   window.addEventListener(
@@ -22,7 +23,16 @@ if (typeof window !== 'undefined') {
       scrollStopTimer = setTimeout(() => {
         isWindowScrolling = false;
         scrollStatusListeners.forEach((fn) => fn(false));
-      }, 200);
+
+        // Flush any pending preloads now that scrolling has settled
+        if (pendingScrollPreloads.size > 0) {
+          const queue = Array.from(pendingScrollPreloads.entries());
+          pendingScrollPreloads.clear();
+          queue.forEach(([mType, config]) => {
+            preloadModelAssets(mType, config.isDark, config.priority);
+          });
+        }
+      }, 160);
     },
     { passive: true }
   );
@@ -189,6 +199,10 @@ function scheduleIdleFlush() {
 
   const runNext = (deadline?: { timeRemaining: () => number; didTimeout: boolean }) => {
     isIdleScheduled = false;
+    // Postpone idle tasks if user is actively scrolling
+    if (isWindowScrolling) {
+      return;
+    }
     while (idleQueue.length > 0) {
       const task = idleQueue.shift();
       if (task) task();
@@ -202,9 +216,9 @@ function scheduleIdleFlush() {
   };
 
   if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-    (window as any).requestIdleCallback(runNext, { timeout: 300 });
+    (window as any).requestIdleCallback(runNext, { timeout: 1000 });
   } else {
-    setTimeout(() => runNext(), 16);
+    setTimeout(() => runNext(), 80);
   }
 }
 
@@ -218,6 +232,13 @@ export function preloadModelAssets(
   isDark: boolean,
   priority: 'high' | 'low' = 'low'
 ): void {
+  // If user is actively flinging/scrolling, defer preloading so we never
+  // contest network bandwidth or main-thread JS execution during scroll animation
+  if (isWindowScrolling) {
+    pendingScrollPreloads.set(modelType, { isDark, priority });
+    return;
+  }
+
   // Always start poster decode right away (asynchronous off-thread in modern browsers)
   preloadPosterImages(modelType, isDark);
 

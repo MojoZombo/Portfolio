@@ -134,18 +134,29 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
 
   useEffect(() => {
     let animationFrameId: number;
+    let lastOverlapCheck = 0;
 
     const handleUpdate = () => {
+      // TimelineRuler is completely hidden on mobile viewports (< 768px). Skip all work on mobile.
+      if (typeof window !== 'undefined' && window.innerWidth < 768) return;
+
       cancelAnimationFrame(animationFrameId);
       animationFrameId = requestAnimationFrame(() => {
         updateProgress();
-        checkOverlap();
+        const now = performance.now();
+        if (now - lastOverlapCheck > 140) {
+          lastOverlapCheck = now;
+          checkOverlap();
+        }
       });
     };
 
     const handleResize = () => {
       updateTrackPosition();
       measureOffsets();
+      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+        checkOverlap();
+      }
       handleUpdate();
     };
 

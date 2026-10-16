@@ -301,6 +301,14 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
     measureDocCenter();
     checkVisibility();
 
+    // Re-verify measurement when web fonts finish rendering to prevent layout drift
+    if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
+      (document as any).fonts.ready.then(() => {
+        measureDocCenter();
+        checkVisibility();
+      });
+    }
+
     return () => {
       window.removeEventListener('scroll', checkVisibility);
       window.removeEventListener('resize', handleResize);
@@ -318,17 +326,19 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
         {/* Project Header / Details:
             - Desktop: Floats on left and slides in dynamically when active in center view
             - Mobile: Positioned cleanly above the 3D model with transparent background, animating in when active
+            - Compositor-driven: Uses native GPU CSS transitions for guaranteed 60/120fps motion without main-thread jank
         */}
-        <motion.div
-          initial={false}
-          animate={{
+        <div
+          style={{
+            transform: isDesktop
+              ? `translate3d(${isActive ? 0 : textShiftX}px, ${isActive ? 0 : textShiftY}px, 0)`
+              : `translate3d(0, ${isActive ? 0 : 28}px, 0)`,
             opacity: isActive ? 1 : 0,
-            x: isDesktop ? (isActive ? 0 : textShiftX) : 0,
-            y: isDesktop ? (isActive ? 0 : textShiftY) : (isActive ? 0 : 28),
             pointerEvents: isActive ? 'auto' : 'none',
+            transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+            willChange: 'transform, opacity',
           }}
-          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full md:w-5/12 md:absolute md:left-4 lg:left-8 z-20"
+          className="w-full md:w-5/12 md:absolute md:left-4 lg:left-8 z-20 will-change-transform transform-gpu"
         >
           <div className="space-y-2.5 p-0">
             {/* Company Badge & Date */}
@@ -362,7 +372,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         <motion.div
           initial={false}
