@@ -72,6 +72,8 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   const itemRef = useRef<HTMLDivElement | null>(null);
   const [isActive, setIsActive] = useState(index === 0);
   const isActiveRef = useRef(index === 0);
+  const [isNearby, setIsNearby] = useState(index <= 1);
+  const isNearbyRef = useRef(index <= 1);
   const [isSettled, setIsSettled] = useState(index === 0);
   const preloadStageRef = useRef<0 | 1 | 2>(0); // 0: none, 1: outer ring, 2: inner ring (high priority)
   const [isDesktop, setIsDesktop] = useState(() =>
@@ -253,6 +255,20 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           const enterThreshold = windowHeight * (isMobileDevice ? 0.26 : 0.22);
           const exitThreshold = windowHeight * (isMobileDevice ? 0.36 : 0.32);
 
+          // Proximity pre-mount ring (adjacent cards N-1 and N+1) with hysteresis
+          const nearbyEnterThreshold = windowHeight * 0.78;
+          const nearbyExitThreshold = windowHeight * 0.98;
+          let nextNearby = isNearbyRef.current;
+          if (distance < nearbyEnterThreshold) {
+            nextNearby = true;
+          } else if (distance > nearbyExitThreshold) {
+            nextNearby = false;
+          }
+          if (nextNearby !== isNearbyRef.current) {
+            isNearbyRef.current = nextNearby;
+            setIsNearby(nextNearby);
+          }
+
           let nextActive = isActiveRef.current;
           if (distance < enterThreshold) {
             nextActive = true;
@@ -383,6 +399,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             <ModelViewer
               modelType={project.modelType}
               isActive={isActive}
+              isNearby={isNearby}
               isSettled={!isDesktop || isSettled}
               className="h-[270px] xs:h-[310px] sm:h-[400px] md:h-[490px] w-full"
             />

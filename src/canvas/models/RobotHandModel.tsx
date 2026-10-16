@@ -956,7 +956,7 @@ export const RobotHandModel: React.FC<ModelProps> = ({ isActive = false, isRotat
     }
     const time = localTimeRef.current;
 
-    if ((isActive || isModelCalibrating) && meshNodesRef.current.length > 0) {
+    if ((isPlaying || isModelCalibrating) && meshNodesRef.current.length > 0) {
       const computedTransforms = new Map<
         number,
         { pos: THREE.Vector3; quat: THREE.Quaternion; deltaPos: THREE.Vector3; deltaQuat: THREE.Quaternion }
