@@ -538,6 +538,7 @@ export const BottleScrubberModel: React.FC<ModelProps> = ({
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
           node.mesh.rotation.copy(node.initialRot);
+          node.mesh.quaternion.copy(node.initialQuat);
         });
       }
     }
@@ -571,13 +572,15 @@ export const BottleScrubberModel: React.FC<ModelProps> = ({
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
           node.mesh.rotation.copy(node.initialRot);
+          node.mesh.quaternion.copy(node.initialQuat);
         });
       }
       return;
     }
 
-    if (isAnimating && (isActive || isModelCalibrating)) {
-      localTimeRef.current += delta;
+    const isPlaying = isModelCalibrating ? (isAnimating ?? true) : (isActive && isAnimating);
+    if (isPlaying) {
+      localTimeRef.current += Math.min(delta, 0.035);
     }
 
     const baseScale = isModelCalibrating ? settings.scale : DEFAULT_SCALE;
@@ -597,6 +600,10 @@ export const BottleScrubberModel: React.FC<ModelProps> = ({
     }
 
     const time = localTimeRef.current;
+
+    // Smooth cubic ramp-in from rest pose to eliminate initial pop on load
+    const ramp = isModelCalibrating ? 1 : Math.min(1, Math.max(0, time / 0.75));
+    const smoothWeight = isModelCalibrating ? 1 : ramp * ramp * (3 - 2 * ramp);
     if ((isAnimating || isModelCalibrating) && meshNodesRef.current.length > 0) {
       const computedTransforms = new Map<
         number,
@@ -740,12 +747,13 @@ export const BottleScrubberModel: React.FC<ModelProps> = ({
               node.mesh.userData.hingePivot = pivot.clone();
               node.mesh.userData.hingeAxis = axisVec.clone();
 
-              const angle =
+              const baseAngle =
                 animConfig.type === 'continuous-spin'
                   ? time * omega * dir
                   : Math.sin(time * omega + phaseRad) *
                     (((animConfig.amplitude || 30) * Math.PI) / 180) *
                     dir;
+              const angle = baseAngle * smoothWeight;
 
               const qDelta = new THREE.Quaternion().setFromAxisAngle(axisVec, angle);
               currentQuat = qDelta.clone().multiply(currentQuat);
@@ -765,6 +773,7 @@ export const BottleScrubberModel: React.FC<ModelProps> = ({
                 const s = Math.sin(time * omega + phaseRad);
                 displacementScalar = (s >= 0 ? s * distPosM : s * distNegM) * dir;
               }
+              displacementScalar *= smoothWeight;
               const displacement = axisVec.clone().multiplyScalar(displacementScalar);
               currentPos.add(displacement);
             }
