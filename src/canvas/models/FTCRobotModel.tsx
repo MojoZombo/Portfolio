@@ -15,14 +15,15 @@ export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotati
   const intakeRef = useRef<THREE.Group>(null);
   const armRef = useRef<THREE.Group>(null);
   const currentSpeedRef = useRef(0);
-
   const localTimeRef = useRef(0);
+  const easeInTimeRef = useRef(0);
 
   useEffect(() => {
     if (!isActive) {
       if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
       currentSpeedRef.current = 0;
       localTimeRef.current = 0;
+      easeInTimeRef.current = 0;
       if (intakeRef.current) intakeRef.current.rotation.x = 0;
       if (armRef.current) armRef.current.rotation.z = -0.2;
     }
@@ -38,6 +39,7 @@ export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotati
       }
       currentSpeedRef.current = 0;
       localTimeRef.current = 0;
+      easeInTimeRef.current = 0;
       if (intakeRef.current) intakeRef.current.rotation.x = 0;
       if (armRef.current) armRef.current.rotation.z = -0.2;
       return;
@@ -47,13 +49,22 @@ export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotati
       groupRef.current.scale.setScalar(1.2);
     }
 
+    // Smoothstep ease-in curve over 1.2s to smoothly accelerate from a standstill
     if (isAnimating) {
-      localTimeRef.current += delta;
+      easeInTimeRef.current += delta;
+    } else {
+      easeInTimeRef.current = 0;
+    }
+    const easeProgress = Math.min(1, easeInTimeRef.current / 1.2);
+    const animEase = easeProgress * easeProgress * (3 - 2 * easeProgress);
+
+    if (isAnimating) {
+      localTimeRef.current += delta * animEase;
     }
     const t = localTimeRef.current;
 
-    const targetSpeed = isRotating && isAnimating ? 0.35 : 0;
-    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 3.2, delta);
+    const targetSpeed = isRotating && isAnimating ? 0.35 * animEase : 0;
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 4.0, delta);
 
     if (groupRef.current && isRotating) {
       groupRef.current.rotation.x = 0;
@@ -64,7 +75,7 @@ export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotati
     }
 
     if (intakeRef.current && isAnimating) {
-      intakeRef.current.rotation.x += delta * 5;
+      intakeRef.current.rotation.x += delta * 5 * animEase;
     }
 
     if (armRef.current) {

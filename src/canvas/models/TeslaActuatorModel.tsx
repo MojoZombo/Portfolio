@@ -20,12 +20,14 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
   const stage2Ref = useRef<THREE.Group>(null);
   const currentSpeedRef = useRef(0);
   const localTimeRef = useRef(0);
+  const easeInTimeRef = useRef(0);
 
   useEffect(() => {
     if (!isActive) {
       if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
       currentSpeedRef.current = 0;
       localTimeRef.current = 0;
+      easeInTimeRef.current = 0;
       if (stage1Ref.current) stage1Ref.current.position.y = 0;
       if (stage2Ref.current) stage2Ref.current.position.y = 0;
     }
@@ -41,6 +43,7 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
       }
       currentSpeedRef.current = 0;
       localTimeRef.current = 0;
+      easeInTimeRef.current = 0;
       if (stage1Ref.current) stage1Ref.current.position.y = 0;
       if (stage2Ref.current) stage2Ref.current.position.y = 0;
       return;
@@ -50,13 +53,22 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
       groupRef.current.scale.setScalar(1.55);
     }
 
+    // Smoothstep ease-in curve over 1.2s to smoothly accelerate from a standstill
     if (isAnimating) {
-      localTimeRef.current += delta;
+      easeInTimeRef.current += delta;
+    } else {
+      easeInTimeRef.current = 0;
+    }
+    const easeProgress = Math.min(1, easeInTimeRef.current / 1.2);
+    const animEase = easeProgress * easeProgress * (3 - 2 * easeProgress);
+
+    if (isAnimating) {
+      localTimeRef.current += delta * animEase;
     }
     const time = localTimeRef.current;
 
-    const targetSpeed = isRotating && isAnimating ? 0.2 : 0;
-    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 3.2, delta);
+    const targetSpeed = isRotating && isAnimating ? 0.2 * animEase : 0;
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 4.0, delta);
 
     if (groupRef.current && isRotating) {
       groupRef.current.rotation.x = 0;

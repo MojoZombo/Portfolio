@@ -211,10 +211,12 @@ const CDPRRig: React.FC<{
   const postEdges = useMemo(() => new THREE.EdgesGeometry(postGeo, 25), [postGeo]);
 
   const localTimeRef = useRef(0);
+  const easeInTimeRef = useRef(0);
 
   useEffect(() => {
     if (!isActive && !isCalibrating) {
       localTimeRef.current = 0;
+      easeInTimeRef.current = 0;
       if (plateRef.current) {
         plateRef.current.position.set(0, config.plateElevation, 0);
       }
@@ -226,8 +228,14 @@ const CDPRRig: React.FC<{
 
     if (!isActive && !isCalibrating) {
       localTimeRef.current = 0;
+      easeInTimeRef.current = 0;
     } else if (isAnimating) {
-      localTimeRef.current += delta;
+      easeInTimeRef.current += delta;
+      const easeProgress = Math.min(1, easeInTimeRef.current / 1.2);
+      const animEase = isCalibrating ? 1 : easeProgress * easeProgress * (3 - 2 * easeProgress);
+      localTimeRef.current += delta * animEase;
+    } else {
+      easeInTimeRef.current = 0;
     }
     const time = localTimeRef.current;
     const isMoving = (isActive || isCalibrating);
@@ -746,12 +754,14 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
   ]);
 
   const localTimeRef = useRef(0);
+  const easeInTimeRef = useRef(0);
 
   useEffect(() => {
     if (!isModelCalibrating && !isActive) {
       if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
       currentSpeedRef.current = 0;
       localTimeRef.current = 0;
+      easeInTimeRef.current = 0;
       if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
@@ -780,6 +790,7 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
       }
       currentSpeedRef.current = 0;
       localTimeRef.current = 0;
+      easeInTimeRef.current = 0;
       if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
@@ -789,8 +800,18 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
       return;
     }
 
-    if (isAnimating) {
-      localTimeRef.current += delta;
+    // Smoothstep ease-in curve over 1.2s to smoothly accelerate from a standstill
+    const isPlaying = isModelCalibrating ? (isAnimating ?? true) : (isActive && isAnimating);
+    if (isPlaying) {
+      easeInTimeRef.current += delta;
+    } else {
+      easeInTimeRef.current = 0;
+    }
+    const easeProgress = Math.min(1, easeInTimeRef.current / 1.2);
+    const animEase = isModelCalibrating ? 1 : easeProgress * easeProgress * (3 - 2 * easeProgress);
+
+    if (isPlaying) {
+      localTimeRef.current += delta * animEase;
     }
 
     // 2. Active Mode / Calibration Mode: Constant scale and turntable rotation
@@ -801,8 +822,8 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
 
     // Auto rotate parent with smooth acceleration from 0 RPM
     const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.2;
-    const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed : 0);
-    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 3.2, delta);
+    const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed * animEase : 0);
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 4.0, delta);
 
     if (groupRef.current && (isRotating || isModelCalibrating)) {
       if (currentSpeedRef.current > 0.001) {

@@ -963,12 +963,14 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
 
   // Frame loop
   const localTimeRef = useRef(0);
+  const easeInTimeRef = useRef(0);
 
   useEffect(() => {
     if (!isModelCalibrating && !isActive) {
       if (groupRef.current) groupRef.current.rotation.set(0, 0, 0);
       currentSpeedRef.current = 0;
       localTimeRef.current = 0;
+      easeInTimeRef.current = 0;
       if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
@@ -1000,6 +1002,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
       }
       currentSpeedRef.current = 0;
       localTimeRef.current = 0;
+      easeInTimeRef.current = 0;
       if (meshNodesRef.current.length > 0) {
         meshNodesRef.current.forEach((node) => {
           node.mesh.position.copy(node.initialPos);
@@ -1009,8 +1012,18 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
       return;
     }
 
-    if (isAnimating && (isActive || isModelCalibrating)) {
-      localTimeRef.current += delta;
+    // Smoothstep ease-in curve over 1.2s to smoothly accelerate from a standstill
+    const isPlaying = isModelCalibrating ? (isAnimating ?? true) : (isActive && isAnimating);
+    if (isPlaying) {
+      easeInTimeRef.current += Math.min(delta, 0.035);
+    } else {
+      easeInTimeRef.current = 0;
+    }
+    const easeProgress = Math.min(1, easeInTimeRef.current / 1.2);
+    const animEase = isModelCalibrating ? 1 : easeProgress * easeProgress * (3 - 2 * easeProgress);
+
+    if (isPlaying) {
+      localTimeRef.current += Math.min(delta, 0.035) * animEase;
     }
 
     const baseScale = isModelCalibrating ? settings.scale : DEFAULT_SCALE;
@@ -1020,8 +1033,8 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
 
     // Auto rotate parent with smooth acceleration from 0 RPM
     const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.2;
-    const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed : 0);
-    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 3.2, delta);
+    const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed * animEase : 0);
+    currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 4.0, delta);
 
     if (groupRef.current && (isRotating || isModelCalibrating)) {
       if (currentSpeedRef.current > 0.001) {
