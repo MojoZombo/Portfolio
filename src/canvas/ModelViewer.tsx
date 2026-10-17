@@ -162,13 +162,13 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const isMobileMode = !allowZoom && (isTouchDevice || isMobileWidth);
 
   // Dynamically scale DPR inversely to container height so 1px WebGL line thickness
-  // mathematically matches the scaled 490px static poster PNG on all devices (especially phones).
+  // mathematically matches the scaled 784px static poster PNG on all devices and screen resolutions.
+  // Lock the canvas frame buffer height to 784px: DPR = 784 / height (clamped safely between 1.0 and 3.0).
   const [dynamicDpr, setDynamicDpr] = useState<number>(() => {
     if (typeof window === 'undefined') return 1.6;
     const isMobile = window.innerWidth < 768;
     const h = isMobile ? (window.innerWidth < 480 ? 270 : 310) : 490;
-    const maxDpr = window.devicePixelRatio || 2;
-    return Math.min(maxDpr, Math.max(1, +(1.6 * (490 / h)).toFixed(2)));
+    return Math.min(3.0, Math.max(1.0, +(784 / h).toFixed(2)));
   });
 
   useEffect(() => {
@@ -179,8 +179,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       for (const entry of entries) {
         const height = entry.contentRect.height;
         if (height > 0) {
-          const maxDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 2 : 2;
-          const calculated = Math.min(maxDpr, Math.max(1, +(1.6 * (490 / height)).toFixed(2)));
+          const calculated = Math.min(3.0, Math.max(1.0, +(784 / height).toFixed(2)));
           setDynamicDpr((prev) => (Math.abs(prev - calculated) > 0.05 ? calculated : prev));
         }
       }
