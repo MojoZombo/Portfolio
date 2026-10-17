@@ -707,7 +707,7 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
       return;
     }
 
-    // Smoothstep ease-in curve over 1.2s to smoothly accelerate from a standstill
+    // Smoothstep ease-in curve over 1.2s for turntable rotation spool-up
     const isPlaying = isModelCalibrating ? (isAnimating ?? true) : (isActive && isAnimating);
     if (isPlaying) {
       easeInTimeRef.current += delta;
@@ -717,8 +717,9 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
     const easeProgress = Math.min(1, easeInTimeRef.current / 1.2);
     const animEase = isModelCalibrating ? 1 : easeProgress * easeProgress * (3 - 2 * easeProgress);
 
+    // Ball & paddle bouncing runs at natural physical speed without ease-in
     if (isPlaying) {
-      localTimeRef.current += delta * animEase;
+      localTimeRef.current += delta;
     }
 
     const baseScale = isModelCalibrating ? settings.scale : DEFAULT_SCALE;
@@ -726,7 +727,7 @@ export const PingPongRobotModel: React.FC<ModelProps> = ({ isActive = false, isR
       groupRef.current.scale.setScalar(baseScale);
     }
 
-    // Auto rotate parent with smooth acceleration from 0 RPM
+    // Auto rotate parent with smooth acceleration from 0 RPM (keeping turntable rotation easing)
     const maxSpeed = isModelCalibrating ? settings.rotationSpeed : 0.2;
     const targetSpeed = isModelCalibrating ? (settings.autoRotate ? maxSpeed : 0) : (isActive && isRotating && isAnimating ? maxSpeed * animEase : 0);
     currentSpeedRef.current = THREE.MathUtils.damp(currentSpeedRef.current, targetSpeed, 4.0, delta);
