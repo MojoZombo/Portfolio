@@ -59,7 +59,7 @@ function posterVersionPlugin(): Plugin {
   return {
     name: 'poster-version-plugin',
     transformIndexHtml(html) {
-      let version = '20261120-v1';
+      let version = '20261120-v2';
       try {
         const managerPath = path.resolve(__dirname, 'src/canvas/ModelPreloadManager.ts');
         const content = fs.readFileSync(managerPath, 'utf-8');
