@@ -6,6 +6,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Jaden Fann Portfolio</title>
     <meta name="description" content="Portfolio of Jaden Fann — Mechanical Engineer at Blue Origin (Lunar Lander MK II) and UC Berkeley M.S. Mechanical Engineering graduate specializing in robotics, actuation mechanisms, and mechatronic design." />
+    <link rel="canonical" href="https://jadenfann.com/" />
+    <!-- Open Graph / Social Share -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://jadenfann.com/" />
+    <meta property="og:site_name" content="Jaden Fann Portfolio" />
+    <meta property="og:title" content="Jaden Fann — Mechanical Engineer | Robotics &amp; Actuation" />
+    <meta property="og:description" content="Portfolio of Jaden Fann — Mechanical Engineer at Blue Origin (Lunar Lander MK II) and UC Berkeley M.S. Mechanical Engineering graduate specializing in robotics, actuation mechanisms, and mechatronic design." />
+    <meta property="og:image" content="https://jadenfann.com/posters/robot-hand-shaded-dark.png?v=%POSTER_VERSION%" />
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Jaden Fann — Mechanical Engineer | Robotics &amp; Actuation" />
+    <meta name="twitter:description" content="Portfolio of Jaden Fann — Mechanical Engineer at Blue Origin (Lunar Lander MK II) and UC Berkeley M.S. Mechanical Engineering graduate specializing in robotics, actuation mechanisms, and mechatronic design." />
+    <meta name="twitter:image" content="https://jadenfann.com/posters/robot-hand-shaded-dark.png?v=%POSTER_VERSION%" />
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "name": "Jaden Fann",
+        "jobTitle": "Mechanical Engineer",
+        "worksFor": {
+          "@type": "Organization",
+          "name": "Blue Origin"
+        },
+        "alumniOf": {
+          "@type": "CollegeOrUniversity",
+          "name": "University of California, Berkeley"
+        },
+        "url": "https://jadenfann.com",
+        "sameAs": [
+          "https://linkedin.com/in/jadenfann",
+          "https://showspace.so/s/jadenfann"
+        ]
+      }
+    </script>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +51,8 @@
     <script>
       (function() {
         var theme = localStorage.getItem('cad-theme-v2');
-        if (theme === 'dark') {
+        var dark = theme === 'dark' || (!theme && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) {
           document.documentElement.classList.add('dark');
           document.documentElement.classList.remove('light');
           document.documentElement.style.backgroundColor = '#141C28';
@@ -25,16 +61,13 @@
           document.documentElement.classList.add('light');
           document.documentElement.style.backgroundColor = '#f8fafc';
         }
-      })();
-      // Preload the first project's shaded poster (the LCP image) for the active theme.
-      // Must match ModelViewer's URL exactly: first modelType in projectsData + POSTER_VERSION.
-      (function() {
-        var dark = localStorage.getItem('cad-theme-v2') === 'dark';
+        // Preload the first project's shaded poster (the LCP image) for the active theme.
+        // Must match ModelViewer's URL exactly: first modelType in projectsData + POSTER_VERSION.
         var lcp = document.createElement('link');
         lcp.rel = 'preload';
         lcp.as = 'image';
         lcp.setAttribute('fetchpriority', 'high');
-        lcp.href = './posters/tesla-actuator-shaded-' + (dark ? 'dark' : 'light') + '.png?v=20261012-v4';
+        lcp.href = './posters/tesla-actuator-shaded-' + (dark ? 'dark' : 'light') + '.png?v=%POSTER_VERSION%';
         document.head.appendChild(lcp);
       })();
     </script>

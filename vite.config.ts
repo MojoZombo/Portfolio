@@ -43,9 +43,29 @@ function posterSavePlugin(): Plugin {
   };
 }
 
+function posterVersionPlugin(): Plugin {
+  return {
+    name: 'poster-version-plugin',
+    transformIndexHtml(html) {
+      let version = '20261016-v1';
+      try {
+        const managerPath = path.resolve(__dirname, 'src/canvas/ModelPreloadManager.ts');
+        const content = fs.readFileSync(managerPath, 'utf-8');
+        const match = content.match(/POSTER_VERSION\s*=\s*'([^']+)'/);
+        if (match?.[1]) {
+          version = match[1];
+        }
+      } catch {
+        // Fallback to default poster version if file read fails
+      }
+      return html.replace(/%POSTER_VERSION%/g, version);
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), posterSavePlugin()],
+  plugins: [react(), posterSavePlugin(), posterVersionPlugin()],
   base: './', // Ensures assets load properly on GitHub Pages, Vercel, or custom domains
   server: {
     watch: {
