@@ -331,13 +331,13 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             - Compositor-driven: Uses native GPU CSS transitions for guaranteed 60/120fps motion without main-thread jank
         */}
         <div
-          aria-hidden={isDesktop ? !isActive : false}
+          aria-hidden={!isActive}
           style={{
             transform: isDesktop
               ? `translate3d(${isActive ? 0 : textShiftX}px, ${isActive ? 0 : textShiftY}px, 0)`
-              : `translate3d(0, ${isActive ? 0 : 12}px, 0)`,
-            opacity: isDesktop ? (isActive ? 1 : 0) : (isActive ? 1 : 0.6),
-            pointerEvents: isDesktop ? (isActive ? 'auto' : 'none') : 'auto',
+              : `translate3d(0, ${isActive ? 0 : 24}px, 0)`,
+            opacity: isActive ? 1 : 0,
+            pointerEvents: isActive ? 'auto' : 'none',
             transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
             willChange: 'transform, opacity',
           }}
@@ -359,37 +359,16 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
               </span>
             </div>
 
-            {/* Title & concise subtitle */}
-            <div className="space-y-1">
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight select-text">
-                {project.title}
-              </h2>
-              {project.subtitle && (
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-snug select-text">
-                  {project.subtitle}
-                </p>
-              )}
-            </div>
-
-            {/* Compact discipline tags */}
-            {project.tags.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                {project.tags.slice(0, 3).map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-200/75 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
+            {/* Title */}
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight select-text">
+              {project.title}
+            </h2>
 
             {/* Single clean button to open details */}
             <div className="pt-1">
               <button
                 type="button"
-                tabIndex={isDesktop && !isActive ? -1 : 0}
+                tabIndex={isActive ? 0 : -1}
                 onClick={() => onSelect(project)}
                 className="btn-ripple inline-flex items-center gap-2 px-3.5 py-2 rounded text-xs font-mono font-medium bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
@@ -418,7 +397,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           className="w-full flex items-center justify-center overflow-visible will-change-transform relative"
         >
           <div
-            className={`w-full max-w-2xl flex items-center justify-center overflow-visible ${
+            className={`relative w-full max-w-2xl flex items-center justify-center overflow-visible ${
               !isDesktop ? 'cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500' : ''
             }`}
             onClick={handleModelClick}
@@ -440,25 +419,41 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
               isPaused={isPausedByModal}
               className="h-[270px] xs:h-[310px] sm:h-[400px] md:h-[490px] w-full"
             />
-          </div>
 
-          {isDesktop && (
+            {/* ASME-style engineering drawing leader callout when blueprint project is inactive */}
             <div
               aria-hidden={isActive}
-              className={`pointer-events-none absolute -bottom-1 left-1/2 -translate-x-1/2 text-center transition-opacity duration-300 ${
-                isActive ? 'opacity-0' : 'opacity-75'
+              className={`pointer-events-none select-none absolute z-20 top-1 right-0 sm:top-5 sm:right-2 md:top-12 md:-right-14 lg:-right-24 flex items-start transition-all duration-300 ease-out ${
+                isActive ? 'opacity-0 translate-x-2' : 'opacity-100 translate-x-0'
               }`}
             >
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                {project.title}
-              </p>
-              {project.company && (
-                <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                  {project.company}
+              <svg
+                viewBox="0 0 80 64"
+                fill="none"
+                className="w-11 h-10 sm:w-14 sm:h-12 md:w-20 md:h-16 text-slate-400/90 dark:text-[#94A8C4]/75 shrink-0 mt-1.5"
+              >
+                <polyline
+                  points="80,8 50,8 13,45"
+                  stroke="currentColor"
+                  strokeWidth="1.25"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <polygon
+                  points="6,52 10.5,42.5 15.5,47.5"
+                  fill="currentColor"
+                />
+              </svg>
+              <div className="pl-1.5 pt-0.5 text-left">
+                <div className="font-mono text-[9px] tracking-[0.12em] uppercase text-slate-400 dark:text-slate-500 leading-none mb-1">
+                  FIG. {String(index + 1).padStart(2, '0')}
+                </div>
+                <p className="font-mono text-[10px] sm:text-[11px] font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300/85 leading-snug max-w-[130px] sm:max-w-[175px] md:max-w-[195px]">
+                  {project.title}
                 </p>
-              )}
+              </div>
             </div>
-          )}
+          </div>
         </motion.div>
 
       </div>

@@ -327,18 +327,58 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         </div>
       )}
 
-      {/* Subtle Interaction Hint Pill (fades away once user orbits or zooms) */}
+      {/* Subtle CAD-native 3D orbit indicator (fades smoothly once user orbits or zooms) */}
       {(allowZoom || !isMobileMode) && showLiveCanvas && !isPaused && (
         <div
-          className={`absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-30 pointer-events-none select-none px-2.5 py-1 rounded bg-slate-900/75 text-white dark:bg-slate-900/90 dark:text-slate-200 backdrop-blur-sm text-[11px] font-mono transition-opacity duration-300 ${
-            hasInteracted ? 'opacity-0' : 'opacity-100'
-          }`}
+          aria-hidden="true"
+          className={`absolute z-30 pointer-events-none select-none flex items-center gap-1.5 text-slate-400/80 dark:text-slate-500/85 transition-opacity duration-500 ${
+            allowZoom
+              ? 'bottom-3.5 left-4'
+              : 'bottom-2.5 left-1/2 -translate-x-1/2'
+          } ${hasInteracted ? 'opacity-0' : 'opacity-100'}`}
         >
-          {allowZoom
-            ? isTouchDevice
-              ? 'Drag to orbit · Pinch to zoom'
-              : 'Drag to orbit · Scroll to zoom'
-            : 'Drag to orbit'}
+          <svg
+            viewBox="0 0 28 18"
+            fill="none"
+            className="cad-orbit-glyph w-6 h-4 shrink-0"
+          >
+            <line
+              x1="14"
+              y1="1.5"
+              x2="14"
+              y2="16.5"
+              stroke="currentColor"
+              strokeWidth="1.1"
+              strokeDasharray="1.8 2"
+              strokeOpacity="0.45"
+            />
+            <path
+              d="M 5 7.2 C 2.2 8.1 1.5 9.6 2.5 11.1 C 4.2 13.4 9 14.5 14 14.5 C 19.6 14.5 24.5 12.8 25.5 10.6 C 26.2 9.1 25.2 7.9 22.8 7.2"
+              stroke="currentColor"
+              strokeWidth="1.25"
+              strokeLinecap="round"
+            />
+            <path
+              d="M 11.5 12.6 L 14.5 14.5 L 11.5 16.4"
+              stroke="currentColor"
+              strokeWidth="1.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span
+            className={
+              allowZoom
+                ? 'text-[10px] font-mono tracking-wider uppercase'
+                : 'text-[9px] font-mono tracking-[0.14em] uppercase'
+            }
+          >
+            {allowZoom
+              ? isTouchDevice
+                ? 'Orbit · Pinch'
+                : 'Orbit · Scroll'
+              : '360°'}
+          </span>
         </div>
       )}
 
