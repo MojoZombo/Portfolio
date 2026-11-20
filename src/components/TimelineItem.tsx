@@ -18,6 +18,7 @@ interface TimelineItemProps {
   index: number;
   onSelect: (project: Project) => void;
   onVisible: (id: string) => void;
+  isPausedByModal?: boolean;
   /** Custom translation distance for 3D model (default: 160px, positive = right, negative = left) */
   modelTranslateX?: number;
   /** Custom translation distance for text card (default: -24px, negative = left, positive = right) */
@@ -33,6 +34,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   index = 0,
   onSelect,
   onVisible,
+  isPausedByModal = false,
   modelTranslateX,
   textTranslateX,
   modelTranslateY,
@@ -329,12 +331,13 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             - Compositor-driven: Uses native GPU CSS transitions for guaranteed 60/120fps motion without main-thread jank
         */}
         <div
+          aria-hidden={isDesktop ? !isActive : false}
           style={{
             transform: isDesktop
               ? `translate3d(${isActive ? 0 : textShiftX}px, ${isActive ? 0 : textShiftY}px, 0)`
-              : `translate3d(0, ${isActive ? 0 : 28}px, 0)`,
-            opacity: isActive ? 1 : 0,
-            pointerEvents: isActive ? 'auto' : 'none',
+              : `translate3d(0, ${isActive ? 0 : 12}px, 0)`,
+            opacity: isDesktop ? (isActive ? 1 : 0) : (isActive ? 1 : 0.6),
+            pointerEvents: isDesktop ? (isActive ? 'auto' : 'none') : 'auto',
             transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
             willChange: 'transform, opacity',
           }}
@@ -356,16 +359,39 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
               </span>
             </div>
 
-            {/* Title */}
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight select-text">
-              {project.title}
-            </h2>
+            {/* Title & concise subtitle */}
+            <div className="space-y-1">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight select-text">
+                {project.title}
+              </h2>
+              {project.subtitle && (
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-snug select-text">
+                  {project.subtitle}
+                </p>
+              )}
+            </div>
+
+            {/* Compact discipline tags */}
+            {project.tags.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                {project.tags.slice(0, 3).map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-200/75 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Single clean button to open details */}
             <div className="pt-1">
               <button
+                type="button"
+                tabIndex={isDesktop && !isActive ? -1 : 0}
                 onClick={() => onSelect(project)}
-                className="btn-ripple inline-flex items-center gap-2 px-3.5 py-2 rounded text-xs font-mono font-medium bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 cursor-pointer"
+                className="btn-ripple inline-flex items-center gap-2 px-3.5 py-2 rounded text-xs font-mono font-medium bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 <span>View Project Details</span>
                 <ArrowUpRight size={14} />
@@ -389,11 +415,11 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
               setIsSettled(true);
             }
           }}
-          className="w-full flex items-center justify-center overflow-visible will-change-transform"
+          className="w-full flex items-center justify-center overflow-visible will-change-transform relative"
         >
           <div
             className={`w-full max-w-2xl flex items-center justify-center overflow-visible ${
-              !isDesktop ? 'cursor-pointer focus:outline-none' : ''
+              !isDesktop ? 'cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500' : ''
             }`}
             onClick={handleModelClick}
             onTouchStart={handleModelTouchStart}
@@ -411,9 +437,28 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
               isActive={isActive}
               isNearby={isNearby}
               isSettled={!isDesktop || isSettled}
+              isPaused={isPausedByModal}
               className="h-[270px] xs:h-[310px] sm:h-[400px] md:h-[490px] w-full"
             />
           </div>
+
+          {isDesktop && (
+            <div
+              aria-hidden={isActive}
+              className={`pointer-events-none absolute -bottom-1 left-1/2 -translate-x-1/2 text-center transition-opacity duration-300 ${
+                isActive ? 'opacity-0' : 'opacity-75'
+              }`}
+            >
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                {project.title}
+              </p>
+              {project.company && (
+                <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  {project.company}
+                </p>
+              )}
+            </div>
+          )}
         </motion.div>
 
       </div>

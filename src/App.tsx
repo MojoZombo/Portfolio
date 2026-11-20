@@ -24,7 +24,7 @@ const PosterBakerPage = lazy(() =>
 import { ResumeModal } from './components/ResumeModal';
 import { projectsData } from './data/projectsData';
 import { Project } from './types/project';
-import { ExternalLink, Cpu, Camera } from 'lucide-react';
+import { ExternalLink, Cpu, Camera, Mail, Linkedin, Copy, Check } from 'lucide-react';
 import { initButtonRipple, revertAllButtonRipples } from './utils/buttonRipple';
 
 export const App: React.FC = () => {
@@ -79,6 +79,25 @@ export const App: React.FC = () => {
     return null;
   });
   const [activeProjectId, setActiveProjectId] = useState<string>(projectsData[0]?.id || '');
+  const [copiedFooterEmail, setCopiedFooterEmail] = useState(false);
+  const footerCopyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (footerCopyTimerRef.current) clearTimeout(footerCopyTimerRef.current);
+    };
+  }, []);
+
+  const handleCopyFooterEmail = () => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText('fann@berkeley.edu').catch(() => {});
+    }
+    setCopiedFooterEmail(true);
+    if (footerCopyTimerRef.current) clearTimeout(footerCopyTimerRef.current);
+    footerCopyTimerRef.current = setTimeout(() => {
+      setCopiedFooterEmail(false);
+    }, 1800);
+  };
   const [isResumeOpen, setIsResumeOpen] = useState<boolean>(() => {
     return (
       window.location.hash === '#resume' ||
@@ -206,6 +225,7 @@ export const App: React.FC = () => {
               index={index}
               onSelect={handleSelectProject}
               onVisible={handleVisibleProject}
+              isPausedByModal={Boolean(selectedProject) || isResumeOpen}
             />
           ))}
         </div>
@@ -262,18 +282,55 @@ export const App: React.FC = () => {
                 </button>
               </>
             )}
+            <span className="inline-flex items-center gap-1.5">
+              <a
+                href="mailto:fann@berkeley.edu"
+                className="hover:text-blue-500 flex items-center gap-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <Mail size={12} />
+                <span>fann@berkeley.edu</span>
+              </a>
+              <button
+                type="button"
+                onClick={handleCopyFooterEmail}
+                aria-label="Copy email address"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-200/70 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer text-[10px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                {copiedFooterEmail ? (
+                  <>
+                    <Check size={10} className="text-emerald-500" />
+                    <span>Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={10} />
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
+            </span>
+            <a
+              href="https://linkedin.com/in/jadenfann"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-blue-500 flex items-center gap-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              <Linkedin size={12} />
+              <span>LINKEDIN</span>
+              <ExternalLink size={11} />
+            </a>
             <a
               href="https://showspace.so/s/jadenfann"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-blue-500 flex items-center gap-1"
+              className="hover:text-blue-500 flex items-center gap-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <span>SHOWSPACE</span>
               <ExternalLink size={11} />
             </a>
             <a
               href="#resume"
-              className="hover:text-blue-500"
+              className="hover:text-blue-500 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               RESUME
             </a>

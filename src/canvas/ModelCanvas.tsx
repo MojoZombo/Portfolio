@@ -105,6 +105,7 @@ export interface ModelCanvasProps {
   modelType: string;
   isDark: boolean;
   allowZoom: boolean;
+  isPaused?: boolean;
   isMobileMode: boolean;
   isTouchDevice: boolean;
   isMobileWidth: boolean;
@@ -129,6 +130,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
   modelType,
   isDark,
   allowZoom,
+  isPaused = false,
   isMobileMode,
   isTouchDevice,
   isMobileWidth,
@@ -158,7 +160,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
           : 'grab-cursor !touch-pan-y'
       }
       style={{ background: 'transparent' }}
-      frameloop={showLiveCanvas || isDrawingActiveReveal ? 'always' : 'never'}
+      frameloop={!isPaused && (showLiveCanvas || isDrawingActiveReveal) ? 'always' : 'never'}
       dpr={dynamicDpr}
       gl={{
         antialias: true,
@@ -194,8 +196,8 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
             modelType={modelType}
             isActive={isActiveAndSettled}
             isHovered={isHovered}
-            isRotating={isAnimationPlaying && isRotating && isAnimationsStarted && !isThemeTransitioning}
-            isAnimating={isAnimationPlaying && isAnimationsStarted && !isThemeTransitioning}
+            isRotating={!isPaused && isAnimationPlaying && isRotating && isAnimationsStarted && !isThemeTransitioning}
+            isAnimating={!isPaused && isAnimationPlaying && isAnimationsStarted && !isThemeTransitioning}
           />
         </ModelErrorBoundary>
         <CanvasDrawDetector

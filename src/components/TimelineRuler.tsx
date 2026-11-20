@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { Project } from '../types/project';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { List, X } from 'lucide-react';
 
 interface TimelineRulerProps {
   projects: Project[];
@@ -8,11 +9,10 @@ interface TimelineRulerProps {
 }
 
 export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId }) => {
-  const rulerRef = useRef<HTMLElement>(null);
-  const [isOverlapping, setIsOverlapping] = useState(false);
   const [trackLeft, setTrackLeft] = useState(72);
+  const [isJumpOpen, setIsJumpOpen] = useState(false);
   const targetProgress = useMotionValue(0);
-  
+
   // High-performance spring interpolation with calibrated damping
   const smoothProgress = useSpring(targetProgress, {
     stiffness: 260,
@@ -21,13 +21,12 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
   });
 
   const topPercent = useTransform(smoothProgress, (v: number) => `${Math.min(100, Math.max(0, v * 100))}%`);
-  const offsetsRef = React.useRef<{ centerDocY: number }[]>([]);
+  const offsetsRef = useRef<{ centerDocY: number }[]>([]);
 
   // Calculate dynamic track position closer to center projects
   const updateTrackPosition = useCallback(() => {
     const width = window.innerWidth;
-    // On wide screens (>= 1440px): 72px; on standard desktop (1024-1439px): 56px; on tablet: 48px
-    const pos = width >= 1440 ? 72 : width >= 1024 ? 56 : 48;
+    const pos = width >= 1440 ? 72 : width >= 1280 ? 52 : 44;
     setTrackLeft(pos);
   }, []);
 
@@ -48,48 +47,6 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
     offsetsRef.current = list;
   }, [projects]);
 
-  const checkOverlap = useCallback(() => {
-    const rulerEl = rulerRef.current;
-    if (!rulerEl) return;
-
-    const rulerRect = rulerEl.getBoundingClientRect();
-    if (rulerRect.width === 0 || rulerRect.height === 0) return;
-
-    // Buffer margin so ruler fades out cleanly before text directly touches it
-    const margin = 12;
-    const rulerTop = rulerRect.top - margin;
-    const rulerBottom = rulerRect.bottom + margin;
-    const rulerLeft = rulerRect.left - margin;
-    // Active content boundary is calibrated to trackLeft + milestone text width (~48px)
-    const contentRight = rulerRect.left + trackLeft + 48;
-    const rulerRight = Math.min(rulerRect.right, contentRight) + margin;
-
-    // Text elements across header and main that could overlap with the timeline
-    const textEls = document.querySelectorAll(
-      'header p, header span, header a, main h2, main p, main span, main button, main a'
-    );
-
-    let overlap = false;
-    for (let i = 0; i < textEls.length; i++) {
-      const el = textEls[i] as HTMLElement;
-      if (!el.offsetParent && el.offsetWidth === 0 && el.offsetHeight === 0) continue;
-
-      const rect = el.getBoundingClientRect();
-      // Skip elements outside the vertical viewport
-      if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
-
-      const intersectsX = rect.left < rulerRight && rect.right > rulerLeft;
-      const intersectsY = rect.top < rulerBottom && rect.bottom > rulerTop;
-
-      if (intersectsX && intersectsY) {
-        overlap = true;
-        break;
-      }
-    }
-
-    setIsOverlapping(overlap);
-  }, [trackLeft]);
-
   const updateProgress = useCallback(() => {
     const n = projects.length;
     if (n <= 1) {
@@ -105,19 +62,16 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
     const list = offsetsRef.current;
     if (!list || list.length < n) return;
 
-    // Above the first project
     if (currentDocCenter <= list[0].centerDocY) {
       targetProgress.set(0);
       return;
     }
 
-    // Below the last project
     if (currentDocCenter >= list[n - 1].centerDocY) {
       targetProgress.set(1);
       return;
     }
 
-    // Binary search / bracket search for current interval
     for (let i = 0; i < n - 1; i++) {
       const topCenter = list[i].centerDocY;
       const bottomCenter = list[i + 1].centerDocY;
@@ -133,37 +87,26 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
   }, [projects, targetProgress, measureOffsets]);
 
   useEffect(() => {
-    let animationFrameId: number;
-    let lastOverlapCheck = 0;
+    let animationFrameId = 0;
 
     const handleUpdate = () => {
-      // TimelineRuler is completely hidden on mobile viewports (< 768px). Skip all work on mobile.
-      if (typeof window !== 'undefined' && window.innerWidth < 768) return;
+      if (typeof window !== 'undefined' && window.innerWidth < 1280) return;
 
       cancelAnimationFrame(animationFrameId);
       animationFrameId = requestAnimationFrame(() => {
         updateProgress();
-        const now = performance.now();
-        if (now - lastOverlapCheck > 140) {
-          lastOverlapCheck = now;
-          checkOverlap();
-        }
       });
     };
 
     const handleResize = () => {
       updateTrackPosition();
       measureOffsets();
-      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-        checkOverlap();
-      }
       handleUpdate();
     };
 
     window.addEventListener('scroll', handleUpdate, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
-    
-    // Initial setup
+
     updateTrackPosition();
     measureOffsets();
     handleUpdate();
@@ -173,7 +116,19 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
       window.removeEventListener('scroll', handleUpdate);
       window.removeEventListener('resize', handleResize);
     };
-  }, [measureOffsets, updateProgress, checkOverlap, updateTrackPosition]);
+  }, [measureOffsets, updateProgress, updateTrackPosition]);
+
+  // Close mobile project navigator on Escape
+  useEffect(() => {
+    if (!isJumpOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsJumpOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isJumpOpen]);
 
   const scrollToProject = (id: string) => {
     const el = document.getElementById(`project-${id}`);
@@ -190,63 +145,142 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
     return { month, year };
   };
 
+  const activeIndex = Math.max(0, projects.findIndex((p) => p.id === activeId));
+
   return (
-    <aside
-      ref={rulerRef}
-      className={`fixed left-0 top-36 md:top-40 bottom-16 w-32 z-30 hidden md:flex flex-col justify-between select-none pointer-events-none font-mono text-[10px] transition-opacity duration-300 ease-out ${
-        isOverlapping ? 'opacity-0 pointer-events-none' : 'opacity-100'
-      }`}
-    >
-      {/* Dynamic Vertical Ruler Track - Positioned closer to center projects */}
-      <div className="relative h-full w-full py-2">
-        {/* Track Line Container (1px width, smooth spring indicator) */}
-        <div
-          className="absolute -translate-x-1/2 top-2 bottom-2 w-[1px] bg-slate-200 dark:bg-slate-800 transition-[left] duration-300"
-          style={{ left: `${trackLeft}px` }}
-        />
+    <>
+      {/* Wide Desktop Fixed Vertical Timeline Ruler */}
+      <aside
+        aria-label="Project timeline navigation"
+        className="fixed left-0 top-36 md:top-40 bottom-16 w-32 z-30 hidden xl:flex flex-col justify-between select-none pointer-events-none font-mono text-[10px]"
+      >
+        <div className="relative h-full w-full py-2">
+          {/* Track Line Container (1px width, smooth spring indicator) */}
+          <div
+            className="absolute -translate-x-1/2 top-2 bottom-2 w-[1px] bg-slate-200 dark:bg-slate-800 transition-[left] duration-300"
+            style={{ left: `${trackLeft}px` }}
+          />
 
-        {/* Dynamic Smooth Spring Cursor Indicator Dot */}
-        <div className="absolute left-0 right-0 top-2 bottom-2 pointer-events-none">
-          <motion.div
-            className="absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20"
-            style={{ left: `${trackLeft}px`, top: topPercent }}
+          {/* Dynamic Smooth Spring Cursor Indicator Dot */}
+          <div className="absolute left-0 right-0 top-2 bottom-2 pointer-events-none">
+            <motion.div
+              className="absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-20"
+              style={{ left: `${trackLeft}px`, top: topPercent }}
+            >
+              <div className="w-2 h-2 rounded-full bg-blue-600 dark:bg-slate-200 ring-2 ring-white dark:ring-slate-900" />
+            </motion.div>
+          </div>
+
+          {/* Date Milestones along the Ruler */}
+          <div
+            className="relative z-10 w-full h-full flex flex-col justify-between pointer-events-auto transition-[padding-left] duration-300"
+            style={{ paddingLeft: `${trackLeft + 10}px` }}
           >
-            <div className="w-2 h-2 rounded-full bg-blue-600 dark:bg-slate-200 ring-2 ring-white dark:ring-slate-900" />
-          </motion.div>
-        </div>
+            {projects.map((project) => {
+              const isActive = project.id === activeId;
+              const { month, year } = formatRulerDate(project.date);
+              const labelText = `${project.title}${project.company ? ` — ${project.company}` : ''} (${project.date})`;
 
-        {/* Date Milestones along the Ruler */}
-        <div
-          className="relative z-10 w-full h-full flex flex-col justify-between pointer-events-auto transition-[padding-left] duration-300"
-          style={{ paddingLeft: `${trackLeft + 10}px` }}
+              return (
+                <button
+                  type="button"
+                  key={project.id}
+                  onClick={() => scrollToProject(project.id)}
+                  title={labelText}
+                  aria-label={`Jump to ${project.title}`}
+                  className={`group relative flex items-center text-left transition-colors py-0.5 cursor-pointer w-fit self-start rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                    isActive
+                      ? 'text-blue-600 dark:text-slate-100 font-bold'
+                      : 'text-slate-400 dark:text-slate-600 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <div className="flex flex-col leading-none">
+                    <span className="text-[9px] tracking-tighter">
+                      {month}
+                    </span>
+                    <span className="text-[10px] font-semibold">
+                      {year}
+                    </span>
+                  </div>
+                  <span className="pointer-events-none absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2 py-1 rounded bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 text-[10px] font-sans font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-150">
+                    {project.title}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile & Tablet Compact Project Navigator (< 1280px) */}
+      <div className="xl:hidden">
+        {isJumpOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-20 bg-black/25"
+              onClick={() => setIsJumpOpen(false)}
+              aria-hidden="true"
+            />
+            <nav
+              aria-label="Project index"
+              className="fixed bottom-16 right-4 z-30 w-[calc(100vw-2rem)] max-w-xs max-h-[60vh] overflow-y-auto rounded-xl bg-white/95 dark:bg-[#0c121e]/95 backdrop-blur-md p-2 space-y-1"
+            >
+              {projects.map((project, idx) => {
+                const isActive = project.id === activeId;
+                return (
+                  <button
+                    type="button"
+                    key={project.id}
+                    onClick={() => {
+                      scrollToProject(project.id);
+                      setIsJumpOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-start gap-2.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                      isActive
+                        ? 'bg-blue-600 text-white dark:bg-blue-500'
+                        : 'bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/70 text-slate-800 dark:text-slate-200'
+                    }`}
+                  >
+                    <span
+                      className={`font-mono text-[10px] pt-0.5 shrink-0 ${
+                        isActive ? 'text-blue-100' : 'text-slate-400 dark:text-slate-500'
+                      }`}
+                    >
+                      {String(idx + 1).padStart(2, '0')}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold leading-tight truncate">
+                        {project.title}
+                      </div>
+                      <div
+                        className={`text-[10px] font-mono truncate mt-0.5 ${
+                          isActive ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        {project.company ? `${project.company} · ` : ''}
+                        {project.date}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </nav>
+          </>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setIsJumpOpen((prev) => !prev)}
+          aria-expanded={isJumpOpen}
+          aria-label="Toggle project navigator"
+          className="fixed bottom-4 right-4 z-30 btn-ripple inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-mono text-xs font-medium cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
-          {projects.map((project) => {
-            const isActive = project.id === activeId;
-            const { month, year } = formatRulerDate(project.date);
-
-            return (
-              <button
-                key={project.id}
-                onClick={() => scrollToProject(project.id)}
-                className={`group flex items-center text-left transition-colors py-0.5 cursor-pointer w-fit self-start ${
-                  isActive
-                    ? 'text-blue-600 dark:text-slate-100 font-bold'
-                    : 'text-slate-400 dark:text-slate-600 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                <div className="flex flex-col leading-none">
-                  <span className="text-[9px] tracking-tighter">
-                    {month}
-                  </span>
-                  <span className="text-[10px] font-semibold">
-                    {year}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+          {isJumpOpen ? <X size={13} /> : <List size={13} />}
+          <span>
+            Projects ({activeIndex + 1}/{projects.length})
+          </span>
+        </button>
       </div>
-    </aside>
+    </>
   );
 };

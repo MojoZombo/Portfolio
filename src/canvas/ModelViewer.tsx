@@ -13,6 +13,7 @@ interface ModelViewerProps {
   isNearby?: boolean;
   isSettled?: boolean;
   isHovered?: boolean;
+  isPaused?: boolean;
   className?: string;
   allowZoom?: boolean;
 }
@@ -23,6 +24,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   isNearby = false,
   isSettled = true,
   isHovered = false,
+  isPaused = false,
   className = 'h-[340px] sm:h-[480px] md:h-[560px] w-full',
   allowZoom = false,
 }) => {
@@ -244,6 +246,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               modelType={modelType}
               isDark={isDark}
               allowZoom={allowZoom}
+              isPaused={isPaused}
               isMobileMode={isMobileMode}
               isTouchDevice={isTouchDevice}
               isMobileWidth={isMobileWidth}
