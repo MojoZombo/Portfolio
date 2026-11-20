@@ -129,21 +129,50 @@ function CameraPolarReturnController({
 }) {
   const { camera } = useThree();
   const controls = useThree((state) => state.controls as any);
+  const phiVelocityRef = useRef(0);
+
+  useEffect(() => {
+    if (!active) {
+      phiVelocityRef.current = 0;
+    }
+  }, [active]);
 
   useFrame((_, rawDelta) => {
-    if (!active) return;
+    if (!active) {
+      phiVelocityRef.current = 0;
+      return;
+    }
 
     const target: THREE.Vector3 = controls?.target ?? _zeroTarget;
     _camOffset.copy(camera.position).sub(target);
     _camSpherical.setFromVector3(_camOffset);
 
-    const phiDiff = Math.abs(_camSpherical.phi - DEFAULT_POLAR_ANGLE);
-    if (phiDiff <= 0.002) return;
+    const phiError = DEFAULT_POLAR_ANGLE - _camSpherical.phi;
+    if (Math.abs(phiError) < 0.0008 && Math.abs(phiVelocityRef.current) < 0.001) {
+      phiVelocityRef.current = 0;
+      return;
+    }
 
     const delta = Math.min(rawDelta, 0.035);
-    const nextPhi = THREE.MathUtils.damp(_camSpherical.phi, DEFAULT_POLAR_ANGLE, 3.2, delta);
-    _camSpherical.phi =
-      Math.abs(nextPhi - DEFAULT_POLAR_ANGLE) < 0.0015 ? DEFAULT_POLAR_ANGLE : nextPhi;
+    const omega = 2.6;
+    const accel = omega * omega * phiError - 2 * omega * phiVelocityRef.current;
+    phiVelocityRef.current += accel * delta;
+
+    const nextPhi = THREE.MathUtils.clamp(
+      _camSpherical.phi + phiVelocityRef.current * delta,
+      0.01,
+      Math.PI / 1.05
+    );
+
+    if (
+      Math.abs(DEFAULT_POLAR_ANGLE - nextPhi) < 0.0005 &&
+      Math.abs(phiVelocityRef.current) < 0.002
+    ) {
+      _camSpherical.phi = DEFAULT_POLAR_ANGLE;
+      phiVelocityRef.current = 0;
+    } else {
+      _camSpherical.phi = nextPhi;
+    }
 
     camera.position.copy(target).add(_camOffset.setFromSpherical(_camSpherical));
     camera.lookAt(target);
