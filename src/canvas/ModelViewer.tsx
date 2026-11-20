@@ -14,9 +14,16 @@ interface ModelViewerProps {
   isSettled?: boolean;
   isHovered?: boolean;
   isPaused?: boolean;
+  isAnimationPlaying?: boolean;
+  onToggleAnimation?: (playing: boolean) => void;
   className?: string;
   allowZoom?: boolean;
 }
+
+const computeCappedDpr = (mobile: boolean): number => {
+  const raw = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+  return Math.min(Math.max(1.0, raw), mobile ? 1.75 : 2.0);
+};
 
 export const ModelViewer: React.FC<ModelViewerProps> = ({
   modelType,
@@ -25,20 +32,54 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   isSettled = true,
   isHovered = false,
   isPaused = false,
+  isAnimationPlaying: isAnimationPlayingProp,
+  onToggleAnimation,
   className = 'h-[340px] sm:h-[480px] md:h-[560px] w-full',
   allowZoom = false,
 }) => {
   const { theme, isThemeTransitioning } = useTheme();
   const isDark = theme === 'dark';
-  const [isRotating, setIsRotating] = useState(true);
-  const [isAnimationPlaying, setIsAnimationPlaying] = useState(true);
+
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const [isRotating, setIsRotating] = useState(() => !prefersReducedMotion);
+  const [internalAnimationPlaying, setInternalAnimationPlaying] = useState(() => !prefersReducedMotion);
   const [resetTrigger, setResetTrigger] = useState(0);
-  const [isZoomedIn, setIsZoomedIn] = useState(false);
+  const [isCameraMoved, setIsCameraMoved] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
   const [isPrewarmed, setIsPrewarmed] = useState(false);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [shouldMountWebGL, setShouldMountWebGL] = useState(false);
+
+  const effectiveAnimationPlaying =
+    isAnimationPlayingProp !== undefined ? isAnimationPlayingProp : internalAnimationPlaying;
+
+  useEffect(() => {
+    if (isAnimationPlayingProp !== undefined) {
+      setIsRotating(isAnimationPlayingProp && !prefersReducedMotion);
+    }
+  }, [isAnimationPlayingProp, prefersReducedMotion]);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setIsRotating(false);
+      setInternalAnimationPlaying(false);
+    }
+  }, [prefersReducedMotion]);
 
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   useEffect(() => {
@@ -54,42 +95,22 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [isMobileWidth, setIsMobileWidth] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
+  const [dynamicDpr, setDynamicDpr] = useState<number>(() =>
+    computeCappedDpr(typeof window !== 'undefined' ? window.innerWidth < 768 : false)
+  );
+
   useEffect(() => {
     const handleResize = () => {
-      setIsMobileWidth(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+      const mobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+      setIsMobileWidth(mobile);
+      setDynamicDpr(computeCappedDpr(mobile));
     };
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const isMobileMode = !allowZoom && (isTouchDevice || isMobileWidth);
-
-  // Dynamically scale DPR inversely to container height so 1px WebGL line thickness
-  // mathematically matches the scaled 784px static poster PNG on all devices and screen resolutions.
-  const [dynamicDpr, setDynamicDpr] = useState<number>(() => {
-    if (typeof window === 'undefined') return 1.6;
-    const isMobile = window.innerWidth < 768;
-    const h = isMobile ? (window.innerWidth < 480 ? 270 : 310) : 490;
-    return Math.min(3.0, Math.max(1.0, +(784 / h).toFixed(2)));
-  });
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const height = entry.contentRect.height;
-        if (height > 0) {
-          const calculated = Math.min(3.0, Math.max(1.0, +(784 / height).toFixed(2)));
-          setDynamicDpr((prev) => (Math.abs(prev - calculated) > 0.05 ? calculated : prev));
-        }
-      }
-    });
-
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // Handle reload/navigation: cleanly hide 3D canvas before WebGL context is destroyed to prevent white flash
   useEffect(() => {
@@ -150,6 +171,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         setShouldMountWebGL(true);
       }
     } else if (!isNearby) {
+      // Card left proximity ring: unmount WebGL far off-screen
       timer = setTimeout(() => {
         setShouldMountWebGL(false);
         setIsPrewarmed(false);
@@ -164,11 +186,12 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     if (!isActive && !allowZoom) {
       setIsCanvasReady(false);
       setResetTrigger((prev) => prev + 1);
-      setIsRotating(true);
-      setIsAnimationPlaying(true);
-      setIsZoomedIn(false);
+      setIsRotating(!prefersReducedMotion);
+      setInternalAnimationPlaying(!prefersReducedMotion);
+      setIsCameraMoved(false);
+      setHasInteracted(false);
     }
-  }, [isActive, allowZoom]);
+  }, [isActive, allowZoom, prefersReducedMotion]);
 
   const isActiveAndSettled = allowZoom || (isActive && isSettled);
   const isDrawingActiveReveal = shouldMountWebGL && isActiveAndSettled && !isCanvasReady;
@@ -179,6 +202,11 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const themeSuffix = isDark ? 'dark' : 'light';
   const [bpFallback, setBpFallback] = useState(false);
   const [shadedFallback, setShadedFallback] = useState(false);
+
+  useEffect(() => {
+    setBpFallback(false);
+    setShadedFallback(false);
+  }, [modelType, isDark]);
 
   const bpPosterPath = `${
     bpFallback
@@ -193,9 +221,30 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   }?v=${POSTER_VERSION}`;
 
   const handleCanvasInteraction = () => {
-    if (allowZoom) {
-      setIsRotating(false);
+    setIsRotating(false);
+    setHasInteracted(true);
+  };
+
+  const handleTogglePlay = () => {
+    const next = !effectiveAnimationPlaying;
+    if (onToggleAnimation) {
+      onToggleAnimation(next);
+    } else {
+      setInternalAnimationPlaying(next);
     }
+    setIsRotating(next);
+  };
+
+  const handleResetView = () => {
+    setResetTrigger((prev) => prev + 1);
+    setIsCameraMoved(false);
+    const shouldAnimate = !prefersReducedMotion;
+    if (onToggleAnimation) {
+      onToggleAnimation(shouldAnimate);
+    } else {
+      setInternalAnimationPlaying(shouldAnimate);
+    }
+    setIsRotating(shouldAnimate);
   };
 
   return (
@@ -229,7 +278,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             : 'opacity-0 transition-opacity duration-150 ease-in-out'
         }`}
         loading={isActive || allowZoom ? 'eager' : 'lazy'}
-        // Lowercase attribute passes straight through to the DOM in React 18 (LCP hint)
         {...({ fetchpriority: isActive ? 'high' : 'auto' } as Record<string, string>)}
         decoding="async"
       />
@@ -255,7 +303,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               isDrawingActiveReveal={isDrawingActiveReveal}
               isActiveAndSettled={isActiveAndSettled}
               isHovered={isHovered}
-              isAnimationPlaying={isAnimationPlaying}
+              isAnimationPlaying={effectiveAnimationPlaying}
               isRotating={isRotating}
               isAnimationsStarted={isAnimationsStarted}
               isThemeTransitioning={isThemeTransitioning}
@@ -265,14 +313,32 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                 setIsCanvasReady(true);
                 setIsPrewarmed(true);
               }}
-              onZoomChange={setIsZoomedIn}
+              onCameraMove={setIsCameraMoved}
               onContextLost={() => {
-                setShouldMountWebGL(false);
+                setIsCanvasReady(false);
+              }}
+              onContextRestored={() => {
+                setIsPrewarmed(false);
                 setIsCanvasReady(false);
               }}
               onCanvasInteraction={handleCanvasInteraction}
             />
           </Suspense>
+        </div>
+      )}
+
+      {/* Subtle Interaction Hint Pill (fades away once user orbits or zooms) */}
+      {(allowZoom || !isMobileMode) && showLiveCanvas && !isPaused && (
+        <div
+          className={`absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-30 pointer-events-none select-none px-2.5 py-1 rounded bg-slate-900/75 text-white dark:bg-slate-900/90 dark:text-slate-200 backdrop-blur-sm text-[11px] font-mono transition-opacity duration-300 ${
+            hasInteracted ? 'opacity-0' : 'opacity-100'
+          }`}
+        >
+          {allowZoom
+            ? isTouchDevice
+              ? 'Drag to orbit · Pinch to zoom'
+              : 'Drag to orbit · Scroll to zoom'
+            : 'Drag to orbit'}
         </div>
       )}
 
@@ -282,38 +348,29 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
           {/* Pause / Play Animation Button */}
           <button
             type="button"
-            onClick={() => {
-              const next = !isAnimationPlaying;
-              setIsAnimationPlaying(next);
-              setIsRotating(next);
-            }}
-            className="btn-ripple group px-3 py-1.5 rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 backdrop-blur-sm cursor-pointer flex items-center justify-center gap-1.5 text-xs font-mono font-medium w-[80px] shrink-0 select-none"
-            title={isAnimationPlaying ? 'Pause 3D animation and rotation' : 'Play 3D animation and rotation'}
+            onClick={handleTogglePlay}
+            className="btn-ripple group px-3 py-1.5 rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 backdrop-blur-sm cursor-pointer flex items-center justify-center gap-1.5 text-xs font-mono font-medium w-[80px] shrink-0 select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            title={effectiveAnimationPlaying ? 'Pause 3D animation and rotation' : 'Play 3D animation and rotation'}
           >
             <span className="w-3.5 flex items-center justify-center shrink-0">
-              {isAnimationPlaying ? (
+              {effectiveAnimationPlaying ? (
                 <Pause size={12} className="text-blue-600 dark:text-blue-400" />
               ) : (
                 <Play size={12} className="text-amber-600 dark:text-amber-400" />
               )}
             </span>
             <span className="w-[36px] text-left shrink-0">
-              {isAnimationPlaying ? 'Pause' : 'Play'}
+              {effectiveAnimationPlaying ? 'Pause' : 'Play'}
             </span>
           </button>
 
-          {/* Reset Model / Camera View Button (Only appears if user has zoomed in / moved camera) */}
-          {isZoomedIn && (
+          {/* Reset Model / Camera View Button (Appears whenever camera has been orbited, panned, or zoomed) */}
+          {isCameraMoved && (
             <button
               type="button"
-              onClick={() => {
-                setResetTrigger((prev) => prev + 1);
-                setIsZoomedIn(false);
-                setIsAnimationPlaying(true);
-                setIsRotating(true);
-              }}
-              className="btn-ripple group px-3 py-1.5 rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 backdrop-blur-sm cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium"
-              title="Reset 3D model zoom and position"
+              onClick={handleResetView}
+              className="btn-ripple group px-3 py-1.5 rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 backdrop-blur-sm cursor-pointer flex items-center gap-1.5 text-xs font-mono font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              title="Reset 3D model view"
             >
               <RotateCcw size={12} className="text-blue-600 dark:text-blue-400" />
               <span>Reset View</span>

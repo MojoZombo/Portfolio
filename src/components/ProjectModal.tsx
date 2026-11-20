@@ -15,6 +15,11 @@ interface ProjectModalProps {
 export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) => {
   const [selectedImage, setSelectedImage] = useState<{ url: string; caption?: string } | null>(null);
   const [is3DFullscreen, setIs3DFullscreen] = useState(false);
+  const [is3DPlaying, setIs3DPlaying] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : true
+  );
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
 
@@ -35,6 +40,11 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
     setIs3DFullscreen(false);
     setHasScrolled(false);
     setIsScrolledToBottom(false);
+    const reduced =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    setIs3DPlaying(!reduced);
   }, [project?.id]);
 
   // Manage focus restoration and Tab trapping across modal / lightbox / fullscreen 3D
@@ -232,6 +242,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                     modelType={project.modelType}
                     isActive={true}
                     isPaused={is3DFullscreen}
+                    isAnimationPlaying={is3DPlaying}
+                    onToggleAnimation={setIs3DPlaying}
                     className="h-80 sm:h-96 w-full"
                     allowZoom={true}
                   />
@@ -710,6 +722,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
               <ModelViewer
                 modelType={project.modelType}
                 isActive={true}
+                isAnimationPlaying={is3DPlaying}
+                onToggleAnimation={setIs3DPlaying}
                 className="w-full h-screen"
                 allowZoom={true}
               />

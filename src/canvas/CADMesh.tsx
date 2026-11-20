@@ -41,6 +41,7 @@ export const CADMesh: React.FC<CADMeshProps> = ({
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const meshRef = useRef<THREE.Mesh>(null);
+  const createdEdgeRef = useRef<THREE.LineSegments | null>(null);
 
   const blueprintLineColor = outlineColor || (isDark ? '#94A8C4' : '#1E293B');
   const celOutlineColor = outlineColor || (isDark ? '#0A0E14' : '#0F172A');
@@ -55,6 +56,12 @@ export const CADMesh: React.FC<CADMeshProps> = ({
     [color]
   );
 
+  useEffect(() => {
+    return () => {
+      celMat.dispose();
+    };
+  }, [celMat]);
+
   // Pick blueprint material instantly without reallocating
   const bpMat = isDark ? darkBlueprintMat : lightBlueprintMat;
 
@@ -62,7 +69,6 @@ export const CADMesh: React.FC<CADMeshProps> = ({
   useEffect(() => {
     if (!meshRef.current) return;
 
-    // Check if edge line is attached
     let edgeLine = meshRef.current.children.find((c) => c.type === 'LineSegments') as THREE.LineSegments | undefined;
 
     if (!edgeLine && meshRef.current.geometry) {
@@ -70,12 +76,12 @@ export const CADMesh: React.FC<CADMeshProps> = ({
         const edgesGeom = new THREE.EdgesGeometry(meshRef.current.geometry, outlineThreshold);
         const lineMat = new THREE.LineBasicMaterial({
           color: new THREE.Color(isActive ? celOutlineColor : blueprintLineColor),
-          linewidth: isActive ? 1.5 : 1.35,
           transparent: true,
           opacity: 1.0,
         });
         edgeLine = new THREE.LineSegments(edgesGeom, lineMat);
         meshRef.current.add(edgeLine);
+        createdEdgeRef.current = edgeLine;
       } catch {
         // Fallback for non-standard geometry
       }
@@ -87,13 +93,25 @@ export const CADMesh: React.FC<CADMeshProps> = ({
     }
   }, [isActive, isDark, celOutlineColor, blueprintLineColor, outlineThreshold]);
 
+  // Dispose dynamically created EdgesGeometry and LineBasicMaterial on unmount
+  useEffect(() => {
+    return () => {
+      const edgeLine = createdEdgeRef.current;
+      if (edgeLine) {
+        edgeLine.geometry?.dispose();
+        if (edgeLine.material instanceof THREE.Material) {
+          edgeLine.material.dispose();
+        }
+        createdEdgeRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <mesh
       ref={meshRef}
       {...props}
       material={isActive ? celMat : bpMat}
-      castShadow
-      receiveShadow
     >
       {children}
     </mesh>

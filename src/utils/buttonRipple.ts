@@ -43,6 +43,17 @@ interface ActiveTouchAnimation {
 const activeMouseAnims = new WeakMap<HTMLElement, ActiveButtonAnimation>();
 const activeTouchMap = new Map<number, ActiveTouchAnimation>();
 const btnTouchMap = new WeakMap<HTMLElement, ActiveTouchAnimation>();
+const hoveredButtons = new Set<HTMLElement>();
+
+function setHoveredState(btn: HTMLElement, active: boolean): void {
+  if (active) {
+    btn.classList.add('is-hovered');
+    hoveredButtons.add(btn);
+  } else {
+    btn.classList.remove('is-hovered');
+    hoveredButtons.delete(btn);
+  }
+}
 
 function projectToNearestEdge(x: number, y: number, width: number, height: number): { x: number; y: number } {
   const clampedX = Math.max(0, Math.min(width, x));
@@ -74,7 +85,7 @@ export function revertButtonRipple(btn: HTMLElement, forceTouch: boolean = false
     return;
   }
 
-  btn.classList.remove('is-hovered');
+  setHoveredState(btn, false);
   const data = activeMouseAnims.get(btn);
   if (data?.anim) {
     data.anim.onfinish = null;
@@ -119,8 +130,11 @@ export function isMousePhysicallyOver(btn: HTMLElement): boolean {
  */
 export function revertAllOrphanedRipples(): void {
   if (typeof document === 'undefined') return;
-  const hovered = document.querySelectorAll<HTMLElement>('.btn-ripple.is-hovered');
-  hovered.forEach((btn) => {
+  Array.from(hoveredButtons).forEach((btn) => {
+    if (!btn.isConnected) {
+      hoveredButtons.delete(btn);
+      return;
+    }
     // If a mobile touch tap animation is in progress, do not kill it!
     if (btnTouchMap.has(btn)) return;
     if (!isMousePhysicallyOver(btn)) {
@@ -138,8 +152,11 @@ let suppressMouseEnterUntil = 0;
 export function revertAllButtonRipples(): void {
   suppressMouseEnterUntil = Date.now() + 350;
   if (typeof document === 'undefined') return;
-  const hovered = document.querySelectorAll<HTMLElement>('.btn-ripple.is-hovered');
-  hovered.forEach((btn) => {
+  Array.from(hoveredButtons).forEach((btn) => {
+    if (!btn.isConnected) {
+      hoveredButtons.delete(btn);
+      return;
+    }
     // If a mobile touch tap animation is in progress, do not kill it!
     if (btnTouchMap.has(btn)) return;
     if (isMousePhysicallyOver(btn)) return;
@@ -160,12 +177,12 @@ export function initButtonRipple(): () => void {
   const startMouseAnimation = (btn: HTMLElement, startX: number, startY: number) => {
     const prev = activeMouseAnims.get(btn);
     if (prev?.isCovered) {
-      btn.classList.add('is-hovered');
+      setHoveredState(btn, true);
       return;
     }
     // If the animation is already in flight expanding forward, keep running
     if (prev?.isEntering && prev?.anim) {
-      btn.classList.add('is-hovered');
+      setHoveredState(btn, true);
       return;
     }
     // Cancel any previous exit or reverse animation immediately
@@ -182,7 +199,7 @@ export function initButtonRipple(): () => void {
       Math.max(startY, rect.height - startY)
     );
 
-    btn.classList.add('is-hovered');
+    setHoveredState(btn, true);
 
     try {
       const enterAnim = btn.animate(
@@ -217,7 +234,7 @@ export function initButtonRipple(): () => void {
 
       activeMouseAnims.set(btn, animData);
     } catch {
-      btn.classList.add('is-hovered');
+      setHoveredState(btn, true);
     }
   };
 
@@ -239,7 +256,7 @@ export function initButtonRipple(): () => void {
 
     const prev = activeMouseAnims.get(btn);
     if (prev?.isCovered || (prev?.isEntering && prev?.anim)) {
-      btn.classList.add('is-hovered');
+      setHoveredState(btn, true);
       return;
     }
 
@@ -261,7 +278,7 @@ export function initButtonRipple(): () => void {
   };
 
   const triggerMouseExit = (btn: HTMLElement, clientX: number, clientY: number) => {
-    btn.classList.remove('is-hovered');
+    setHoveredState(btn, false);
     const data = activeMouseAnims.get(btn);
     if (!data) return;
 
@@ -377,7 +394,7 @@ export function initButtonRipple(): () => void {
 
     if (isInside) {
       // The cursor is still physically inside the button (e.g. synthetic event from re-render)
-      btn.classList.add('is-hovered');
+      setHoveredState(btn, true);
       return;
     }
 
@@ -391,7 +408,12 @@ export function initButtonRipple(): () => void {
     // Whenever the mouse moves, check if any buttons with .is-hovered were orphaned (no longer under cursor).
     // Animate them out smoothly (reverse/exit) instead of hard-cancelling, since this commonly happens when
     // a mouseleave on the exact edge was ignored by the isInside check.
-    document.querySelectorAll<HTMLElement>('.btn-ripple.is-hovered').forEach((btn) => {
+    if (hoveredButtons.size === 0) return;
+    Array.from(hoveredButtons).forEach((btn) => {
+      if (!btn.isConnected) {
+        hoveredButtons.delete(btn);
+        return;
+      }
       if (btnTouchMap.has(btn)) return;
       if (!isMousePhysicallyOver(btn)) {
         triggerMouseExit(btn, e.clientX, e.clientY);
@@ -431,7 +453,7 @@ export function initButtonRipple(): () => void {
     touchData.state = 'fading';
 
     // Smoothly transition text color back
-    touchData.btn.classList.remove('is-hovered');
+    setHoveredState(touchData.btn, false);
 
     try {
       const fadeAnim = touchData.btn.animate(
@@ -501,7 +523,7 @@ export function initButtonRipple(): () => void {
         Math.max(touchY, rect.height - touchY)
       );
 
-      btn.classList.add('is-hovered');
+      setHoveredState(btn, true);
 
       try {
         const enterAnim = btn.animate(
@@ -541,7 +563,7 @@ export function initButtonRipple(): () => void {
         activeTouchMap.set(e.pointerId, touchData);
         btnTouchMap.set(btn, touchData);
       } catch {
-        btn.classList.remove('is-hovered');
+        setHoveredState(btn, false);
       }
     } else {
       lastMouseCoords = { x: e.clientX, y: e.clientY };
@@ -551,7 +573,7 @@ export function initButtonRipple(): () => void {
       const btn = target.closest<HTMLElement>('.btn-ripple');
       if (!btn) return;
 
-      btn.classList.add('is-hovered');
+      setHoveredState(btn, true);
 
       const data = activeMouseAnims.get(btn);
       if (data) {
@@ -613,10 +635,10 @@ export function initButtonRipple(): () => void {
 
         reverseAnim.onfinish = () => {
           try { reverseAnim.cancel(); } catch {}
-          data.btn.classList.remove('is-hovered');
+          setHoveredState(data.btn, false);
         };
       } catch {
-        data.btn.classList.remove('is-hovered');
+        setHoveredState(data.btn, false);
       }
     }
   };
@@ -677,5 +699,6 @@ export function initButtonRipple(): () => void {
     document.removeEventListener('pointercancel', handlePointerCancel, true);
     window.removeEventListener('blur', revertAllButtonRipples);
     document.removeEventListener('visibilitychange', revertAllButtonRipples);
+    hoveredButtons.clear();
   };
 }

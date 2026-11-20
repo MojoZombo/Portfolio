@@ -885,6 +885,26 @@ export const RobotHandModel: React.FC<ModelProps> = ({ isActive = false, isRotat
     isModelCalibrating ? settings.colorOverrides : null,
   ]);
 
+  useEffect(() => {
+    return () => {
+      const uniqueMats = new Set<THREE.Material>();
+      toonMaterialsMap.forEach((matOrArray) => {
+        if (Array.isArray(matOrArray)) {
+          matOrArray.forEach((m) => uniqueMats.add(m));
+        } else {
+          uniqueMats.add(matOrArray);
+        }
+      });
+      blueprintEdgeLines.forEach((line) => {
+        if (line.material instanceof THREE.Material) uniqueMats.add(line.material);
+      });
+      celEdgeLines.forEach((line) => {
+        if (line.material instanceof THREE.Material) uniqueMats.add(line.material);
+      });
+      uniqueMats.forEach((m) => m.dispose());
+    };
+  }, [toonMaterialsMap, blueprintEdgeLines, celEdgeLines]);
+
   const localTimeRef = useRef(0);
   const easeInTimeRef = useRef(0);
 

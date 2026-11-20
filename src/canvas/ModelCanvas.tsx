@@ -7,6 +7,8 @@ import { ModelRenderer } from './ModelRenderer';
 // Ensure self-hosted Draco WASM decoder is configured before any model mounts
 useGLTF.setDecoderPath('./draco/gltf/');
 
+const DEFAULT_CAMERA_POS = new THREE.Vector3(4.6, 3.2, 5.0);
+
 class ModelErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode; fallback?: ReactNode }) {
     super(props);
@@ -65,7 +67,7 @@ function CameraResetController({ resetTrigger }: { resetTrigger: number }) {
 
   useEffect(() => {
     if (resetTrigger > 0) {
-      camera.position.set(4.6, 3.2, 5.0);
+      camera.position.copy(DEFAULT_CAMERA_POS);
       camera.lookAt(0, 0, 0);
       if (controls) {
         controls.target.set(0, 0, 0);
@@ -81,20 +83,21 @@ function CameraResetController({ resetTrigger }: { resetTrigger: number }) {
 }
 
 function CameraStateDetector({
-  onZoomChange,
+  onCameraMove,
 }: {
-  onZoomChange: (isZoomed: boolean) => void;
+  onCameraMove: (isMoved: boolean) => void;
 }) {
   const { camera } = useThree();
-  const defaultDist = Math.sqrt(4.6 * 4.6 + 3.2 * 3.2 + 5.0 * 5.0); // ~7.51
-  const isZoomedRef = useRef(false);
+  const controls = useThree((state) => state.controls as any);
+  const isMovedRef = useRef(false);
 
   useFrame(() => {
-    const dist = camera.position.length();
-    const isZoomed = dist < defaultDist - 0.35 || Math.abs(dist - defaultDist) > 0.5;
-    if (isZoomed !== isZoomedRef.current) {
-      isZoomedRef.current = isZoomed;
-      onZoomChange(isZoomed);
+    const moved =
+      camera.position.distanceTo(DEFAULT_CAMERA_POS) > 0.35 ||
+      Boolean(controls?.target && controls.target.length() > 0.1);
+    if (moved !== isMovedRef.current) {
+      isMovedRef.current = moved;
+      onCameraMove(moved);
     }
   });
 
@@ -121,8 +124,9 @@ export interface ModelCanvasProps {
   isPrewarmed: boolean;
   resetTrigger: number;
   onDrawn: () => void;
-  onZoomChange: (isZoomed: boolean) => void;
+  onCameraMove: (isMoved: boolean) => void;
   onContextLost: () => void;
+  onContextRestored: () => void;
   onCanvasInteraction: () => void;
 }
 
@@ -146,8 +150,9 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
   isPrewarmed,
   resetTrigger,
   onDrawn,
-  onZoomChange,
+  onCameraMove,
   onContextLost,
+  onContextRestored,
   onCanvasInteraction,
 }) => {
   return (
@@ -170,10 +175,17 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
       }}
       onCreated={({ gl }) => {
         gl.setClearColor(0x000000, 0);
-        gl.domElement.addEventListener('webglcontextlost', (e) => {
-          e.preventDefault();
-          onContextLost();
-        });
+        const canvas = gl.domElement;
+        if (!canvas.dataset.contextListenersAttached) {
+          canvas.dataset.contextListenersAttached = 'true';
+          canvas.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault();
+            onContextLost();
+          });
+          canvas.addEventListener('webglcontextrestored', () => {
+            onContextRestored();
+          });
+        }
       }}
       onWheel={onCanvasInteraction}
     >
@@ -187,8 +199,9 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
       />
 
       <ambientLight intensity={isDark ? 0.95 : 1.05} />
-      <directionalLight position={[6, 8, 5]} intensity={1.5} castShadow={!isMobileMode} />
+      <directionalLight position={[6, 8, 5]} intensity={1.5} />
       <directionalLight position={[-6, -3, -5]} intensity={0.4} />
+      <directionalLight position={[-4, 5, -6]} intensity={isDark ? 0.65 : 0.35} />
 
       <Suspense fallback={null}>
         <ModelErrorBoundary>
@@ -201,13 +214,13 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
           />
         </ModelErrorBoundary>
         <CanvasDrawDetector
-          active={isDrawingActiveReveal}
+          active={isDrawingActiveReveal && !isPaused}
           targetFrames={isPrewarmed ? 1 : 2}
           onDrawn={onDrawn}
         />
       </Suspense>
       <CameraResetController resetTrigger={resetTrigger} />
-      <CameraStateDetector onZoomChange={onZoomChange} />
+      <CameraStateDetector onCameraMove={onCameraMove} />
 
       {(allowZoom || (!isTouchDevice && !isMobileWidth)) && (
         <OrbitControls

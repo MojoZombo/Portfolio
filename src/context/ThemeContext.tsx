@@ -43,8 +43,14 @@ const getCurrentRadius = (): number | null => {
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem('cad-theme-v2');
-    return (saved === 'light' || saved === 'dark') ? saved : 'light';
+    if (saved === 'light' || saved === 'dark') return saved;
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
   });
+  const themeRef = useRef<Theme>(theme);
+  themeRef.current = theme;
   const [isThemeTransitioning, setIsThemeTransitioning] = useState(false);
 
   useEffect(() => {
@@ -148,7 +154,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       !('startViewTransition' in document) ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     ) {
-      const nextTheme = theme === 'dark' ? 'light' : 'dark';
+      const nextTheme = themeRef.current === 'dark' ? 'light' : 'dark';
       scheduleToggleDisplay(nextTheme);
       setTheme(nextTheme);
       return;
@@ -250,7 +256,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     // 3. START FRESH TRANSITION
-    const currentTheme = theme;
+    const currentTheme = themeRef.current;
     const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
     sourceThemeRef.current = currentTheme;
     targetThemeRef.current = nextTheme;
@@ -370,6 +376,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTheme(newTheme);
   };
 
+  const toggleThemeRef = useRef(toggleTheme);
+  toggleThemeRef.current = toggleTheme;
+
   useEffect(() => {
     let lastInterceptTimestamp = 0;
 
@@ -397,7 +406,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           lastInterceptTimestamp = now;
           e.preventDefault();
           e.stopPropagation();
-          toggleTheme(e);
+          toggleThemeRef.current(e);
           break;
         }
       }
