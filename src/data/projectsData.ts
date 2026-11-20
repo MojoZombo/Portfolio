@@ -359,6 +359,7 @@ export const projectsData: Project[] = [
           {
             type: 'video',
             url: './images/projects/inductive-robot-demo.mp4',
+            poster: './images/projects/inductive-robot-demo-poster.jpg',
             title: 'Inductive IR3 Mobile Robot Autonomous Motion & System Test'
           }
         ]
