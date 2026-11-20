@@ -97,6 +97,9 @@ function CameraResetController({
   const controls = useThree((state) => state.controls as any);
 
   const isResettingRef = useRef(false);
+  const lastHandledTriggerRef = useRef(0);
+  const onResetCompleteRef = useRef(onResetComplete);
+  onResetCompleteRef.current = onResetComplete;
   const rVelRef = useRef(0);
   const phiVelRef = useRef(0);
   const thetaVelRef = useRef(0);
@@ -106,7 +109,8 @@ function CameraResetController({
   const targetErrRef = useRef(new THREE.Vector3());
 
   useEffect(() => {
-    if (resetTrigger <= 0) return;
+    if (resetTrigger <= 0 || resetTrigger === lastHandledTriggerRef.current) return;
+    lastHandledTriggerRef.current = resetTrigger;
 
     if (!allowZoom) {
       isResettingRef.current = false;
@@ -119,7 +123,7 @@ function CameraResetController({
         }
         controls.update();
       }
-      onResetComplete();
+      onResetCompleteRef.current();
       return;
     }
 
@@ -128,14 +132,14 @@ function CameraResetController({
     thetaVelRef.current = 0;
     targetVelRef.current.set(0, 0, 0);
     isResettingRef.current = true;
-  }, [resetTrigger, allowZoom, camera, controls, onResetComplete]);
+  }, [resetTrigger, allowZoom, camera, controls]);
 
   useEffect(() => {
     if (isDragging && isResettingRef.current) {
       isResettingRef.current = false;
-      onResetComplete();
+      onResetCompleteRef.current();
     }
-  }, [isDragging, onResetComplete]);
+  }, [isDragging]);
 
   useFrame((_, rawDelta) => {
     if (!isResettingRef.current) return;
