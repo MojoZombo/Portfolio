@@ -3,11 +3,12 @@ import React, { Suspense, useRef, useEffect, Component, ErrorInfo, ReactNode } f
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, useGLTF } from '@react-three/drei';
 import { ModelRenderer } from './ModelRenderer';
+import { CAD_CAMERA_FOV, CAD_CAMERA_POSITION, CADStageLights } from './stageConfig';
 
 // Ensure self-hosted Draco WASM decoder is configured before any model mounts
 useGLTF.setDecoderPath('./draco/gltf/');
 
-const DEFAULT_CAMERA_POS = new THREE.Vector3(4.6, 3.2, 5.0);
+const DEFAULT_CAMERA_POS = new THREE.Vector3(...CAD_CAMERA_POSITION);
 
 class ModelErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode; fallback?: ReactNode }) {
@@ -191,17 +192,14 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
     >
       <PerspectiveCamera
         makeDefault
-        position={[4.6, 3.2, 5.0]}
-        fov={34}
+        position={CAD_CAMERA_POSITION}
+        fov={CAD_CAMERA_FOV}
         near={0.1}
         far={1000}
         onUpdate={(c) => c.lookAt(0, 0, 0)}
       />
 
-      <ambientLight intensity={isDark ? 0.95 : 1.05} />
-      <directionalLight position={[6, 8, 5]} intensity={1.5} />
-      <directionalLight position={[-6, -3, -5]} intensity={0.4} />
-      <directionalLight position={[-4, 5, -6]} intensity={isDark ? 0.65 : 0.35} />
+      <CADStageLights isDark={isDark} />
 
       <Suspense fallback={null}>
         <ModelErrorBoundary>

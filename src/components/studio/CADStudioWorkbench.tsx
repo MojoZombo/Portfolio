@@ -7,6 +7,7 @@ useGLTF.setDecoderPath('./draco/gltf/');
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { projectsData } from '../../data/projectsData';
 import { ModelRenderer } from '../../canvas/ModelRenderer';
+import { CADStageLights } from '../../canvas/stageConfig';
 import { useTheme } from '../../context/ThemeContext';
 import { useTransformCalibration, SplitPartRecord, AxisAlignment, PartColorInfo, TransformSettings, PartAnimationConfig, AnimationType } from '../../context/TransformCalibrationContext';
 import { CADCuttingPlaneGizmo } from '../../canvas/CADCuttingPlaneGizmo';
@@ -1679,9 +1680,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
             )}
 
             {/* Studio Lighting */}
-            <ambientLight intensity={isDark ? (renderMode === 'shaded' ? 1.0 : 0.8) : 1.1} />
-            <directionalLight position={[8, 12, 8]} intensity={renderMode === 'shaded' ? 1.6 : 1.2} castShadow />
-            <directionalLight position={[-8, -4, -6]} intensity={0.5} />
+            <CADStageLights isDark={isDark} />
 
             {/* Ground Drafting Grid */}
             {showGrid && (

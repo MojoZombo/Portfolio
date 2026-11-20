@@ -1,16 +1,19 @@
 import * as THREE from 'three';
 
-// Create discrete 3-tone cel shading gradient map with bright readable shadows
+// Create discrete 4-step cel shading gradient map for crisp highlight, midtone, and shadow bands
 export function createToonGradientMap(): THREE.DataTexture {
   const colors = new Uint8Array([
-    145, 145, 145, 255, // Readable soft shadow step
-    215, 215, 215, 255, // Clean midtone
-    255, 255, 255, 255  // Full illumination
+    65, 65, 65, 255,   // Core shadow step
+    95, 95, 95, 255,   // Side shadow step
+    175, 175, 175, 255, // Midtone step
+    255, 255, 255, 255  // Key highlight step
   ]);
 
-  const texture = new THREE.DataTexture(colors, 3, 1, THREE.RGBAFormat);
+  const texture = new THREE.DataTexture(colors, 4, 1, THREE.RGBAFormat);
   texture.minFilter = THREE.NearestFilter;
   texture.magFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  texture.colorSpace = THREE.NoColorSpace;
   texture.needsUpdate = true;
   return texture;
 }

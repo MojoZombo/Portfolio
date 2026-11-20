@@ -224,26 +224,3 @@ canvas {
   cursor: grabbing;
 }
 
-/* Subtle 3D orbit indicator glide */
-@keyframes cad-orbit-nudge {
-  0%, 100% {
-    transform: translate3d(0, 0, 0);
-    opacity: 0.5;
-  }
-  50% {
-    transform: translate3d(3px, 0, 0);
-    opacity: 0.85;
-  }
-}
-
-.cad-orbit-glyph {
-  animation: cad-orbit-nudge 3.2s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cad-orbit-glyph {
-    animation: none;
-    opacity: 0.65;
-  }
-}

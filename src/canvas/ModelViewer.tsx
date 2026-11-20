@@ -1,5 +1,6 @@
-import React, { Suspense, lazy, useState, useRef, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { POSTER_VERSION, preloadModelAssets } from './ModelPreloadManager';
+import { computeMatchedDpr } from './stageConfig';
 import { useTheme } from '../context/ThemeContext';
 import { Pause, Play, RotateCcw } from 'lucide-react';
 
@@ -20,9 +21,11 @@ interface ModelViewerProps {
   allowZoom?: boolean;
 }
 
-const computeCappedDpr = (mobile: boolean): number => {
-  const raw = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-  return Math.min(Math.max(1.0, raw), mobile ? 1.75 : 2.0);
+const getInitialMatchedDpr = (): number => {
+  if (typeof window === 'undefined') return computeMatchedDpr(0);
+  const mobile = window.innerWidth < 768;
+  const estimatedHeight = mobile ? (window.innerWidth < 480 ? 270 : 310) : 490;
+  return computeMatchedDpr(estimatedHeight);
 };
 
 export const ModelViewer: React.FC<ModelViewerProps> = ({
@@ -58,7 +61,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [internalAnimationPlaying, setInternalAnimationPlaying] = useState(() => !prefersReducedMotion);
   const [resetTrigger, setResetTrigger] = useState(0);
   const [isCameraMoved, setIsCameraMoved] = useState(false);
-  const [hasInteracted, setHasInteracted] = useState(false);
   const [isPrewarmed, setIsPrewarmed] = useState(false);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -95,19 +97,41 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [isMobileWidth, setIsMobileWidth] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
-  const [dynamicDpr, setDynamicDpr] = useState<number>(() =>
-    computeCappedDpr(typeof window !== 'undefined' ? window.innerWidth < 768 : false)
-  );
+  const [dynamicDpr, setDynamicDpr] = useState<number>(() => getInitialMatchedDpr());
 
   useEffect(() => {
     const handleResize = () => {
       const mobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
       setIsMobileWidth(mobile);
-      setDynamicDpr(computeCappedDpr(mobile));
     };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Lock WebGL backing height to the baked 784px poster PNG before first paint and on container resize
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const updateDprFromHeight = (height: number) => {
+      if (height > 0) {
+        const calculated = computeMatchedDpr(height);
+        setDynamicDpr((prev) => (Math.abs(prev - calculated) > 0.01 ? calculated : prev));
+      }
+    };
+
+    updateDprFromHeight(el.getBoundingClientRect().height);
+
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        updateDprFromHeight(entry.contentRect.height);
+      }
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   const isMobileMode = !allowZoom && (isTouchDevice || isMobileWidth);
@@ -189,7 +213,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       setIsRotating(!prefersReducedMotion);
       setInternalAnimationPlaying(!prefersReducedMotion);
       setIsCameraMoved(false);
-      setHasInteracted(false);
     }
   }, [isActive, allowZoom, prefersReducedMotion]);
 
@@ -222,7 +245,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
 
   const handleCanvasInteraction = () => {
     setIsRotating(false);
-    setHasInteracted(true);
   };
 
   const handleTogglePlay = () => {
@@ -246,8 +268,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     }
     setIsRotating(shouldAnimate);
   };
-
-  const showOrbitHint = (allowZoom || isActive) && !isPaused && !hasInteracted;
 
   return (
     <div
@@ -326,62 +346,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               onCanvasInteraction={handleCanvasInteraction}
             />
           </Suspense>
-        </div>
-      )}
-
-      {/* Subtle CAD-native 3D orbit indicator (transitions synchronously with card & modal) */}
-      {(allowZoom || !isMobileMode) && (
-        <div
-          aria-hidden="true"
-          style={{ transition: 'opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}
-          className={`absolute z-30 pointer-events-none select-none flex items-center gap-1.5 text-slate-400/80 dark:text-slate-500/85 ${
-            allowZoom
-              ? 'bottom-3.5 left-4'
-              : 'bottom-2.5 left-1/2 -translate-x-1/2'
-          } ${showOrbitHint ? 'opacity-100' : 'opacity-0'}`}
-        >
-          <svg
-            viewBox="0 0 28 18"
-            fill="none"
-            className={`${showOrbitHint ? 'cad-orbit-glyph ' : ''}w-6 h-4 shrink-0`}
-          >
-            <line
-              x1="14"
-              y1="1.5"
-              x2="14"
-              y2="16.5"
-              stroke="currentColor"
-              strokeWidth="1.1"
-              strokeDasharray="1.8 2"
-              strokeOpacity="0.45"
-            />
-            <path
-              d="M 5 7.2 C 2.2 8.1 1.5 9.6 2.5 11.1 C 4.2 13.4 9 14.5 14 14.5 C 19.6 14.5 24.5 12.8 25.5 10.6 C 26.2 9.1 25.2 7.9 22.8 7.2"
-              stroke="currentColor"
-              strokeWidth="1.25"
-              strokeLinecap="round"
-            />
-            <path
-              d="M 11.5 12.6 L 14.5 14.5 L 11.5 16.4"
-              stroke="currentColor"
-              strokeWidth="1.25"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span
-            className={
-              allowZoom
-                ? 'text-[10px] font-mono tracking-wider uppercase'
-                : 'text-[9px] font-mono tracking-[0.14em] uppercase'
-            }
-          >
-            {allowZoom
-              ? isTouchDevice
-                ? 'Orbit · Pinch'
-                : 'Orbit · Scroll'
-              : '360°'}
-          </span>
         </div>
       )}
 

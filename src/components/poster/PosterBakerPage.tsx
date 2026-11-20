@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, Suspense, useCallback } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -7,6 +7,12 @@ useGLTF.setDecoderPath('./draco/gltf/');
 import JSZip from 'jszip';
 import { projectsData } from '../../data/projectsData';
 import { ModelRenderer } from '../../canvas/ModelRenderer';
+import {
+  CAD_CAMERA_FOV,
+  CAD_CAMERA_POSITION,
+  CADStageLights,
+  POSTER_BAKE_DPR,
+} from '../../canvas/stageConfig';
 import { useTheme } from '../../context/ThemeContext';
 import {
   Camera,
@@ -54,6 +60,35 @@ function StageCaptureBridge({
   return null;
 }
 
+// Counts 4 rendered WebGL frames inside Suspense so heavy GLBs finish mounting before capture
+function ModelSettledNotifier({
+  passKey,
+  onSettled,
+}: {
+  passKey: string;
+  onSettled: (key: string) => void;
+}) {
+  const frameCount = useRef(0);
+  const activeKeyRef = useRef(passKey);
+  const notifiedKeyRef = useRef<string | null>(null);
+
+  if (activeKeyRef.current !== passKey) {
+    activeKeyRef.current = passKey;
+    frameCount.current = 0;
+  }
+
+  useFrame(() => {
+    if (notifiedKeyRef.current === passKey) return;
+    frameCount.current += 1;
+    if (frameCount.current >= 4) {
+      notifiedKeyRef.current = passKey;
+      onSettled(passKey);
+    }
+  });
+
+  return null;
+}
+
 export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const { theme, setTheme } = useTheme();
   const isDark = theme === 'dark';
@@ -69,12 +104,23 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
   const [isBakingAll, setIsBakingAll] = useState(false);
   const [bakeStatus, setBakeStatus] = useState<string | null>(null);
   const [savedPosters, setSavedPosters] = useState<Record<string, string>>({});
+  const [bakePassId, setBakePassId] = useState(0);
 
   const captureFnRef = useRef<(() => string | null) | null>(null);
+  const nextBakePassRef = useRef(1);
+  const settledWaiterRef = useRef<{ key: string; resolve: () => void } | null>(null);
   const currentProject = modelsList[currentIndex] || modelsList[0];
 
   const handleRegisterCapture = useCallback((fn: () => string | null) => {
     captureFnRef.current = fn;
+  }, []);
+
+  const handleModelSettled = useCallback((key: string) => {
+    if (settledWaiterRef.current?.key === key) {
+      const { resolve } = settledWaiterRef.current;
+      settledWaiterRef.current = null;
+      resolve();
+    }
   }, []);
 
   // Save poster to server disk + state
@@ -139,7 +185,7 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
     }
   };
 
-  // 1-Click Automated Master Baker (Bakes All 4 Schemes for All 11 Models = 44 Posters)
+  // 1-Click Automated Master Baker (Bakes All 4 Schemes for Every Model)
   const handleAutoBakeAll = async () => {
     setIsBakingAll(true);
     setBakeStatus('Initializing 1:1 Exact Photo Studio...');
@@ -149,23 +195,32 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
     const modes: Array<'shaded' | 'blueprint'> = ['shaded', 'blueprint'];
 
     for (const t of themes) {
-      setTheme(t);
-      await new Promise((r) => setTimeout(r, 400));
-
       for (const m of modes) {
-        setCurrentMode(m);
-        await new Promise((r) => setTimeout(r, 400));
-
         for (let i = 0; i < modelsList.length; i++) {
           const p = modelsList[i];
-          setCurrentIndex(i);
+          const passId = nextBakePassRef.current++;
+          const expectedPassKey = `${p.modelType}-${m}-${t}-${passId}`;
 
+          const settledPromise = new Promise<void>((resolve) => {
+            settledWaiterRef.current = { key: expectedPassKey, resolve };
+            setTimeout(() => {
+              if (settledWaiterRef.current?.key === expectedPassKey) {
+                settledWaiterRef.current = null;
+                resolve();
+              }
+            }, 8000);
+          });
+
+          setTheme(t);
+          setCurrentMode(m);
+          setCurrentIndex(i);
+          setBakePassId(passId);
           setBakeStatus(
             `[Theme: ${t.toUpperCase()} | ${m.toUpperCase()}] Baking ${p.title} (${i + 1}/${modelsList.length})...`
           );
 
-          // Allow GLTF / edges / shaders to mount and stabilize at 1:1 dimensions
-          await new Promise((r) => setTimeout(r, 700));
+          await settledPromise;
+          await new Promise((r) => setTimeout(r, 120));
 
           if (captureFnRef.current) {
             const dataUrl = captureFnRef.current();
@@ -178,7 +233,9 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
     }
 
     setTheme(originalTheme);
-    setBakeStatus('🎉 All 44 posters (Light & Dark, Shaded & Blueprint) baked and saved to public/posters/!');
+    setBakeStatus(
+      `All ${modelsList.length * 4} posters (Light & Dark, Shaded & Blueprint) baked and saved to public/posters/!`
+    );
     setIsBakingAll(false);
     setTimeout(() => setBakeStatus(null), 8000);
   };
@@ -355,7 +412,7 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
               <Canvas
                 className="grab-cursor w-full h-full"
                 frameloop="always"
-                dpr={1.6}
+                dpr={POSTER_BAKE_DPR}
                 gl={{
                   antialias: true,
                   alpha: true,
@@ -366,16 +423,15 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
                 {/* Exact Website Perspective Camera: FOV 34, Position [4.6, 3.2, 5.0], Target [0,0,0] */}
                 <PerspectiveCamera
                   makeDefault
-                  position={[4.6, 3.2, 5.0]}
-                  fov={34}
+                  position={CAD_CAMERA_POSITION}
+                  fov={CAD_CAMERA_FOV}
                   near={0.1}
                   far={1000}
+                  onUpdate={(c) => c.lookAt(0, 0, 0)}
                 />
 
-                {/* Exact Website Lighting */}
-                <ambientLight intensity={isDark ? (currentMode === 'shaded' ? 0.95 : 0.85) : (currentMode === 'shaded' ? 1.05 : 0.95)} />
-                <directionalLight position={[6, 8, 5]} intensity={currentMode === 'shaded' ? 1.5 : 1.2} />
-                <directionalLight position={[-6, -3, -5]} intensity={0.4} />
+                {/* Shared Lighting Rig */}
+                <CADStageLights isDark={isDark} />
 
                 <Suspense fallback={null}>
                   <ModelRenderer
@@ -385,6 +441,10 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
                     isHovered={false}
                     isRotating={false} // Exact static rest pose
                     isAnimating={false} // Freeze all local kinematics at t=0
+                  />
+                  <ModelSettledNotifier
+                    passKey={`${currentProject.modelType}-${currentMode}-${theme}-${bakePassId}`}
+                    onSettled={handleModelSettled}
                   />
                 </Suspense>
 
