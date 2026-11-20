@@ -9,6 +9,7 @@ import { CAD_CAMERA_FOV, CAD_CAMERA_POSITION, CADStageLights } from './stageConf
 useGLTF.setDecoderPath('./draco/gltf/');
 
 const DEFAULT_CAMERA_POS = new THREE.Vector3(...CAD_CAMERA_POSITION);
+const DEFAULT_POLAR_ANGLE = new THREE.Spherical().setFromVector3(DEFAULT_CAMERA_POS).phi;
 
 export interface PointerHoverState {
   hovered: boolean;
@@ -22,6 +23,9 @@ const _camUp = new THREE.Vector3();
 const _baseYawQuat = new THREE.Quaternion();
 const _yawTiltQuat = new THREE.Quaternion();
 const _pitchTiltQuat = new THREE.Quaternion();
+const _camOffset = new THREE.Vector3();
+const _camSpherical = new THREE.Spherical();
+const _zeroTarget = new THREE.Vector3(0, 0, 0);
 
 class ModelErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode; fallback?: ReactNode }) {
@@ -118,6 +122,36 @@ function CameraStateDetector({
   return null;
 }
 
+function CameraPolarReturnController({
+  active,
+}: {
+  active: boolean;
+}) {
+  const { camera } = useThree();
+  const controls = useThree((state) => state.controls as any);
+
+  useFrame((_, rawDelta) => {
+    if (!active) return;
+
+    const target: THREE.Vector3 = controls?.target ?? _zeroTarget;
+    _camOffset.copy(camera.position).sub(target);
+    _camSpherical.setFromVector3(_camOffset);
+
+    const phiDiff = Math.abs(_camSpherical.phi - DEFAULT_POLAR_ANGLE);
+    if (phiDiff <= 0.002) return;
+
+    const delta = Math.min(rawDelta, 0.035);
+    const nextPhi = THREE.MathUtils.damp(_camSpherical.phi, DEFAULT_POLAR_ANGLE, 3.2, delta);
+    _camSpherical.phi =
+      Math.abs(nextPhi - DEFAULT_POLAR_ANGLE) < 0.0015 ? DEFAULT_POLAR_ANGLE : nextPhi;
+
+    camera.position.copy(target).add(_camOffset.setFromSpherical(_camSpherical));
+    camera.lookAt(target);
+  });
+
+  return null;
+}
+
 interface InteractiveModelStageProps {
   showLiveCanvas: boolean;
   isActiveAndSettled: boolean;
@@ -132,8 +166,8 @@ interface InteractiveModelStageProps {
 }
 
 /**
- * Adds stage-level activation turntable nudge, gentle hover spin braking, and
- * camera-aligned pointer parallax tilt without modifying individual model files.
+ * Adds stage-level gentle hover spin braking and camera-aligned pointer parallax
+ * tilt without modifying individual model files.
  */
 function InteractiveModelStage({
   showLiveCanvas,
@@ -149,9 +183,6 @@ function InteractiveModelStage({
 }: InteractiveModelStageProps) {
   const stageRef = useRef<THREE.Group>(null);
   const baseYawRef = useRef(0);
-  const nudgeTimeRef = useRef(0);
-  const nudgeActiveRef = useRef(false);
-  const hasTriggeredNudgeRef = useRef(false);
   const spinRampRef = useRef(0);
   const hoverBrakeRef = useRef(0);
   const currentYawTiltRef = useRef(0);
@@ -160,9 +191,6 @@ function InteractiveModelStage({
   useEffect(() => {
     if (!isActiveAndSettled) {
       baseYawRef.current = 0;
-      nudgeTimeRef.current = 0;
-      nudgeActiveRef.current = false;
-      hasTriggeredNudgeRef.current = false;
       spinRampRef.current = 0;
       hoverBrakeRef.current = 0;
       currentYawTiltRef.current = 0;
@@ -174,8 +202,6 @@ function InteractiveModelStage({
   useEffect(() => {
     if (resetTrigger > 0) {
       baseYawRef.current = 0;
-      nudgeTimeRef.current = 0;
-      nudgeActiveRef.current = false;
       currentYawTiltRef.current = 0;
       currentPitchTiltRef.current = 0;
       stageRef.current?.quaternion.identity();
@@ -193,29 +219,6 @@ function InteractiveModelStage({
 
     const delta = Math.min(rawDelta, 0.035);
 
-    if (!hasTriggeredNudgeRef.current) {
-      hasTriggeredNudgeRef.current = true;
-      if (!prefersReducedMotion && !isPaused && isAnimating) {
-        nudgeActiveRef.current = true;
-        nudgeTimeRef.current = 0;
-      }
-    }
-
-    if (isDragging || !isAnimating || isPaused) {
-      nudgeActiveRef.current = false;
-    }
-
-    if (nudgeActiveRef.current) {
-      nudgeTimeRef.current += delta;
-      const t = nudgeTimeRef.current;
-      const tau = 0.22;
-      const omega = 0.50 * (t / tau) * Math.exp(1 - t / tau);
-      baseYawRef.current += delta * omega;
-      if (t > 1.8) {
-        nudgeActiveRef.current = false;
-      }
-    }
-
     if (isRotating && isAnimating && !isPaused) {
       spinRampRef.current = Math.min(1, spinRampRef.current + delta / 1.2);
     } else {
@@ -228,7 +231,6 @@ function InteractiveModelStage({
       !isPaused &&
       !isDragging &&
       !prefersReducedMotion &&
-      !nudgeActiveRef.current &&
       pointerHoverRef.current.hovered;
     const targetBrake = isHoverBraking ? 0.11 * spinRampRef.current : 0;
     hoverBrakeRef.current = THREE.MathUtils.damp(hoverBrakeRef.current, targetBrake, 5.0, delta);
@@ -390,6 +392,9 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
       </Suspense>
       <CameraResetController resetTrigger={resetTrigger} />
       <CameraStateDetector onCameraMove={onCameraMove} />
+      <CameraPolarReturnController
+        active={showLiveCanvas && !isPaused && isAnimationPlaying && isRotating && !isDragging && !isThemeTransitioning}
+      />
 
       {(allowZoom || (!isTouchDevice && !isMobileWidth)) && (
         <OrbitControls
