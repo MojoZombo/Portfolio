@@ -22,7 +22,7 @@ const DEFAULT_COMPANY_URLS: Record<string, string> = {
   'uc berkeley': 'https://www.berkeley.edu',
   'taflab (uc berkeley)': 'https://taflab.berkeley.edu',
   taflab: 'https://taflab.berkeley.edu',
-  'robusub (uc berkeley)': 'https://www.berkeley.edu',
+  'robosub (uc berkeley)': 'https://www.berkeley.edu',
   sentien: 'https://www.sentienrobotics.com',
   'sentien robotics': 'https://www.sentienrobotics.com',
   raise: 'https://raiserobotics.ai/',
@@ -42,8 +42,8 @@ const DEFAULT_COMPANY_LOGOS: Record<string, string> = {
   raise: raiseLogoImg,
   'raise robotics': raiseLogoImg,
   tesla: teslaLogoImg,
-  inductive: '/images/logos/inductive-robotics-logo.svg',
-  'inductive robotics': '/images/logos/inductive-robotics-logo.svg',
+  inductive: './images/logos/inductive-robotics-logo.svg',
+  'inductive robotics': './images/logos/inductive-robotics-logo.svg',
   'first tech challenge': ftcLogoImg,
   ftc: ftcLogoImg,
 };
@@ -145,7 +145,8 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
             alt={`${company} logo`}
             className={`w-full h-full ${imgFit} ${imgScale} rounded-sm`}
             onError={() => setHasImageError(true)}
-            loading="eager"
+            loading="lazy"
+            decoding="async"
           />
         </div>
       );
