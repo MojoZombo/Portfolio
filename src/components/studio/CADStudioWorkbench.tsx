@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls, TransformControls, PerspectiveCamera, OrthographicCamera, Grid, GizmoHelper, GizmoViewport } from '@react-three/drei';
+import { OrbitControls, TransformControls, PerspectiveCamera, OrthographicCamera, Grid, GizmoHelper, GizmoViewport, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+
+useGLTF.setDecoderPath('./draco/gltf/');
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { projectsData } from '../../data/projectsData';
 import { ModelRenderer } from '../../canvas/ModelRenderer';

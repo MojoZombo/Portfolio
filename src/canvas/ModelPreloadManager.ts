@@ -1,8 +1,6 @@
 import React from 'react';
-import { useGLTF } from '@react-three/drei';
 
-// Use self-hosted Draco WASM decoder for all GLB models (eliminates external gstatic CDN fetches)
-useGLTF.setDecoderPath('./draco/gltf/');
+let dracoConfigured = false;
 
 export const POSTER_VERSION = '20261016-v1';
 
@@ -187,7 +185,18 @@ export function preloadModelGLB(modelType: string): void {
   if (preloadedGLBs.has(modelType)) return;
 
   preloadedGLBs.add(modelType);
-  useGLTF.preload(entry.glbPath);
+  const glbPath = entry.glbPath;
+  import('@react-three/drei')
+    .then(({ useGLTF }) => {
+      if (!dracoConfigured) {
+        useGLTF.setDecoderPath('./draco/gltf/');
+        dracoConfigured = true;
+      }
+      useGLTF.preload(glbPath);
+    })
+    .catch(() => {
+      preloadedGLBs.delete(modelType);
+    });
 }
 
 const idleQueue: Array<() => void> = [];

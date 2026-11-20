@@ -4,7 +4,7 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { createToonGradientMap } from '../materials';
 import { useTheme } from '../../context/ThemeContext';
-import { useTransformCalibration, PartColorInfo, PartAnimationConfig, CDPRConfig } from '../../context/TransformCalibrationContext';
+import { useTransformCalibration, PartColorInfo, PartAnimationConfig, CDPRConfig } from '../../context/TransformCalibrationShared';
 import { CADPivotGizmo } from '../CADPivotGizmo';
 import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, getAssemblyRoot, shouldBuildBlueprintEdges } from '../../utils/meshSplitter';
 

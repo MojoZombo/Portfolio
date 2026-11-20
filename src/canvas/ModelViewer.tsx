@@ -1,11 +1,11 @@
-import * as THREE from 'three';
-import React, { Suspense, useState, useRef, useEffect, Component, ErrorInfo, ReactNode } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
-import { ModelRenderer } from './ModelRenderer';
+import React, { Suspense, lazy, useState, useRef, useEffect } from 'react';
 import { POSTER_VERSION, preloadModelAssets } from './ModelPreloadManager';
 import { useTheme } from '../context/ThemeContext';
 import { Pause, Play, RotateCcw } from 'lucide-react';
+
+const LazyModelCanvas = lazy(() =>
+  import('./ModelCanvas').then((m) => ({ default: m.ModelCanvas }))
+);
 
 interface ModelViewerProps {
   modelType: string;
@@ -15,105 +15,6 @@ interface ModelViewerProps {
   isHovered?: boolean;
   className?: string;
   allowZoom?: boolean;
-}
-
-// Error Boundary for resilient 3D rendering
-class ModelErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: ReactNode; fallback?: ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.warn('Model rendering issue caught by boundary:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback || null;
-    }
-    return this.props.children;
-  }
-}
-
-// Frame-accurate draw detector: confirms WebGL has drawn targetFrames in the active or warm-up loop
-function CanvasDrawDetector({
-  active,
-  targetFrames = 2,
-  onDrawn,
-}: {
-  active: boolean;
-  targetFrames?: number;
-  onDrawn: () => void;
-}) {
-  const frameCount = useRef(0);
-
-  useEffect(() => {
-    if (!active) {
-      frameCount.current = 0;
-    }
-  }, [active]);
-
-  useFrame(() => {
-    if (!active) {
-      frameCount.current = 0;
-      return;
-    }
-    frameCount.current++;
-    if (frameCount.current >= targetFrames) {
-      onDrawn();
-    }
-  });
-  return null;
-}
-
-// Camera & Orbit Reset Controller
-function CameraResetController({ resetTrigger }: { resetTrigger: number }) {
-  const { camera } = useThree();
-  const controls = useThree((state) => state.controls as any);
-
-  useEffect(() => {
-    if (resetTrigger > 0) {
-      camera.position.set(4.6, 3.2, 5.0);
-      camera.lookAt(0, 0, 0);
-      if (controls) {
-        controls.target.set(0, 0, 0);
-        if (controls.reset) {
-          controls.reset();
-        }
-        controls.update();
-      }
-    }
-  }, [resetTrigger, camera, controls]);
-
-  return null;
-}
-
-// Camera State & Zoom Detector
-function CameraStateDetector({
-  onZoomChange,
-}: {
-  onZoomChange: (isZoomed: boolean) => void;
-}) {
-  const { camera } = useThree();
-  const defaultDist = Math.sqrt(4.6 * 4.6 + 3.2 * 3.2 + 5.0 * 5.0); // ~7.51
-  const isZoomedRef = useRef(false);
-
-  useFrame(() => {
-    const dist = camera.position.length();
-    // Detect if user has zoomed in or moved camera away from default distance
-    const isZoomed = dist < defaultDist - 0.35 || Math.abs(dist - defaultDist) > 0.5;
-    if (isZoomed !== isZoomedRef.current) {
-      isZoomedRef.current = isZoomed;
-      onZoomChange(isZoomed);
-    }
-  });
-
-  return null;
 }
 
 export const ModelViewer: React.FC<ModelViewerProps> = ({
@@ -163,7 +64,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
 
   // Dynamically scale DPR inversely to container height so 1px WebGL line thickness
   // mathematically matches the scaled 784px static poster PNG on all devices and screen resolutions.
-  // Lock the canvas frame buffer height to 784px: DPR = 784 / height (clamped safely between 1.0 and 3.0).
   const [dynamicDpr, setDynamicDpr] = useState<number>(() => {
     if (typeof window === 'undefined') return 1.6;
     const isMobile = window.innerWidth < 768;
@@ -248,7 +148,6 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         setShouldMountWebGL(true);
       }
     } else if (!isNearby) {
-      // Card left proximity ring: unmount WebGL far off-screen
       timer = setTimeout(() => {
         setShouldMountWebGL(false);
         setIsPrewarmed(false);
@@ -333,95 +232,44 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         decoding="async"
       />
 
-      {/* 3. LAYER 2: LIVE WEBGL CANVAS (Instant cut at rest pose, then animates with zero ghosting) */}
+      {/* 3. LAYER 2: LIVE WEBGL CANVAS (Lazy-loaded once WebGL mounts) */}
       {shouldMountWebGL && (
         <div
           className={`absolute inset-0 w-full h-full z-20 ${
             showLiveCanvas ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
-          <Canvas
-            className={
-              allowZoom
-                ? "grab-cursor"
-                : isMobileMode
-                ? "cursor-pointer !touch-pan-y"
-                : "grab-cursor !touch-pan-y"
-            }
-            style={{ background: 'transparent' }}
-            frameloop={showLiveCanvas || isDrawingActiveReveal ? 'always' : 'never'}
-            dpr={dynamicDpr}
-            gl={{
-              antialias: true,
-              alpha: true,
-              powerPreference: 'high-performance',
-              preserveDrawingBuffer: false,
-            }}
-            onCreated={({ gl }) => {
-              gl.setClearColor(0x000000, 0);
-              gl.domElement.addEventListener('webglcontextlost', (e) => {
-                e.preventDefault();
+          <Suspense fallback={null}>
+            <LazyModelCanvas
+              modelType={modelType}
+              isDark={isDark}
+              allowZoom={allowZoom}
+              isMobileMode={isMobileMode}
+              isTouchDevice={isTouchDevice}
+              isMobileWidth={isMobileWidth}
+              dynamicDpr={dynamicDpr}
+              showLiveCanvas={showLiveCanvas}
+              isDrawingActiveReveal={isDrawingActiveReveal}
+              isActiveAndSettled={isActiveAndSettled}
+              isHovered={isHovered}
+              isAnimationPlaying={isAnimationPlaying}
+              isRotating={isRotating}
+              isAnimationsStarted={isAnimationsStarted}
+              isThemeTransitioning={isThemeTransitioning}
+              isPrewarmed={isPrewarmed}
+              resetTrigger={resetTrigger}
+              onDrawn={() => {
+                setIsCanvasReady(true);
+                setIsPrewarmed(true);
+              }}
+              onZoomChange={setIsZoomedIn}
+              onContextLost={() => {
                 setShouldMountWebGL(false);
                 setIsCanvasReady(false);
-              });
-            }}
-            onWheel={handleCanvasInteraction}
-          >
-            <PerspectiveCamera
-              makeDefault
-              position={[4.6, 3.2, 5.0]}
-              fov={34}
-              near={0.1}
-              far={1000}
-              onUpdate={(c) => c.lookAt(0, 0, 0)}
+              }}
+              onCanvasInteraction={handleCanvasInteraction}
             />
-
-            <ambientLight intensity={isDark ? 0.95 : 1.05} />
-            <directionalLight position={[6, 8, 5]} intensity={1.5} castShadow={!isMobileMode} />
-            <directionalLight position={[-6, -3, -5]} intensity={0.4} />
-
-            <Suspense fallback={null}>
-              <ModelErrorBoundary>
-                <ModelRenderer
-                  modelType={modelType}
-                  isActive={isActiveAndSettled}
-                  isHovered={isHovered}
-                  isRotating={isAnimationPlaying && isRotating && isAnimationsStarted && !isThemeTransitioning}
-                  isAnimating={isAnimationPlaying && isAnimationsStarted && !isThemeTransitioning}
-                />
-              </ModelErrorBoundary>
-              <CanvasDrawDetector
-                active={isDrawingActiveReveal}
-                targetFrames={isPrewarmed ? 1 : 2}
-                onDrawn={() => {
-                  setIsCanvasReady(true);
-                  setIsPrewarmed(true);
-                }}
-              />
-            </Suspense>
-            <CameraResetController resetTrigger={resetTrigger} />
-            <CameraStateDetector onZoomChange={setIsZoomedIn} />
-
-            {/* OrbitControls intercepts native touchstart events via addEventListener, which hijacks scrolling.
-                To completely fix mobile scrolling, we conditionally unmount OrbitControls when on the main page (allowZoom=false) on touch devices or mobile viewports! */}
-            {(allowZoom || (!isTouchDevice && !isMobileWidth)) && (
-              <OrbitControls
-                target={[0, 0, 0]}
-                enableZoom={allowZoom}
-                enablePan={allowZoom}
-                enableRotate={true}
-                autoRotate={false}
-                minPolarAngle={0}
-                maxPolarAngle={Math.PI / 1.05}
-                dampingFactor={0.08}
-                touches={{
-                  ONE: THREE.TOUCH.ROTATE,
-                  TWO: THREE.TOUCH.DOLLY_PAN,
-                }}
-                onStart={handleCanvasInteraction}
-              />
-            )}
-          </Canvas>
+          </Suspense>
         </div>
       )}
 

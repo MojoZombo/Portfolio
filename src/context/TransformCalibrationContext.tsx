@@ -1,111 +1,35 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  PartColorInfo,
+  AnimationType,
+  PivotMode,
+  AxisAlignment,
+  PartAnimationConfig,
+  CDPRConfig,
+  RegisteredModelDefaults,
+  DEFAULT_CDPR_CONFIG,
+  TransformSettings,
+  CuttingPlaneConfig,
+  SplitPartRecord,
+  TransformCalibrationContextType,
+  TransformCalibrationContext,
+  useTransformCalibration,
+} from './TransformCalibrationShared';
 
-export interface PartColorInfo {
-  index: number;
-  name: string;
-  color: string;
-}
-
-export type AnimationType = 'none' | 'continuous-spin' | 'oscillate-rotation' | 'linear-reciprocate' | 'multi';
-export type PivotMode = 'center-of-mass' | 'custom' | 'origin';
-export type AxisAlignment = 'part' | 'global' | 'model';
-
-export interface PartAnimationConfig {
-  type: AnimationType;
-  axis: 'x' | 'y' | 'z';
-  axisAlignment?: AxisAlignment; // 'part' = Part's Transform Axis, 'global' = Global World Axis, 'model' = CAD Model Root
-  axisRotX?: number; // Custom axis rotation offset around X in degrees
-  axisRotY?: number; // Custom axis rotation offset around Y in degrees
-  axisRotZ?: number; // Custom axis rotation offset around Z in degrees
-  direction: 1 | -1; // 1 = Clockwise / Forward, -1 = Counter-Clockwise / Reverse
-  speed: number;
-  amplitude: number; // in degrees for rotation, or fallback centimeters for linear
-  amplitudePositive?: number; // Custom translation distance in positive/forward direction (in cm)
-  amplitudeNegative?: number; // Custom translation distance in negative/reverse direction (in cm)
-  phase: number; // in degrees
-  pivotMode: PivotMode;
-  pivotX: number; // in cm
-  pivotY: number; // in cm
-  pivotZ: number; // in cm
-  parentPartIndex?: number | null; // Attached parent link for kinematic rigid grouping
-  subAnimations?: PartAnimationConfig[]; // Used when type is 'multi'
-}
-
-export interface CDPRConfig {
-  enabled: boolean;
-  plateSize: number;
-  plateThickness: number;
-  plateElevation: number;
-  plateColor: string;
-  frameWidth: number;
-  frameDepth: number;
-  pulleyElevation: number;
-  winchOffsetY: number;
-  winchInsetX: number;
-  winchInsetZ: number;
-  motionRangeX: number;
-  motionRangeZ: number;
-  motionSpeed: number;
-  motionPattern: 'lissajous' | 'wander' | 'circle' | 'square' | 'static';
-  cableColor: string;
-  cableThickness: number;
-  showWorkspaceBoundary: boolean;
-}
-
-export interface RegisteredModelDefaults {
-  modelId: string;
-  offset: [number, number, number];
-  rotation: [number, number, number]; // in degrees
-  scale: number;
-  parts: PartColorInfo[];
-  defaultColors?: Record<number, string>;
-  defaultVisibility?: Record<number, boolean>;
-  defaultAnimations?: Record<number, PartAnimationConfig>;
-  defaultCDPRConfig?: CDPRConfig;
-  defaultPartOrder?: number[];
-  defaultRotationSpeed?: number;
-}
-
-export const DEFAULT_CDPR_CONFIG: CDPRConfig = {
-  enabled: true,
-  plateSize: 0.20,
-  plateThickness: 0.015,
-  plateElevation: 0.00,
-  plateColor: '#ea580c',
-  frameWidth: 0.95,
-  frameDepth: 0.95,
-  pulleyElevation: 0.40,
-  winchOffsetY: -0.38,
-  winchInsetX: 0.05,
-  winchInsetZ: 0.05,
-  motionRangeX: 0.48,
-  motionRangeZ: 0.48,
-  motionSpeed: 1.0,
-  motionPattern: 'lissajous',
-  cableColor: '#38bdf8',
-  cableThickness: 1.5,
-  showWorkspaceBoundary: true,
+export type {
+  PartColorInfo,
+  AnimationType,
+  PivotMode,
+  AxisAlignment,
+  PartAnimationConfig,
+  CDPRConfig,
+  RegisteredModelDefaults,
+  TransformSettings,
+  CuttingPlaneConfig,
+  SplitPartRecord,
+  TransformCalibrationContextType,
 };
-
-export interface TransformSettings {
-  modelId: string;
-  offsetX: number;
-  offsetY: number;
-  offsetZ: number;
-  rotX: number; // in degrees
-  rotY: number;
-  rotZ: number;
-  scale: number;
-  autoRotate: boolean;
-  rotationSpeed: number;
-  showGizmo: boolean;
-  colorOverrides: Record<number, string>; // partIndex -> hex color
-  visibilityOverrides: Record<number, boolean>; // partIndex -> isVisible
-  animationOverrides: Record<number, PartAnimationConfig>; // partIndex -> animation config
-  nameOverrides: Record<number, string>; // partIndex -> custom user renamed string
-  cdprConfig: CDPRConfig;
-  partOrder?: number[]; // custom ordering of part indices in assembly tree
-}
+export { DEFAULT_CDPR_CONFIG, TransformCalibrationContext, useTransformCalibration };
 
 // Built-in calibrated model defaults for instantaneous, zero-latency sync in Studio
 const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> = {
@@ -2016,52 +1940,6 @@ function getModelSettings(modelId: string, registered?: RegisteredModelDefaults)
   };
 }
 
-export interface CuttingPlaneConfig {
-  active: boolean;
-  targetPartIndex: number | null;
-  axis: 'x' | 'y' | 'z';
-  offset: number; // in meters
-}
-
-export interface SplitPartRecord {
-  id: string;
-  modelId: string;
-  originalPartIndex: number;
-  newPartIndices: number[];
-  type: 'islands' | 'plane';
-  timestamp: number;
-}
-
-interface TransformCalibrationContextType {
-  isOpen: boolean;
-  setIsOpen: (open: boolean) => void;
-  activeModelId: string;
-  setActiveModelId: (id: string) => void;
-  selectedPartIndex: number | null;
-  setSelectedPartIndex: (index: number | null) => void;
-  settings: TransformSettings;
-  availableParts: PartColorInfo[];
-  registerModel: (defaults: RegisteredModelDefaults) => void;
-  updateSetting: <K extends keyof TransformSettings>(key: K, value: TransformSettings[K]) => void;
-  updatePartColor: (partIndex: number, color: string) => void;
-  updatePartVisibility: (partIndex: number, isVisible: boolean) => void;
-  updatePartAnimation: (partIndex: number, config: Partial<PartAnimationConfig>) => void;
-  setPartParent: (partIndex: number, parentIndex: number | null) => void;
-  updatePartName: (partIndex: number, name: string) => void;
-  updateCDPRConfig: (config: Partial<CDPRConfig>) => void;
-  resetPartAnimation: (partIndex: number) => void;
-  resetSettings: () => void;
-  cuttingPlaneConfig: CuttingPlaneConfig;
-  setCuttingPlaneConfig: (config: Partial<CuttingPlaneConfig>) => void;
-  registerSplitParts: (originalIndex: number, newParts: { name: string; color?: string }[], type: 'islands' | 'plane') => number[];
-  splitHistory: SplitPartRecord[];
-  movePart: (partIndex: number, direction: 'up' | 'down') => void;
-  reorderParts: (newOrder: number[]) => void;
-  resetPartOrder: () => void;
-}
-
-const TransformCalibrationContext = createContext<TransformCalibrationContextType | undefined>(undefined);
-
 export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeModelId, setActiveModelId] = useState<string>('robot-hand');
@@ -2391,12 +2269,4 @@ export const TransformCalibrationProvider: React.FC<{ children: React.ReactNode 
       {children}
     </TransformCalibrationContext.Provider>
   );
-};
-
-export const useTransformCalibration = () => {
-  const context = useContext(TransformCalibrationContext);
-  if (!context) {
-    throw new Error('useTransformCalibration must be used within TransformCalibrationProvider');
-  }
-  return context;
 };

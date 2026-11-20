@@ -5,13 +5,22 @@ import { TimelineItem } from './components/TimelineItem';
 import { TimelineRuler } from './components/TimelineRuler';
 import { ProjectModal } from './components/ProjectModal';
 // Authoring tools: loaded only when #studio / #baker is opened
-const CADStudioWorkbench = lazy(() =>
-  import('./components/studio/CADStudioWorkbench').then((m) => ({ default: m.CADStudioWorkbench }))
-);
+const CADStudioWorkbench = lazy(async () => {
+  const [{ CADStudioWorkbench: Workbench }, { TransformCalibrationProvider }] = await Promise.all([
+    import('./components/studio/CADStudioWorkbench'),
+    import('./context/TransformCalibrationContext'),
+  ]);
+  return {
+    default: (props: { onExit: () => void }) => (
+      <TransformCalibrationProvider>
+        <Workbench {...props} />
+      </TransformCalibrationProvider>
+    ),
+  };
+});
 const PosterBakerPage = lazy(() =>
   import('./components/poster/PosterBakerPage').then((m) => ({ default: m.PosterBakerPage }))
 );
-import { CADLoadingScreen } from './components/CADLoadingScreen';
 import { ResumeModal } from './components/ResumeModal';
 import { projectsData } from './data/projectsData';
 import { Project } from './types/project';
@@ -178,9 +187,6 @@ export const App: React.FC = () => {
 
   return (
     <div className="relative min-h-screen flex flex-col font-sans selection:bg-blue-500 selection:text-white">
-      {/* High-Tech Animated CAD Boot & Loading Screen */}
-      <CADLoadingScreen />
-
       {/* Infinite Scrolling Perspective CAD Drafting Grid */}
       <BackgroundGrid />
 
@@ -227,31 +233,35 @@ export const App: React.FC = () => {
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span>© {new Date().getFullYear()} JADEN FANN</span>
           <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
-            <button
-              onClick={() => {
-                window.location.hash = 'baker';
-                setIsBakerOpen(true);
-                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-              }}
-              className="hover:text-emerald-500 flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 cursor-pointer text-[11px]"
-              title="Open 1:1 Exact Model Poster Baker"
-            >
-              <Camera size={12} className="text-emerald-500" />
-              <span>Poster Baker</span>
-            </button>
+            {import.meta.env.DEV && (
+              <>
+                <button
+                  onClick={() => {
+                    window.location.hash = 'baker';
+                    setIsBakerOpen(true);
+                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                  }}
+                  className="hover:text-emerald-500 flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 cursor-pointer text-[11px]"
+                  title="Open 1:1 Exact Model Poster Baker"
+                >
+                  <Camera size={12} className="text-emerald-500" />
+                  <span>Poster Baker</span>
+                </button>
 
-            <button
-              onClick={() => {
-                window.location.hash = 'studio';
-                setIsStudioOpen(true);
-                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-              }}
-              className="hover:text-blue-500 flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 cursor-pointer text-[11px]"
-              title="Open Fullscreen 3D CAD Alignment & Kinematics Studio"
-            >
-              <Cpu size={12} className="text-blue-500" />
-              <span>3D CAD Studio</span>
-            </button>
+                <button
+                  onClick={() => {
+                    window.location.hash = 'studio';
+                    setIsStudioOpen(true);
+                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                  }}
+                  className="hover:text-blue-500 flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 cursor-pointer text-[11px]"
+                  title="Open Fullscreen 3D CAD Alignment & Kinematics Studio"
+                >
+                  <Cpu size={12} className="text-blue-500" />
+                  <span>3D CAD Studio</span>
+                </button>
+              </>
+            )}
             <a
               href="https://showspace.so/s/jadenfann"
               target="_blank"
