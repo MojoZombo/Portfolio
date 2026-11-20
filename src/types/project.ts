@@ -6,6 +6,7 @@ export interface ProjectSpec {
 export interface MediaItem {
   type: 'image' | 'youtube' | 'video';
   url: string;
+  poster?: string;
   caption?: string;
   title?: string;
 }

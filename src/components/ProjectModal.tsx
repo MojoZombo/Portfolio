@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Project } from '../types/project';
 import { ModelViewer } from '../canvas/ModelViewer';
 import { ImageCarousel } from './ImageCarousel';
@@ -15,6 +15,13 @@ interface ProjectModalProps {
 export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) => {
   const [selectedImage, setSelectedImage] = useState<{ url: string; caption?: string } | null>(null);
   const [is3DFullscreen, setIs3DFullscreen] = useState(false);
+  const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
+
+  const mainDialogRef = useRef<HTMLDivElement>(null);
+  const lightboxRef = useRef<HTMLDivElement>(null);
+  const fullscreen3DRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     return () => {
@@ -22,16 +29,77 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
     };
   }, []);
 
-  // Close on Escape key press
+  // Reset modal internal state whenever project changes or closes
   useEffect(() => {
+    setSelectedImage(null);
+    setIs3DFullscreen(false);
+    setHasScrolled(false);
+    setIsScrolledToBottom(false);
+  }, [project?.id]);
+
+  // Manage focus restoration and Tab trapping across modal / lightbox / fullscreen 3D
+  useEffect(() => {
+    if (!project) return;
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    const focusTimer = window.setTimeout(() => {
+      mainDialogRef.current?.focus();
+    }, 10);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      previousFocusRef.current?.focus?.();
+    };
+  }, [project?.id]);
+
+  useEffect(() => {
+    if (selectedImage) {
+      const t = window.setTimeout(() => lightboxRef.current?.focus(), 10);
+      return () => window.clearTimeout(t);
+    }
+  }, [selectedImage]);
+
+  useEffect(() => {
+    if (is3DFullscreen) {
+      const t = window.setTimeout(() => fullscreen3DRef.current?.focus(), 10);
+      return () => window.clearTimeout(t);
+    }
+  }, [is3DFullscreen]);
+
+  // Close topmost overlay on Escape and trap Tab focus within the active dialog
+  useEffect(() => {
+    if (!project) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (selectedImage) {
           setSelectedImage(null);
         } else if (is3DFullscreen) {
           setIs3DFullscreen(false);
-        } else if (project) {
+        } else {
           onClose();
+        }
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const activeDialog = selectedImage
+          ? lightboxRef.current
+          : is3DFullscreen
+          ? fullscreen3DRef.current
+          : mainDialogRef.current;
+        if (!activeDialog) return;
+
+        const focusable = activeDialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea, input, select, iframe, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
         }
       }
     };
@@ -39,19 +107,15 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [project, onClose, selectedImage, is3DFullscreen]);
 
-  const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
-  const [hasScrolled, setHasScrolled] = useState(false);
-
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
     if (scrollTop > 20 && !hasScrolled) {
       setHasScrolled(true);
     }
-    // Consider it at the bottom if within 30px
     setIsScrolledToBottom(scrollHeight - scrollTop <= clientHeight + 30);
   };
 
-  // Prevent background body scrolling when modal or fullscreen 3D is active
+  // Prevent background body scrolling when modal is active
   useEffect(() => {
     if (project) {
       document.body.style.overflow = 'hidden';
@@ -63,170 +127,282 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
     };
   }, [project]);
 
-  if (!project) return null;
-
   return (
     <>
       <AnimatePresence>
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-6 overflow-hidden bg-black/75 backdrop-blur-md">
-          {/* Backdrop Click */}
-          <div className="fixed inset-0" onClick={onClose} />
-
-          {/* Modal Window Container */}
+        {project && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 15 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 15 }}
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-10 w-full h-full sm:h-auto max-w-5xl max-h-[100dvh] sm:max-h-[92vh] flex flex-col bg-white dark:bg-[#0c121e] rounded-none sm:rounded-2xl shadow-2xl overflow-hidden text-slate-900 dark:text-slate-100"
+            key={project.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-6 overflow-hidden bg-black/75 backdrop-blur-md"
           >
-            {/* Header Title Bar */}
-            <div className="px-4 sm:px-6 py-4 flex items-center justify-between bg-slate-100 dark:bg-slate-950 shrink-0">
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                {project.company && (
-                  <CompanyLogo
-                    company={project.company}
-                    logoUrl={project.companyLogo}
-                    companyUrl={project.companyUrl}
-                    size="sm"
-                  />
-                )}
-                <span className="px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-semibold bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                  {project.date.toUpperCase()}
-                </span>
-                <h2 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight line-clamp-1">
-                  {project.title}
-                </h2>
-              </div>
+            {/* Backdrop Click */}
+            <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 shrink-0 ml-2">
-                {project.projectWebsiteUrl && (
-                  <a
-                    href={project.projectWebsiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-ripple hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 cursor-pointer"
-                  >
-                    <span>Project Webpage</span>
-                    <ExternalLink size={12} />
-                  </a>
-                )}
-                <button
-                  onClick={onClose}
-                  className="btn-ripple w-8 h-8 p-0 flex items-center justify-center rounded text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 cursor-pointer"
-                  aria-label="Close modal"
-                >
-                  <svg
-                    className="w-4 h-4 shrink-0"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Scrollable Body */}
-            <div 
-              className="overflow-y-auto p-4 sm:p-8 space-y-8 pb-20 sm:pb-8 relative"
-              onScroll={handleScroll}
+            {/* Modal Window Container */}
+            <motion.div
+              ref={mainDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="project-modal-title"
+              tabIndex={-1}
+              initial={{ opacity: 0, scale: 0.96, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 15 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              className="relative z-10 w-full h-full sm:h-auto max-w-5xl max-h-[100dvh] sm:max-h-[92vh] flex flex-col bg-white dark:bg-[#0c121e] rounded-none sm:rounded-2xl overflow-hidden text-slate-900 dark:text-slate-100 focus:outline-none"
             >
-              
-              {/* Interactive 3D Model Showcase */}
-              <div className="bg-slate-100 dark:bg-slate-800/60 rounded-lg p-3 relative">
-                {/* 3D Viewer Top Fullscreen Button */}
-                <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 flex items-center justify-end pointer-events-none">
-                  <button
-                    type="button"
-                    onClick={() => setIs3DFullscreen(true)}
-                    className="btn-ripple group flex items-center gap-1.5 px-3 py-1.5 rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 text-xs font-mono font-medium pointer-events-auto cursor-pointer"
-                    title="Open Fullscreen 3D Model Inspector"
-                  >
-                    <Maximize2 size={13} className="text-blue-600 dark:text-blue-400" />
-                    <span>Fullscreen 3D</span>
-                  </button>
+              {/* Header Title Bar */}
+              <div className="px-4 sm:px-6 py-4 flex items-center justify-between bg-slate-100 dark:bg-slate-950 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  {project.company && (
+                    <CompanyLogo
+                      company={project.company}
+                      logoUrl={project.companyLogo}
+                      companyUrl={project.companyUrl}
+                      size="sm"
+                    />
+                  )}
+                  <span className="px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-mono font-semibold bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    {project.date.toUpperCase()}
+                  </span>
+                  <h2 id="project-modal-title" className="text-sm sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight line-clamp-1">
+                    {project.title}
+                  </h2>
                 </div>
 
-                <ModelViewer
-                  modelType={project.modelType}
-                  isActive={true}
-                  className="h-80 sm:h-96 w-full"
-                  allowZoom={true}
-                />
-              </div>
-
-              {/* Tag Bar */}
-              <div className="flex flex-wrap items-center gap-1.5 pb-2">
-                {project.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-2.5 py-0.5 text-xs rounded font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 shrink-0 ml-2">
+                  {project.projectWebsiteUrl && (
+                    <a
+                      href={project.projectWebsiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-ripple hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono font-medium bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    >
+                      <span>Project Webpage</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="btn-ripple w-8 h-8 p-0 flex items-center justify-center rounded text-slate-500 dark:text-slate-400 bg-slate-200/80 dark:bg-slate-800 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    aria-label="Close modal"
                   >
-                    {tag}
-                  </span>
-                ))}
+                    <svg
+                      className="w-4 h-4 shrink-0"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
-              {/* Structured Verbatim Sections */}
-              {project.structuredSections && project.structuredSections.length > 0 ? (
-                <div className="space-y-8">
-                  {project.structuredSections.map((section, sIdx) => {
-                    const isVideosOnly = section.media && section.media.every(m => m.type === 'youtube');
+              {/* Modal Scrollable Body */}
+              <div
+                className="overflow-y-auto p-4 sm:p-8 space-y-8 pb-20 sm:pb-8 relative"
+                onScroll={handleScroll}
+              >
+                {/* Interactive 3D Model Showcase */}
+                <div className="bg-slate-100 dark:bg-slate-800/60 rounded-lg p-3 relative">
+                  {/* 3D Viewer Top Fullscreen Button */}
+                  <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 flex items-center justify-end pointer-events-none">
+                    <button
+                      type="button"
+                      onClick={() => setIs3DFullscreen(true)}
+                      className="btn-ripple group flex items-center gap-1.5 px-3 py-1.5 rounded bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 text-xs font-mono font-medium pointer-events-auto cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      title="Open Fullscreen 3D Model Inspector"
+                    >
+                      <Maximize2 size={13} className="text-blue-600 dark:text-blue-400" />
+                      <span>Fullscreen 3D</span>
+                    </button>
+                  </div>
 
-                    return (
-                      <div key={sIdx} className="space-y-4 pb-8">
-                        <h3 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                          {section.heading}
-                        </h3>
+                  <ModelViewer
+                    modelType={project.modelType}
+                    isActive={true}
+                    isPaused={is3DFullscreen}
+                    className="h-80 sm:h-96 w-full"
+                    allowZoom={true}
+                  />
+                </div>
 
-                        {/* Paragraphs */}
-                        {section.paragraphs && (
-                          <div className="space-y-2.5 text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed">
-                            {section.paragraphs.map((p, pIdx) => (
-                              <p key={pIdx}>{p}</p>
-                            ))}
-                          </div>
-                        )}
+                {/* Mobile Project Webpage Link (mirrors desktop header action) */}
+                {project.projectWebsiteUrl && (
+                  <div className="sm:hidden">
+                    <a
+                      href={project.projectWebsiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-ripple inline-flex items-center gap-1.5 px-3.5 py-2 rounded text-xs font-mono font-medium bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    >
+                      <span>Project Webpage</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+                )}
 
-                        {/* Sub-sections */}
-                        {section.subSections && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 pt-1">
-                            {section.subSections.map((sub, subIdx) => (
-                              <div key={subIdx} className="space-y-1">
-                                <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono">
-                                  {sub.title}
-                                </h4>
-                                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                                  {sub.content}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                {/* Tag Bar */}
+                <div className="flex flex-wrap items-center gap-1.5 pb-2">
+                  {project.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="px-2.5 py-0.5 text-xs rounded font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
 
-                        {/* Dedicated Carousel Section if specified */}
-                        {section.imagesLayout === 'carousel' && section.images && section.images.length > 0 && (
-                          <div className="pt-2">
-                            <ImageCarousel
-                              images={section.images}
-                              onImageClick={(img) => setSelectedImage({ url: img.url, caption: img.caption || img.title })}
-                            />
-                          </div>
-                        )}
+                {/* Structured Verbatim Sections */}
+                {project.structuredSections && project.structuredSections.length > 0 ? (
+                  <div className="space-y-8">
+                    {project.structuredSections.map((section, sIdx) => {
+                      const isVideosOnly = section.media && section.media.every((m) => m.type === 'youtube');
 
-                        {/* Photos Layout */}
-                        {section.images && section.images.length > 0 && section.imagesLayout !== 'carousel' && (
-                          <div className="pt-2 space-y-4">
-                            {section.imagesLayout === 'grid-2-1' ? (
-                              <div className="space-y-4">
+                      return (
+                        <div key={sIdx} className="space-y-4 pb-8">
+                          <h3 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                            {section.heading}
+                          </h3>
+
+                          {/* Paragraphs */}
+                          {section.paragraphs && (
+                            <div className="space-y-2.5 text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed">
+                              {section.paragraphs.map((p, pIdx) => (
+                                <p key={pIdx}>{p}</p>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Sub-sections */}
+                          {section.subSections && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 pt-1">
+                              {section.subSections.map((sub, subIdx) => (
+                                <div key={subIdx} className="space-y-1">
+                                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 font-mono">
+                                    {sub.title}
+                                  </h4>
+                                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                                    {sub.content}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Dedicated Carousel Section if specified */}
+                          {section.imagesLayout === 'carousel' && section.images && section.images.length > 0 && (
+                            <div className="pt-2">
+                              <ImageCarousel
+                                images={section.images}
+                                onImageClick={(img) => setSelectedImage({ url: img.url, caption: img.caption || img.title })}
+                              />
+                            </div>
+                          )}
+
+                          {/* Photos Layout */}
+                          {section.images && section.images.length > 0 && section.imagesLayout !== 'carousel' && (
+                            <div className="pt-2 space-y-4">
+                              {section.imagesLayout === 'grid-2-1' ? (
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                                    {section.images.slice(0, 2).map((img, iIdx) => (
+                                      <div key={iIdx} className="flex items-center justify-center">
+                                        <div
+                                          onClick={() => setSelectedImage({ url: img.url, caption: img.caption || img.title })}
+                                          className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-full bg-slate-100 dark:bg-slate-800/60"
+                                        >
+                                          <img
+                                            src={img.url}
+                                            alt={img.title || 'CAD model photo'}
+                                            className="block max-h-80 w-auto object-contain rounded-lg"
+                                            loading="lazy"
+                                          />
+                                          <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                                            <ZoomIn size={12} />
+                                            <span>Enlarge</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {section.images.length > 2 && (
+                                    <div className="flex items-center justify-center pt-1">
+                                      <div
+                                        onClick={() => setSelectedImage({ url: section.images![2].url, caption: section.images![2].caption || section.images![2].title })}
+                                        className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-2xl bg-slate-100 dark:bg-slate-800/60"
+                                      >
+                                        <img
+                                          src={section.images[2].url}
+                                          alt={section.images[2].title || 'CAD model photo'}
+                                          className="block max-h-80 w-auto object-contain rounded-lg mx-auto"
+                                          loading="lazy"
+                                        />
+                                        <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                                          <ZoomIn size={12} />
+                                          <span>Enlarge</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : section.imagesLayout === 'grid-1-2' ? (
+                                <div className="space-y-4">
+                                  <div className="flex items-center justify-center">
+                                    <div
+                                      onClick={() => setSelectedImage({ url: section.images![0].url, caption: section.images![0].caption || section.images![0].title })}
+                                      className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-2xl bg-slate-100 dark:bg-slate-800/60"
+                                    >
+                                      <img
+                                        src={section.images[0].url}
+                                        alt={section.images[0].title || 'CAD model photo'}
+                                        className="block max-h-80 w-auto object-contain rounded-lg mx-auto"
+                                        loading="lazy"
+                                      />
+                                      <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                                        <ZoomIn size={12} />
+                                        <span>Enlarge</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {section.images.length > 1 && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                                      {section.images.slice(1).map((img, iIdx) => (
+                                        <div key={iIdx} className="flex items-center justify-center">
+                                          <div
+                                            onClick={() => setSelectedImage({ url: img.url, caption: img.caption || img.title })}
+                                            className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-full bg-slate-100 dark:bg-slate-800/60"
+                                          >
+                                            <img
+                                              src={img.url}
+                                              alt={img.title || 'CAD model photo'}
+                                              className="block max-h-80 w-auto object-contain rounded-lg"
+                                              loading="lazy"
+                                            />
+                                            <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                                              <ZoomIn size={12} />
+                                              <span>Enlarge</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : section.imagesLayout === 'grid-2' ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                                  {section.images.slice(0, 2).map((img, iIdx) => (
+                                  {section.images.map((img, iIdx) => (
                                     <div key={iIdx} className="flex items-center justify-center">
                                       <div
                                         onClick={() => setSelectedImage({ url: img.url, caption: img.caption || img.title })}
@@ -246,251 +422,220 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                                     </div>
                                   ))}
                                 </div>
-                                {section.images.length > 2 && (
-                                  <div className="flex items-center justify-center pt-1">
-                                    <div
-                                      onClick={() => setSelectedImage({ url: section.images![2].url, caption: section.images![2].caption || section.images![2].title })}
-                                      className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-2xl bg-slate-100 dark:bg-slate-800/60"
-                                    >
-                                      <img
-                                        src={section.images[2].url}
-                                        alt={section.images[2].title || 'CAD model photo'}
-                                        className="block max-h-80 w-auto object-contain rounded-lg mx-auto"
-                                        loading="lazy"
-                                      />
-                                      <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                                        <ZoomIn size={12} />
-                                        <span>Enlarge</span>
-                                      </div>
+                              ) : (
+                                <div className="flex items-center justify-center">
+                                  <div
+                                    onClick={() => setSelectedImage({ url: section.images![0].url, caption: section.images![0].caption || section.images![0].title })}
+                                    className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-2xl bg-slate-100 dark:bg-slate-800/60"
+                                  >
+                                    <img
+                                      src={section.images[0].url}
+                                      alt={section.images[0].title || 'CAD model photo'}
+                                      className="block max-h-80 w-auto object-contain rounded-lg mx-auto"
+                                      loading="lazy"
+                                    />
+                                    <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                                      <ZoomIn size={12} />
+                                      <span>Enlarge</span>
                                     </div>
-                                  </div>
-                                )}
-                              </div>
-                            ) : section.imagesLayout === 'grid-2' ? (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                                {section.images.map((img, iIdx) => (
-                                  <div key={iIdx} className="flex items-center justify-center">
-                                    <div
-                                      onClick={() => setSelectedImage({ url: img.url, caption: img.caption || img.title })}
-                                      className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-full bg-slate-100 dark:bg-slate-800/60"
-                                    >
-                                      <img
-                                        src={img.url}
-                                        alt={img.title || 'CAD model photo'}
-                                        className="block max-h-80 w-auto object-contain rounded-lg"
-                                        loading="lazy"
-                                      />
-                                      <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                                        <ZoomIn size={12} />
-                                        <span>Enlarge</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-center">
-                                <div
-                                  onClick={() => setSelectedImage({ url: section.images![0].url, caption: section.images![0].caption || section.images![0].title })}
-                                  className="group relative rounded-lg overflow-hidden cursor-pointer inline-block max-w-2xl bg-slate-100 dark:bg-slate-800/60"
-                                >
-                                  <img
-                                    src={section.images[0].url}
-                                    alt={section.images[0].title || 'CAD model photo'}
-                                    className="block max-h-80 w-auto object-contain rounded-lg mx-auto"
-                                    loading="lazy"
-                                  />
-                                  <div className="absolute top-2.5 right-2.5 bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-mono px-2 py-1 rounded flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                                    <ZoomIn size={12} />
-                                    <span>Enlarge</span>
                                   </div>
                                 </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                              )}
+                            </div>
+                          )}
 
-                        {/* Embedded YouTube / Native Videos */}
-                        {section.media && section.media.length > 0 && (
-                          <div className="pt-2 space-y-4">
-                            {isVideosOnly && section.media.length > 1 ? (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {section.media.map((item, mIdx) => {
-                                  const isDirectVideo = item.type === 'video' || item.url.endsWith('.mp4') || item.url.endsWith('.webm');
-                                  const videoId = item.url.includes('v=')
-                                    ? item.url.split('v=')[1]?.split('&')[0]
-                                    : item.url.split('/').pop();
+                          {/* Embedded YouTube / Native Videos */}
+                          {section.media && section.media.length > 0 && (
+                            <div className="pt-2 space-y-4">
+                              {isVideosOnly && section.media.length > 1 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {section.media.map((item, mIdx) => {
+                                    const isDirectVideo = item.type === 'video' || item.url.endsWith('.mp4') || item.url.endsWith('.webm');
+                                    const videoId = item.url.includes('v=')
+                                      ? item.url.split('v=')[1]?.split('&')[0]
+                                      : item.url.split('/').pop();
 
-                                  return (
-                                    <div key={mIdx} className="space-y-2">
-                                      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black flex items-center justify-center">
-                                        {isDirectVideo ? (
-                                          <video
-                                            src={item.url}
-                                            controls
-                                            playsInline
-                                            preload="metadata"
-                                            className="w-full h-full object-contain"
-                                          />
-                                        ) : (
-                                          <iframe
-                                            src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
-                                            title={item.title || `Project Video ${mIdx + 1}`}
-                                            className="w-full h-full"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                            allowFullScreen
-                                          />
+                                    return (
+                                      <div key={mIdx} className="space-y-2">
+                                        <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black flex items-center justify-center">
+                                          {isDirectVideo ? (
+                                            <video
+                                              src={item.url}
+                                              poster={item.poster}
+                                              controls
+                                              playsInline
+                                              preload="metadata"
+                                              className="w-full h-full object-contain"
+                                            />
+                                          ) : (
+                                            <iframe
+                                              src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
+                                              title={item.title || `Project Video ${mIdx + 1}`}
+                                              className="w-full h-full"
+                                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                              allowFullScreen
+                                            />
+                                          )}
+                                        </div>
+                                        {item.title && (
+                                          <p className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                                            {item.title}
+                                          </p>
                                         )}
                                       </div>
-                                      {item.title && (
-                                        <p className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                                          {item.title}
-                                        </p>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="space-y-4 max-w-3xl mx-auto">
-                                {section.media.map((item, mIdx) => {
-                                  const isDirectVideo = item.type === 'video' || item.url.endsWith('.mp4') || item.url.endsWith('.webm');
-                                  const videoId = item.url.includes('v=')
-                                    ? item.url.split('v=')[1]?.split('&')[0]
-                                    : item.url.split('/').pop();
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="space-y-4 max-w-3xl mx-auto">
+                                  {section.media.map((item, mIdx) => {
+                                    const isDirectVideo = item.type === 'video' || item.url.endsWith('.mp4') || item.url.endsWith('.webm');
+                                    const videoId = item.url.includes('v=')
+                                      ? item.url.split('v=')[1]?.split('&')[0]
+                                      : item.url.split('/').pop();
 
-                                  return (
-                                    <div key={mIdx} className="space-y-2">
-                                      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black flex items-center justify-center">
-                                        {isDirectVideo ? (
-                                          <video
-                                            src={item.url}
-                                            controls
-                                            playsInline
-                                            preload="metadata"
-                                            className="w-full h-full object-contain"
-                                          />
-                                        ) : (
-                                          <iframe
-                                            src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
-                                            title={item.title || `Project Video ${mIdx + 1}`}
-                                            className="w-full h-full"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                            allowFullScreen
-                                          />
+                                    return (
+                                      <div key={mIdx} className="space-y-2">
+                                        <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black flex items-center justify-center">
+                                          {isDirectVideo ? (
+                                            <video
+                                              src={item.url}
+                                              poster={item.poster}
+                                              controls
+                                              playsInline
+                                              preload="metadata"
+                                              className="w-full h-full object-contain"
+                                            />
+                                          ) : (
+                                            <iframe
+                                              src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
+                                              title={item.title || `Project Video ${mIdx + 1}`}
+                                              className="w-full h-full"
+                                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                              allowFullScreen
+                                            />
+                                          )}
+                                        </div>
+                                        {item.title && (
+                                          <p className="text-xs font-mono text-slate-500 dark:text-slate-400 text-center">
+                                            {item.title}
+                                          </p>
                                         )}
                                       </div>
-                                      {item.title && (
-                                        <p className="text-xs font-mono text-slate-500 dark:text-slate-400 text-center">
-                                          {item.title}
-                                        </p>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="space-y-2.5 text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                    {project.extendedDescription.map((p, idx) => (
-                      <p key={idx}>{p}</p>
-                    ))}
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-              )}
-
-              {/* Technical Specifications Grid */}
-              {project.specs && project.specs.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Technical Specifications
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 py-1">
-                    {project.specs.map((spec, idx) => (
-                      <div key={idx} className="bg-slate-100/70 dark:bg-slate-800/60 p-2.5 rounded-lg flex flex-col justify-between">
-                        <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                          {spec.label}
-                        </span>
-                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-0.5">
-                          {spec.value}
-                        </span>
-                      </div>
-                    ))}
+                ) : (
+                  <div className="space-y-3">
+                    <div className="space-y-2.5 text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                      {project.extendedDescription.map((p, idx) => (
+                        <p key={idx}>{p}</p>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Materials & Manufacturing */}
-              {project.materialsAndManufacturing && project.materialsAndManufacturing.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Materials & Manufacturing Methods
-                  </h3>
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs font-mono text-slate-700 dark:text-slate-300">
-                    {project.materialsAndManufacturing.map((item, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <span className="text-slate-400 dark:text-slate-600 font-bold select-none">•</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                {/* Technical Specifications Grid */}
+                {project.specs && project.specs.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Technical Specifications
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 py-1">
+                      {project.specs.map((spec, idx) => (
+                        <div key={idx} className="bg-slate-100/70 dark:bg-slate-800/60 p-2.5 rounded-lg flex flex-col justify-between">
+                          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                            {spec.label}
+                          </span>
+                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-0.5">
+                            {spec.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-              {/* Key Engineering Challenges Solved */}
-              {project.keyChallenges && project.keyChallenges.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Engineering Challenges & Solutions
-                  </h3>
-                  <ul className="space-y-2.5 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
-                    {project.keyChallenges.map((challenge, idx) => (
-                      <li key={idx} className="bg-slate-100/60 dark:bg-slate-800/60 p-3 rounded-lg leading-relaxed flex items-start gap-2.5">
-                        <span className="text-blue-500 dark:text-blue-400 font-bold select-none">•</span>
-                        <span>{challenge}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                {/* Materials & Manufacturing */}
+                {project.materialsAndManufacturing && project.materialsAndManufacturing.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Materials &amp; Manufacturing Methods
+                    </h3>
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs font-mono text-slate-700 dark:text-slate-300">
+                      {project.materialsAndManufacturing.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-slate-400 dark:text-slate-600 font-bold select-none">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
-            </div>
-            
-            {/* Mobile Scroll Indicator */}
-            <div 
-              className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-white via-white/90 dark:from-[#0c121e] dark:via-[#0c121e]/90 to-transparent pointer-events-none transition-opacity duration-300 flex items-end justify-center pb-6 sm:hidden ${hasScrolled || isScrolledToBottom ? 'opacity-0' : 'opacity-100'}`}
-            >
-              <div className="animate-bounce bg-slate-900/10 dark:bg-white/10 p-2 rounded-full backdrop-blur-sm text-slate-500 dark:text-slate-400 shadow-sm flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                </svg>
+                {/* Key Engineering Challenges Solved */}
+                {project.keyChallenges && project.keyChallenges.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Engineering Challenges &amp; Solutions
+                    </h3>
+                    <ul className="space-y-2.5 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                      {project.keyChallenges.map((challenge, idx) => (
+                        <li key={idx} className="bg-slate-100/60 dark:bg-slate-800/60 p-3 rounded-lg leading-relaxed flex items-start gap-2.5">
+                          <span className="text-blue-500 dark:text-blue-400 font-bold select-none">•</span>
+                          <span>{challenge}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-            </div>
+
+              {/* Mobile Scroll Indicator */}
+              <div
+                className={`absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-white via-white/90 dark:from-[#0c121e] dark:via-[#0c121e]/90 to-transparent pointer-events-none transition-opacity duration-300 flex items-end justify-center pb-6 sm:hidden ${
+                  hasScrolled || isScrolledToBottom ? 'opacity-0' : 'opacity-100'
+                }`}
+              >
+                <div className="animate-bounce bg-slate-900/10 dark:bg-white/10 p-2 rounded-full backdrop-blur-sm text-slate-500 dark:text-slate-400 flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
-        </div>
+        )}
       </AnimatePresence>
 
       {/* Top-Level Fullscreen Lightbox Modal for Photos */}
       <AnimatePresence>
         {selectedImage && (
           <motion.div
+            key="project-lightbox"
+            ref={lightboxRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={selectedImage.caption || 'Expanded project photo'}
+            tabIndex={-1}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-100/85 dark:bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none cursor-pointer"
+            className="fixed inset-0 z-[100] bg-slate-100/85 dark:bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none cursor-pointer focus:outline-none"
             onClick={() => setSelectedImage(null)}
           >
             <div className="absolute top-6 right-6 z-20">
               <button
+                type="button"
                 onClick={() => setSelectedImage(null)}
-                className="btn-ripple w-9 h-9 p-0 flex items-center justify-center rounded text-slate-700 bg-slate-200/90 dark:text-slate-200 dark:bg-slate-800/90 cursor-pointer"
+                className="btn-ripple w-9 h-9 p-0 flex items-center justify-center rounded text-slate-700 bg-slate-200/90 dark:text-slate-200 dark:bg-slate-800/90 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 aria-label="Close Lightbox"
               >
                 <svg
@@ -527,17 +672,23 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
 
       {/* Top-Level Fullscreen 3D CAD Inspector Modal */}
       <AnimatePresence>
-        {is3DFullscreen && (
+        {project && is3DFullscreen && (
           <motion.div
+            key="project-3d-fullscreen"
+            ref={fullscreen3DRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${project.title} Fullscreen 3D Inspector`}
+            tabIndex={-1}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-100/95 dark:bg-black/95 backdrop-blur-xl flex flex-col items-center justify-between select-none overflow-hidden"
+            className="fixed inset-0 z-[100] bg-slate-100/95 dark:bg-black/95 backdrop-blur-xl flex flex-col items-center justify-between select-none overflow-hidden focus:outline-none"
           >
             {/* Floating Top Header Bar */}
             <div className="absolute top-4 left-4 right-4 sm:left-6 sm:right-6 flex items-center justify-between z-30 pointer-events-none">
               <div className="flex items-center gap-2.5 pointer-events-auto">
-                <h3 className="text-sm sm:text-base font-bold tracking-tight font-mono text-slate-900 dark:text-white drop-shadow-sm">
+                <h3 className="text-sm sm:text-base font-bold tracking-tight font-mono text-slate-900 dark:text-white">
                   {project.title}
                 </h3>
               </div>
@@ -546,7 +697,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                 <button
                   type="button"
                   onClick={() => setIs3DFullscreen(false)}
-                  className="btn-ripple inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono font-medium text-slate-700 bg-white dark:text-slate-200 dark:bg-slate-900/90 cursor-pointer"
+                  className="btn-ripple inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono font-medium text-slate-700 bg-white dark:text-slate-200 dark:bg-slate-900/90 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   <Minimize2 size={13} className="text-blue-500 dark:text-blue-400" />
                   <span>Exit Fullscreen</span>
