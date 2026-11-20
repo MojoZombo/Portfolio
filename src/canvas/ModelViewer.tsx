@@ -247,6 +247,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     setIsRotating(shouldAnimate);
   };
 
+  const showOrbitHint = (allowZoom || isActive) && !isPaused && !hasInteracted;
+
   return (
     <div
       ref={containerRef}
@@ -327,20 +329,21 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         </div>
       )}
 
-      {/* Subtle CAD-native 3D orbit indicator (fades smoothly once user orbits or zooms) */}
-      {(allowZoom || !isMobileMode) && showLiveCanvas && !isPaused && (
+      {/* Subtle CAD-native 3D orbit indicator (transitions synchronously with card & modal) */}
+      {(allowZoom || !isMobileMode) && (
         <div
           aria-hidden="true"
-          className={`absolute z-30 pointer-events-none select-none flex items-center gap-1.5 text-slate-400/80 dark:text-slate-500/85 transition-opacity duration-500 ${
+          style={{ transition: 'opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}
+          className={`absolute z-30 pointer-events-none select-none flex items-center gap-1.5 text-slate-400/80 dark:text-slate-500/85 ${
             allowZoom
               ? 'bottom-3.5 left-4'
               : 'bottom-2.5 left-1/2 -translate-x-1/2'
-          } ${hasInteracted ? 'opacity-0' : 'opacity-100'}`}
+          } ${showOrbitHint ? 'opacity-100' : 'opacity-0'}`}
         >
           <svg
             viewBox="0 0 28 18"
             fill="none"
-            className="cad-orbit-glyph w-6 h-4 shrink-0"
+            className={`${showOrbitHint ? 'cad-orbit-glyph ' : ''}w-6 h-4 shrink-0`}
           >
             <line
               x1="14"
