@@ -10,6 +10,19 @@ useGLTF.setDecoderPath('./draco/gltf/');
 
 const DEFAULT_CAMERA_POS = new THREE.Vector3(...CAD_CAMERA_POSITION);
 
+export interface PointerHoverState {
+  hovered: boolean;
+  x: number;
+  y: number;
+}
+
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const _camRight = new THREE.Vector3();
+const _camUp = new THREE.Vector3();
+const _baseYawQuat = new THREE.Quaternion();
+const _yawTiltQuat = new THREE.Quaternion();
+const _pitchTiltQuat = new THREE.Quaternion();
+
 class ModelErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode; fallback?: ReactNode }) {
     super(props);
@@ -105,6 +118,145 @@ function CameraStateDetector({
   return null;
 }
 
+interface InteractiveModelStageProps {
+  showLiveCanvas: boolean;
+  isActiveAndSettled: boolean;
+  isRotating: boolean;
+  isAnimating: boolean;
+  isDragging: boolean;
+  isPaused: boolean;
+  prefersReducedMotion: boolean;
+  resetTrigger: number;
+  pointerHoverRef: React.MutableRefObject<PointerHoverState>;
+  children: ReactNode;
+}
+
+/**
+ * Adds stage-level activation turntable nudge, gentle hover spin braking, and
+ * camera-aligned pointer parallax tilt without modifying individual model files.
+ */
+function InteractiveModelStage({
+  showLiveCanvas,
+  isActiveAndSettled,
+  isRotating,
+  isAnimating,
+  isDragging,
+  isPaused,
+  prefersReducedMotion,
+  resetTrigger,
+  pointerHoverRef,
+  children,
+}: InteractiveModelStageProps) {
+  const stageRef = useRef<THREE.Group>(null);
+  const baseYawRef = useRef(0);
+  const nudgeTimeRef = useRef(0);
+  const nudgeActiveRef = useRef(false);
+  const hasTriggeredNudgeRef = useRef(false);
+  const spinRampRef = useRef(0);
+  const hoverBrakeRef = useRef(0);
+  const currentYawTiltRef = useRef(0);
+  const currentPitchTiltRef = useRef(0);
+
+  useEffect(() => {
+    if (!isActiveAndSettled) {
+      baseYawRef.current = 0;
+      nudgeTimeRef.current = 0;
+      nudgeActiveRef.current = false;
+      hasTriggeredNudgeRef.current = false;
+      spinRampRef.current = 0;
+      hoverBrakeRef.current = 0;
+      currentYawTiltRef.current = 0;
+      currentPitchTiltRef.current = 0;
+      stageRef.current?.quaternion.identity();
+    }
+  }, [isActiveAndSettled]);
+
+  useEffect(() => {
+    if (resetTrigger > 0) {
+      baseYawRef.current = 0;
+      nudgeTimeRef.current = 0;
+      nudgeActiveRef.current = false;
+      currentYawTiltRef.current = 0;
+      currentPitchTiltRef.current = 0;
+      stageRef.current?.quaternion.identity();
+    }
+  }, [resetTrigger]);
+
+  useFrame(({ camera }, rawDelta) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    if (!showLiveCanvas) {
+      stage.quaternion.identity();
+      return;
+    }
+
+    const delta = Math.min(rawDelta, 0.035);
+
+    if (!hasTriggeredNudgeRef.current) {
+      hasTriggeredNudgeRef.current = true;
+      if (!prefersReducedMotion && !isPaused && isAnimating) {
+        nudgeActiveRef.current = true;
+        nudgeTimeRef.current = 0;
+      }
+    }
+
+    if (isDragging || !isAnimating || isPaused) {
+      nudgeActiveRef.current = false;
+    }
+
+    if (nudgeActiveRef.current) {
+      nudgeTimeRef.current += delta;
+      const t = nudgeTimeRef.current;
+      const tau = 0.22;
+      const omega = 0.50 * (t / tau) * Math.exp(1 - t / tau);
+      baseYawRef.current += delta * omega;
+      if (t > 1.8) {
+        nudgeActiveRef.current = false;
+      }
+    }
+
+    if (isRotating && isAnimating && !isPaused) {
+      spinRampRef.current = Math.min(1, spinRampRef.current + delta / 1.2);
+    } else {
+      spinRampRef.current = 0;
+    }
+
+    const isHoverBraking =
+      isRotating &&
+      isAnimating &&
+      !isPaused &&
+      !isDragging &&
+      !prefersReducedMotion &&
+      !nudgeActiveRef.current &&
+      pointerHoverRef.current.hovered;
+    const targetBrake = isHoverBraking ? 0.11 * spinRampRef.current : 0;
+    hoverBrakeRef.current = THREE.MathUtils.damp(hoverBrakeRef.current, targetBrake, 5.0, delta);
+    baseYawRef.current -= delta * hoverBrakeRef.current;
+
+    const tiltActive =
+      showLiveCanvas &&
+      !isPaused &&
+      !isDragging &&
+      !prefersReducedMotion &&
+      pointerHoverRef.current.hovered;
+    const targetYawTilt = tiltActive ? pointerHoverRef.current.x * 0.095 : 0;
+    const targetPitchTilt = tiltActive ? pointerHoverRef.current.y * 0.070 : 0;
+    currentYawTiltRef.current = THREE.MathUtils.damp(currentYawTiltRef.current, targetYawTilt, 6.5, delta);
+    currentPitchTiltRef.current = THREE.MathUtils.damp(currentPitchTiltRef.current, targetPitchTilt, 6.5, delta);
+
+    _camRight.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+    _camUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
+    _baseYawQuat.setFromAxisAngle(WORLD_UP, baseYawRef.current);
+    _yawTiltQuat.setFromAxisAngle(_camUp, currentYawTiltRef.current);
+    _pitchTiltQuat.setFromAxisAngle(_camRight, currentPitchTiltRef.current);
+
+    stage.quaternion.copy(_yawTiltQuat).multiply(_pitchTiltQuat).multiply(_baseYawQuat);
+  });
+
+  return <group ref={stageRef}>{children}</group>;
+}
+
 export interface ModelCanvasProps {
   modelType: string;
   isDark: boolean;
@@ -120,15 +272,19 @@ export interface ModelCanvasProps {
   isHovered: boolean;
   isAnimationPlaying: boolean;
   isRotating: boolean;
+  isDragging: boolean;
+  prefersReducedMotion: boolean;
   isAnimationsStarted: boolean;
   isThemeTransitioning: boolean;
   isPrewarmed: boolean;
   resetTrigger: number;
+  pointerHoverRef: React.MutableRefObject<PointerHoverState>;
   onDrawn: () => void;
   onCameraMove: (isMoved: boolean) => void;
   onContextLost: () => void;
   onContextRestored: () => void;
-  onCanvasInteraction: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }
 
 export const ModelCanvas: React.FC<ModelCanvasProps> = ({
@@ -146,15 +302,19 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
   isHovered,
   isAnimationPlaying,
   isRotating,
+  isDragging,
+  prefersReducedMotion,
   isAnimationsStarted,
   isThemeTransitioning,
   isPrewarmed,
   resetTrigger,
+  pointerHoverRef,
   onDrawn,
   onCameraMove,
   onContextLost,
   onContextRestored,
-  onCanvasInteraction,
+  onDragStart,
+  onDragEnd,
 }) => {
   return (
     <Canvas
@@ -188,7 +348,6 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
           });
         }
       }}
-      onWheel={onCanvasInteraction}
     >
       <PerspectiveCamera
         makeDefault
@@ -203,13 +362,25 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
 
       <Suspense fallback={null}>
         <ModelErrorBoundary>
-          <ModelRenderer
-            modelType={modelType}
-            isActive={isActiveAndSettled}
-            isHovered={isHovered}
-            isRotating={!isPaused && isAnimationPlaying && isRotating && isAnimationsStarted && !isThemeTransitioning}
+          <InteractiveModelStage
+            showLiveCanvas={showLiveCanvas}
+            isActiveAndSettled={isActiveAndSettled}
+            isRotating={isRotating}
             isAnimating={!isPaused && isAnimationPlaying && isAnimationsStarted && !isThemeTransitioning}
-          />
+            isDragging={isDragging}
+            isPaused={isPaused}
+            prefersReducedMotion={prefersReducedMotion}
+            resetTrigger={resetTrigger}
+            pointerHoverRef={pointerHoverRef}
+          >
+            <ModelRenderer
+              modelType={modelType}
+              isActive={isActiveAndSettled}
+              isHovered={isHovered}
+              isRotating={!isPaused && isAnimationPlaying && isRotating && isAnimationsStarted && !isThemeTransitioning}
+              isAnimating={!isPaused && isAnimationPlaying && isAnimationsStarted && !isThemeTransitioning}
+            />
+          </InteractiveModelStage>
         </ModelErrorBoundary>
         <CanvasDrawDetector
           active={isDrawingActiveReveal && !isPaused}
@@ -234,7 +405,8 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
             ONE: THREE.TOUCH.ROTATE,
             TWO: THREE.TOUCH.DOLLY_PAN,
           }}
-          onStart={onCanvasInteraction}
+          onStart={onDragStart}
+          onEnd={onDragEnd}
         />
       )}
     </Canvas>

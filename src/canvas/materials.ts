@@ -1,17 +1,37 @@
 import * as THREE from 'three';
 
-// Create discrete 4-step cel shading gradient map for crisp highlight, midtone, and shadow bands
-export function createToonGradientMap(): THREE.DataTexture {
-  const colors = new Uint8Array([
-    65, 65, 65, 255,   // Core shadow step
-    95, 95, 95, 255,   // Side shadow step
-    175, 175, 175, 255, // Midtone step
-    255, 255, 255, 255  // Key highlight step
-  ]);
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
 
-  const texture = new THREE.DataTexture(colors, 4, 1, THREE.RGBAFormat);
-  texture.minFilter = THREE.NearestFilter;
-  texture.magFilter = THREE.NearestFilter;
+// Create 4-band cel shading ramp with smoothstep-beveled transitions so curved
+// surfaces keep crisp bands while rotating flat faces glide cleanly without popping.
+export function createToonGradientMap(): THREE.DataTexture {
+  const width = 256;
+  const colors = new Uint8Array(width * 4);
+  const w = 0.055;
+
+  for (let i = 0; i < width; i++) {
+    const u = i / (width - 1);
+    let v = 65;
+    v += (95 - 65) * smoothstep(0.22 - w, 0.22 + w, u);
+    v += (175 - 95) * smoothstep(0.50 - w, 0.50 + w, u);
+    v += (255 - 175) * smoothstep(0.79 - w, 0.79 + w, u);
+
+    const byte = Math.round(v);
+    const idx = i * 4;
+    colors[idx] = byte;
+    colors[idx + 1] = byte;
+    colors[idx + 2] = byte;
+    colors[idx + 3] = 255;
+  }
+
+  const texture = new THREE.DataTexture(colors, width, 1, THREE.RGBAFormat);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.generateMipmaps = false;
   texture.colorSpace = THREE.NoColorSpace;
   texture.needsUpdate = true;

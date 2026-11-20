@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useState, useRef, useEffect, useLayoutEffect } from 'react';
+import type { PointerHoverState } from './ModelCanvas';
 import { POSTER_VERSION, preloadModelAssets } from './ModelPreloadManager';
 import { computeMatchedDpr } from './stageConfig';
 import { useTheme } from '../context/ThemeContext';
@@ -57,13 +58,15 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  const [isRotating, setIsRotating] = useState(() => !prefersReducedMotion);
   const [internalAnimationPlaying, setInternalAnimationPlaying] = useState(() => !prefersReducedMotion);
+  const [isDragging, setIsDragging] = useState(false);
   const [resetTrigger, setResetTrigger] = useState(0);
   const [isCameraMoved, setIsCameraMoved] = useState(false);
   const [isPrewarmed, setIsPrewarmed] = useState(false);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const resumeRotateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerHoverRef = useRef<PointerHoverState>({ hovered: false, x: 0, y: 0 });
 
   const [shouldMountWebGL, setShouldMountWebGL] = useState(false);
 
@@ -71,17 +74,18 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     isAnimationPlayingProp !== undefined ? isAnimationPlayingProp : internalAnimationPlaying;
 
   useEffect(() => {
-    if (isAnimationPlayingProp !== undefined) {
-      setIsRotating(isAnimationPlayingProp && !prefersReducedMotion);
-    }
-  }, [isAnimationPlayingProp, prefersReducedMotion]);
-
-  useEffect(() => {
     if (prefersReducedMotion) {
-      setIsRotating(false);
       setInternalAnimationPlaying(false);
     }
   }, [prefersReducedMotion]);
+
+  useEffect(() => {
+    return () => {
+      if (resumeRotateTimerRef.current) {
+        clearTimeout(resumeRotateTimerRef.current);
+      }
+    };
+  }, []);
 
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   useEffect(() => {
@@ -208,11 +212,16 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   // Reset active reveal state, camera view, zoom status, and controls ONLY when model becomes inactive
   useEffect(() => {
     if (!isActive && !allowZoom) {
+      if (resumeRotateTimerRef.current) {
+        clearTimeout(resumeRotateTimerRef.current);
+        resumeRotateTimerRef.current = null;
+      }
       setIsCanvasReady(false);
       setResetTrigger((prev) => prev + 1);
-      setIsRotating(!prefersReducedMotion);
+      setIsDragging(false);
       setInternalAnimationPlaying(!prefersReducedMotion);
       setIsCameraMoved(false);
+      pointerHoverRef.current.hovered = false;
     }
   }, [isActive, allowZoom, prefersReducedMotion]);
 
@@ -220,6 +229,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const isDrawingActiveReveal = shouldMountWebGL && isActiveAndSettled && !isCanvasReady;
   const showLiveCanvas = isActiveAndSettled && isCanvasReady;
   const isAnimationsStarted = showLiveCanvas;
+  const effectiveIsRotating = effectiveAnimationPlaying && !prefersReducedMotion && !isDragging;
 
   // Image Paths (theme-specific with fallback)
   const themeSuffix = isDark ? 'dark' : 'light';
@@ -243,8 +253,22 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       : `./posters/${modelType}-shaded-${themeSuffix}.png`
   }?v=${POSTER_VERSION}`;
 
-  const handleCanvasInteraction = () => {
-    setIsRotating(false);
+  const handleDragStart = () => {
+    if (resumeRotateTimerRef.current) {
+      clearTimeout(resumeRotateTimerRef.current);
+      resumeRotateTimerRef.current = null;
+    }
+    setIsDragging(true);
+  };
+
+  const handleDragEnd = () => {
+    if (resumeRotateTimerRef.current) {
+      clearTimeout(resumeRotateTimerRef.current);
+    }
+    resumeRotateTimerRef.current = setTimeout(() => {
+      resumeRotateTimerRef.current = null;
+      setIsDragging(false);
+    }, 350);
   };
 
   const handleTogglePlay = () => {
@@ -254,10 +278,14 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     } else {
       setInternalAnimationPlaying(next);
     }
-    setIsRotating(next);
   };
 
   const handleResetView = () => {
+    if (resumeRotateTimerRef.current) {
+      clearTimeout(resumeRotateTimerRef.current);
+      resumeRotateTimerRef.current = null;
+    }
+    setIsDragging(false);
     setResetTrigger((prev) => prev + 1);
     setIsCameraMoved(false);
     const shouldAnimate = !prefersReducedMotion;
@@ -266,12 +294,31 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     } else {
       setInternalAnimationPlaying(shouldAnimate);
     }
-    setIsRotating(shouldAnimate);
+  };
+
+  const updatePointerHover = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const nx = Math.max(-1, Math.min(1, ((e.clientX - rect.left) / rect.width) * 2 - 1));
+    const ny = Math.max(-1, Math.min(1, ((e.clientY - rect.top) / rect.height) * 2 - 1));
+    pointerHoverRef.current = { hovered: true, x: nx, y: ny };
+  };
+
+  const clearPointerHover = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
+    pointerHoverRef.current.hovered = false;
   };
 
   return (
     <div
       ref={containerRef}
+      onPointerEnter={updatePointerHover}
+      onPointerMove={updatePointerHover}
+      onPointerLeave={clearPointerHover}
+      onPointerCancel={clearPointerHover}
       style={{ touchAction: allowZoom ? 'none' : 'pan-y' }}
       className={`relative ${className} select-none pointer-events-auto flex items-center justify-center overflow-hidden`}
     >
@@ -326,11 +373,14 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               isActiveAndSettled={isActiveAndSettled}
               isHovered={isHovered}
               isAnimationPlaying={effectiveAnimationPlaying}
-              isRotating={isRotating}
+              isRotating={effectiveIsRotating}
+              isDragging={isDragging}
+              prefersReducedMotion={prefersReducedMotion}
               isAnimationsStarted={isAnimationsStarted}
               isThemeTransitioning={isThemeTransitioning}
               isPrewarmed={isPrewarmed}
               resetTrigger={resetTrigger}
+              pointerHoverRef={pointerHoverRef}
               onDrawn={() => {
                 setIsCanvasReady(true);
                 setIsPrewarmed(true);
@@ -343,7 +393,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                 setIsPrewarmed(false);
                 setIsCanvasReady(false);
               }}
-              onCanvasInteraction={handleCanvasInteraction}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
             />
           </Suspense>
         </div>

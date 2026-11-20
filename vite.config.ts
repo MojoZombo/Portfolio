@@ -3,6 +3,18 @@ import react from '@vitejs/plugin-react';
 import fs from 'fs';
 import path from 'path';
 
+async function writeFileWithRetry(filePath: string, buffer: Buffer, maxAttempts = 5) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      fs.writeFileSync(filePath, buffer);
+      return;
+    } catch (err) {
+      if (attempt === maxAttempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 40 * attempt));
+    }
+  }
+}
+
 function posterSavePlugin(): Plugin {
   return {
     name: 'poster-save-plugin',
@@ -13,7 +25,7 @@ function posterSavePlugin(): Plugin {
           req.on('data', chunk => {
             body += chunk;
           });
-          req.on('end', () => {
+          req.on('end', async () => {
             try {
               const { filename, dataUrl } = JSON.parse(body);
               if (filename && dataUrl) {
@@ -24,7 +36,7 @@ function posterSavePlugin(): Plugin {
                   fs.mkdirSync(postersDir, { recursive: true });
                 }
                 const filePath = path.join(postersDir, filename);
-                fs.writeFileSync(filePath, buffer);
+                await writeFileWithRetry(filePath, buffer);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: true, file: filename }));
                 return;
