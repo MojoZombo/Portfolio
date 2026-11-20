@@ -1,7 +1,6 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { Project } from '../types/project';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { List, X } from 'lucide-react';
 
 interface TimelineRulerProps {
   projects: Project[];
@@ -10,7 +9,6 @@ interface TimelineRulerProps {
 
 export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId }) => {
   const [trackLeft, setTrackLeft] = useState(72);
-  const [isJumpOpen, setIsJumpOpen] = useState(false);
   const targetProgress = useMotionValue(0);
 
   // High-performance spring interpolation with calibrated damping
@@ -118,18 +116,6 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
     };
   }, [measureOffsets, updateProgress, updateTrackPosition]);
 
-  // Close mobile project navigator on Escape
-  useEffect(() => {
-    if (!isJumpOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsJumpOpen(false);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isJumpOpen]);
-
   const scrollToProject = (id: string) => {
     const el = document.getElementById(`project-${id}`);
     if (el) {
@@ -144,8 +130,6 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
     const year = parts[1] ? `'${parts[1].slice(2)}` : '';
     return { month, year };
   };
-
-  const activeIndex = Math.max(0, projects.findIndex((p) => p.id === activeId));
 
   return (
     <>
@@ -211,76 +195,6 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
           </div>
         </div>
       </aside>
-
-      {/* Mobile & Tablet Compact Project Navigator (< 1280px) */}
-      <div className="xl:hidden">
-        {isJumpOpen && (
-          <>
-            <div
-              className="fixed inset-0 z-20 bg-black/25"
-              onClick={() => setIsJumpOpen(false)}
-              aria-hidden="true"
-            />
-            <nav
-              aria-label="Project index"
-              className="fixed bottom-16 right-4 z-30 w-[calc(100vw-2rem)] max-w-xs max-h-[60vh] overflow-y-auto rounded-xl bg-white/95 dark:bg-[#0c121e]/95 backdrop-blur-md p-2 space-y-1"
-            >
-              {projects.map((project, idx) => {
-                const isActive = project.id === activeId;
-                return (
-                  <button
-                    type="button"
-                    key={project.id}
-                    onClick={() => {
-                      scrollToProject(project.id);
-                      setIsJumpOpen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-start gap-2.5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                      isActive
-                        ? 'bg-blue-600 text-white dark:bg-blue-500'
-                        : 'bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/70 text-slate-800 dark:text-slate-200'
-                    }`}
-                  >
-                    <span
-                      className={`font-mono text-[10px] pt-0.5 shrink-0 ${
-                        isActive ? 'text-blue-100' : 'text-slate-400 dark:text-slate-500'
-                      }`}
-                    >
-                      {String(idx + 1).padStart(2, '0')}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-semibold leading-tight truncate">
-                        {project.title}
-                      </div>
-                      <div
-                        className={`text-[10px] font-mono truncate mt-0.5 ${
-                          isActive ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400'
-                        }`}
-                      >
-                        {project.company ? `${project.company} · ` : ''}
-                        {project.date}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </nav>
-          </>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setIsJumpOpen((prev) => !prev)}
-          aria-expanded={isJumpOpen}
-          aria-label="Toggle project navigator"
-          className="fixed bottom-4 right-4 z-30 btn-ripple inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-mono text-xs font-medium cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-        >
-          {isJumpOpen ? <X size={13} /> : <List size={13} />}
-          <span>
-            Projects ({activeIndex + 1}/{projects.length})
-          </span>
-        </button>
-      </div>
     </>
   );
 };

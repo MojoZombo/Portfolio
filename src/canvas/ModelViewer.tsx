@@ -60,6 +60,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
 
   const [internalAnimationPlaying, setInternalAnimationPlaying] = useState(() => !prefersReducedMotion);
   const [isDragging, setIsDragging] = useState(false);
+  const [isRotationHeld, setIsRotationHeld] = useState(false);
+  const [isResettingView, setIsResettingView] = useState(false);
   const [resetTrigger, setResetTrigger] = useState(0);
   const [isCameraMoved, setIsCameraMoved] = useState(false);
   const [isPrewarmed, setIsPrewarmed] = useState(false);
@@ -219,6 +221,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       setIsCanvasReady(false);
       setResetTrigger((prev) => prev + 1);
       setIsDragging(false);
+      setIsRotationHeld(false);
+      setIsResettingView(false);
       setInternalAnimationPlaying(!prefersReducedMotion);
       setIsCameraMoved(false);
       pointerHoverRef.current.hovered = false;
@@ -229,7 +233,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const isDrawingActiveReveal = shouldMountWebGL && isActiveAndSettled && !isCanvasReady;
   const showLiveCanvas = isActiveAndSettled && isCanvasReady;
   const isAnimationsStarted = showLiveCanvas;
-  const effectiveIsRotating = effectiveAnimationPlaying && !prefersReducedMotion && !isDragging;
+  const effectiveIsRotating =
+    effectiveAnimationPlaying && !prefersReducedMotion && !isDragging && !(allowZoom && isRotationHeld);
 
   // Image Paths (theme-specific with fallback)
   const themeSuffix = isDark ? 'dark' : 'light';
@@ -259,11 +264,20 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       resumeRotateTimerRef.current = null;
     }
     setIsDragging(true);
+    if (allowZoom) {
+      setIsRotationHeld(true);
+      setIsResettingView(false);
+    }
   };
 
   const handleDragEnd = () => {
     if (resumeRotateTimerRef.current) {
       clearTimeout(resumeRotateTimerRef.current);
+      resumeRotateTimerRef.current = null;
+    }
+    if (allowZoom) {
+      setIsDragging(false);
+      return;
     }
     resumeRotateTimerRef.current = setTimeout(() => {
       resumeRotateTimerRef.current = null;
@@ -286,6 +300,10 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       resumeRotateTimerRef.current = null;
     }
     setIsDragging(false);
+    setIsRotationHeld(false);
+    if (allowZoom) {
+      setIsResettingView(true);
+    }
     setResetTrigger((prev) => prev + 1);
     setIsCameraMoved(false);
     const shouldAnimate = !prefersReducedMotion;
@@ -375,6 +393,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               isAnimationPlaying={effectiveAnimationPlaying}
               isRotating={effectiveIsRotating}
               isDragging={isDragging}
+              disableHoverTilt={allowZoom && isRotationHeld}
               prefersReducedMotion={prefersReducedMotion}
               isAnimationsStarted={isAnimationsStarted}
               isThemeTransitioning={isThemeTransitioning}
@@ -386,6 +405,9 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                 setIsPrewarmed(true);
               }}
               onCameraMove={setIsCameraMoved}
+              onResetComplete={() => {
+                setIsResettingView(false);
+              }}
               onContextLost={() => {
                 setIsCanvasReady(false);
               }}
@@ -422,8 +444,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             </span>
           </button>
 
-          {/* Reset Model / Camera View Button (Appears whenever camera has been orbited, panned, or zoomed) */}
-          {isCameraMoved && (
+          {/* Reset Model / Camera View Button (Appears whenever camera or rotation was manually changed) */}
+          {(isCameraMoved || isRotationHeld) && !isResettingView && (
             <button
               type="button"
               onClick={handleResetView}
