@@ -163,14 +163,12 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({ projects, activeId
             {projects.map((project) => {
               const isActive = project.id === activeId;
               const { month, year } = formatRulerDate(project.date);
-              const labelText = `${project.title}${project.company ? ` — ${project.company}` : ''} (${project.date})`;
 
               return (
                 <button
                   type="button"
                   key={project.id}
                   onClick={() => scrollToProject(project.id)}
-                  title={labelText}
                   aria-label={`Jump to ${project.title}`}
                   className={`group relative flex items-center text-left transition-colors py-0.5 cursor-pointer w-fit self-start rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                     isActive
