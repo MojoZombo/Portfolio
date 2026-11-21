@@ -244,16 +244,12 @@ export const Header: React.FC<HeaderProps> = ({
               onDoubleClick={() => window.getSelection()?.removeAllRanges()}
               aria-expanded={isProjectIndexOpen}
               aria-haspopup="dialog"
-              aria-label={isProjectIndexOpen ? 'Close project index' : 'Open project index'}
-              title={isProjectIndexOpen ? 'Close project index' : 'Browse all projects'}
-              className={`btn-ripple w-[30px] sm:w-auto h-[30px] sm:px-2.5 p-0 inline-flex items-center justify-center gap-1.5 rounded cursor-pointer select-none font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                isProjectIndexOpen
-                  ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white'
-                  : 'bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-200'
-              }`}
+              aria-label={isProjectIndexOpen ? 'Close project list' : 'Open project list'}
+              title={isProjectIndexOpen ? 'Close project list' : 'Project list'}
+              className="btn-ripple list-toggle-btn w-[30px] sm:w-auto h-[30px] sm:px-2.5 p-0 inline-flex items-center justify-center gap-1.5 rounded bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-200 cursor-pointer select-none font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               {isProjectIndexOpen ? <X size={14} /> : <List size={14} />}
-              <span className="hidden sm:inline">Projects</span>
+              <span className="hidden sm:inline">List</span>
             </button>
           )}
         </div>
@@ -283,7 +279,7 @@ export const Header: React.FC<HeaderProps> = ({
               {onToggleProjectIndex && (
                 <div className="w-[30px] sm:w-auto h-[30px] sm:px-2.5 inline-flex items-center justify-center gap-1.5 rounded">
                   <List size={14} />
-                  <span className="hidden sm:inline font-medium">Projects</span>
+                  <span className="hidden sm:inline font-medium">List</span>
                 </div>
               )}
             </div>

@@ -183,6 +183,16 @@ html.dark .btn-ripple::before,
   color: #ffffff !important;
 }
 
+/* Keep List toggle button's open state in CSS so React never overwrites .btn-ripple.is-hovered */
+.list-toggle-btn[aria-expanded='true'] {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+html.dark .list-toggle-btn[aria-expanded='true'] {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn-ripple:hover,
   .btn-ripple:hover * {
