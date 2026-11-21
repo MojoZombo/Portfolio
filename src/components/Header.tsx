@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { Sun, Moon, FileText, MapPin, GraduationCap, Mail, Linkedin, ArrowUpRight, Copy, Check } from 'lucide-react';
 
@@ -12,7 +12,9 @@ export const Header: React.FC = () => {
   const titleBackdropRef = useRef<HTMLDivElement>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [isScrolled, setIsScrolled] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(() =>
+    typeof window !== 'undefined' ? (window.scrollY || window.pageYOffset || 0) > 12 : false
+  );
   const [copiedEmail, setCopiedEmail] = useState(false);
 
   useEffect(() => {
@@ -21,12 +23,12 @@ export const Header: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let animId = 0;
     let isCancelled = false;
     let lastScrolledState: boolean | null = null;
 
-    const updatePositions = (force = false) => {
+    const updatePositions = (force = false, animate = false) => {
       if (isCancelled) return;
       const scrollY = window.scrollY || window.pageYOffset || 0;
       const scrolled = scrollY > 12;
@@ -62,6 +64,9 @@ export const Header: React.FC = () => {
       const cornerRight = isMobile ? 16 : isTablet ? 24 : isDesktop ? 56 : 72;
 
       const targetButtonsX = width - cornerRight - buttonsWidth;
+      const transitionValue = animate ? 'transform 500ms cubic-bezier(0.16, 1, 0.3, 1)' : 'none';
+      fixedTitle.style.transition = transitionValue;
+      fixedButtons.style.transition = transitionValue;
 
       if (scrolled) {
         // Slide smoothly to the spaced corner targets
@@ -69,6 +74,7 @@ export const Header: React.FC = () => {
         fixedButtons.style.transform = `translate3d(${targetButtonsX}px, ${cornerTop}px, 0)`;
 
         if (titleBackdropRef.current) {
+          titleBackdropRef.current.style.transition = animate ? 'opacity 300ms ease' : 'none';
           titleBackdropRef.current.style.opacity = '1';
           titleBackdropRef.current.style.backdropFilter = 'blur(12px)';
           titleBackdropRef.current.style.setProperty('-webkit-backdrop-filter', 'blur(12px)');
@@ -79,6 +85,7 @@ export const Header: React.FC = () => {
         fixedButtons.style.transform = `translate3d(${buttonsRect.left.toFixed(2)}px, ${buttonsRect.top.toFixed(2)}px, 0)`;
 
         if (titleBackdropRef.current) {
+          titleBackdropRef.current.style.transition = animate ? 'opacity 300ms ease' : 'none';
           titleBackdropRef.current.style.opacity = '0';
           titleBackdropRef.current.style.backdropFilter = 'none';
           titleBackdropRef.current.style.setProperty('-webkit-backdrop-filter', 'none');
@@ -88,22 +95,22 @@ export const Header: React.FC = () => {
 
     const handleScroll = () => {
       cancelAnimationFrame(animId);
-      animId = requestAnimationFrame(() => updatePositions(false));
+      animId = requestAnimationFrame(() => updatePositions(false, true));
     };
 
     const handleResize = () => {
       cancelAnimationFrame(animId);
-      animId = requestAnimationFrame(() => updatePositions(true));
+      animId = requestAnimationFrame(() => updatePositions(true, false));
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize);
-    updatePositions(true);
+    updatePositions(true, false);
 
     if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
       (document as any).fonts.ready.then(() => {
         if (!isCancelled) {
-          updatePositions(true);
+          updatePositions(true, false);
         }
       });
     }
@@ -147,7 +154,7 @@ export const Header: React.FC = () => {
       <div
         ref={fixedTitleRef}
         style={{ position: 'fixed', top: 0, left: 0, zIndex: 40 }}
-        className="pointer-events-none will-change-transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+        className="pointer-events-none will-change-transform"
       >
         <div
           className={`relative pointer-events-auto inline-flex items-center px-2.5 py-1 -mx-2.5 -my-1 rounded-lg ${
@@ -157,7 +164,7 @@ export const Header: React.FC = () => {
           {/* Subtle backdrop layer active only when scrolled in the corner */}
           <div
             ref={titleBackdropRef}
-            className="hidden sm:block absolute inset-0 rounded-lg bg-slate-50/90 dark:bg-[#141C28]/90 pointer-events-none opacity-0 transition-opacity duration-300"
+            className="hidden sm:block absolute inset-0 rounded-lg bg-slate-50/90 dark:bg-[#141C28]/90 pointer-events-none opacity-0"
           />
           <h1 className="relative z-10 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             {isScrolled ? (
@@ -181,7 +188,7 @@ export const Header: React.FC = () => {
       <div
         ref={fixedButtonsRef}
         style={{ position: 'fixed', top: 0, left: 0, zIndex: 40 }}
-        className="pointer-events-none will-change-transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+        className="pointer-events-none will-change-transform"
       >
         <div className="pointer-events-auto flex items-center gap-2.5 font-mono text-xs shrink-0 select-none">
           <a

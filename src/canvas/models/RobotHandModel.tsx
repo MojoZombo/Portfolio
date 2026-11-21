@@ -6,7 +6,7 @@ import { createToonGradientMap } from '../materials';
 import { useTheme } from '../../context/ThemeContext';
 import { useTransformCalibration, PartColorInfo, PartAnimationConfig } from '../../context/TransformCalibrationShared';
 import { CADPivotGizmo } from '../CADPivotGizmo';
-import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, getAssemblyRoot, shouldBuildBlueprintEdges } from '../../utils/meshSplitter';
+import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, getAssemblyRoot, shouldBuildBlueprintEdges, ensureBlueprintEdges } from '../../utils/meshSplitter';
 
 interface ModelProps {
   isActive?: boolean;
@@ -664,6 +664,7 @@ export const RobotHandModel: React.FC<ModelProps> = ({ isActive = false, isRotat
   if (!masterCADPrototype) {
     masterCADPrototype = buildMasterCADPrototype(scene);
   }
+  ensureBlueprintEdges(masterCADPrototype.template, masterCADPrototype.staticEdgesList, () => 5);
 
   // Register model defaults, colors and animations with calibration context
   useEffect(() => {

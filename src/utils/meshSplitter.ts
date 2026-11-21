@@ -388,6 +388,28 @@ export function shouldBuildBlueprintEdges(): boolean {
 }
 
 /**
+ * Lazily populates cached blueprint EdgesGeometry entries if a model prototype
+ * was originally built on the main portfolio view before entering #baker or #studio.
+ */
+export function ensureBlueprintEdges(
+  template: THREE.Group,
+  staticEdgesList: THREE.EdgesGeometry[],
+  getThreshold: (mesh: THREE.Mesh) => number = () => 8
+): void {
+  if (!shouldBuildBlueprintEdges() || staticEdgesList.length > 0) return;
+  template.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      const mesh = child as THREE.Mesh;
+      try {
+        staticEdgesList.push(new THREE.EdgesGeometry(mesh.geometry, getThreshold(mesh)));
+      } catch {
+        // Ignore non-standard geometries
+      }
+    }
+  });
+}
+
+/**
  * Computes the geometric center of mass (area-weighted triangle centroid) for a BufferGeometry.
  * Caches the result on geometry.userData.__cachedCenterOfMass for O(1) subsequent lookups.
  * Falls back to bounding box center for points/lines or degenerate geometries.

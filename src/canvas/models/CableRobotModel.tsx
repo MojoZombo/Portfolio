@@ -6,7 +6,7 @@ import { createToonGradientMap } from '../materials';
 import { useTheme } from '../../context/ThemeContext';
 import { useTransformCalibration, PartColorInfo, PartAnimationConfig, CDPRConfig } from '../../context/TransformCalibrationShared';
 import { CADPivotGizmo } from '../CADPivotGizmo';
-import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, getAssemblyRoot, shouldBuildBlueprintEdges } from '../../utils/meshSplitter';
+import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, getAssemblyRoot, shouldBuildBlueprintEdges, ensureBlueprintEdges } from '../../utils/meshSplitter';
 
 interface ModelProps {
   isActive?: boolean;
@@ -530,6 +530,7 @@ export const CableRobotModel: React.FC<ModelProps> = ({ isActive = false, isRota
   if (!masterCableRobot2Prototype) {
     masterCableRobot2Prototype = buildMasterCableRobot2Prototype(scene);
   }
+  ensureBlueprintEdges(masterCableRobot2Prototype.template, masterCableRobot2Prototype.staticEdgesList);
 
   // Register model defaults, colors and animations with calibration context
   useEffect(() => {

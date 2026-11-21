@@ -6,7 +6,7 @@ import { createToonGradientMap } from '../materials';
 import { useTheme } from '../../context/ThemeContext';
 import { useTransformCalibration, PartColorInfo, PartAnimationConfig } from '../../context/TransformCalibrationShared';
 import { CADPivotGizmo } from '../CADPivotGizmo';
-import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, getAssemblyRoot, shouldBuildBlueprintEdges } from '../../utils/meshSplitter';
+import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, getAssemblyRoot, shouldBuildBlueprintEdges, ensureBlueprintEdges } from '../../utils/meshSplitter';
 
 interface ModelProps {
   isActive?: boolean;
@@ -688,6 +688,7 @@ export const WinchCatchModel: React.FC<ModelProps> = ({
   if (!masterWinchCatchPrototype) {
     masterWinchCatchPrototype = buildMasterWinchCatchPrototype(scene);
   }
+  ensureBlueprintEdges(masterWinchCatchPrototype.template, masterWinchCatchPrototype.staticEdgesList);
 
   // Register model defaults, colors and animations with calibration context
   useEffect(() => {

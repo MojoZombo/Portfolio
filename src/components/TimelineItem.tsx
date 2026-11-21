@@ -419,40 +419,6 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
               isPaused={isPausedByModal}
               className="h-[270px] xs:h-[310px] sm:h-[400px] md:h-[490px] w-full"
             />
-
-            {/* ASME-style engineering drawing leader callout when blueprint project is inactive */}
-            <div
-              aria-hidden={isActive}
-              className={`pointer-events-none select-none absolute z-20 top-1 right-0 sm:top-5 sm:right-2 md:top-12 md:-right-14 lg:-right-24 flex items-start transition-all duration-300 ease-out ${
-                isActive ? 'opacity-0 translate-x-2' : 'opacity-100 translate-x-0'
-              }`}
-            >
-              <svg
-                viewBox="0 0 80 64"
-                fill="none"
-                className="w-11 h-10 sm:w-14 sm:h-12 md:w-20 md:h-16 text-slate-400/90 dark:text-[#94A8C4]/75 shrink-0 mt-1.5"
-              >
-                <polyline
-                  points="80,8 50,8 13,45"
-                  stroke="currentColor"
-                  strokeWidth="1.25"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <polygon
-                  points="6,52 10.5,42.5 15.5,47.5"
-                  fill="currentColor"
-                />
-              </svg>
-              <div className="pl-1.5 pt-0.5 text-left">
-                <div className="font-mono text-[9px] tracking-[0.12em] uppercase text-slate-400 dark:text-slate-500 leading-none mb-1">
-                  FIG. {String(index + 1).padStart(2, '0')}
-                </div>
-                <p className="font-mono text-[10px] sm:text-[11px] font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300/85 leading-snug max-w-[130px] sm:max-w-[175px] md:max-w-[195px]">
-                  {project.title}
-                </p>
-              </div>
-            </div>
           </div>
         </motion.div>
 

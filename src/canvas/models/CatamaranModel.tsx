@@ -6,7 +6,7 @@ import { createToonGradientMap } from '../materials';
 import { useTheme } from '../../context/ThemeContext';
 import { useTransformCalibration, PartColorInfo, PartAnimationConfig } from '../../context/TransformCalibrationShared';
 import { CADPivotGizmo } from '../CADPivotGizmo';
-import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, shouldBuildBlueprintEdges } from '../../utils/meshSplitter';
+import { computeGeometryCenterOfMass, splitAllMultiMaterialMeshes, shouldBuildBlueprintEdges, ensureBlueprintEdges } from '../../utils/meshSplitter';
 
 interface ModelProps {
   isActive?: boolean;
@@ -349,6 +349,7 @@ export const CatamaranModel: React.FC<ModelProps> = ({
   if (!masterCatamaranPrototype) {
     masterCatamaranPrototype = buildMasterCatamaranPrototype(scene);
   }
+  ensureBlueprintEdges(masterCatamaranPrototype.template, masterCatamaranPrototype.staticEdgesList);
 
   // Register model defaults, colors and animations with calibration context
   useEffect(() => {
