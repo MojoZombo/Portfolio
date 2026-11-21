@@ -30,6 +30,11 @@ import { initButtonRipple, revertAllButtonRipples } from './utils/buttonRipple';
 const DEFAULT_MOBILE_TITLE_HEIGHT = 116;
 const MOBILE_TITLE_EXTRA_GAP = 10;
 const MOBILE_BELOW_BREATHE = 24;
+const MOBILE_SCRUB_WINDOW_MS = 150;
+const MOBILE_SCRUB_ENTER_DELTA = 95;
+const MOBILE_SCRUB_EXIT_DELTA = 35;
+const MOBILE_SETTLE_DELAY_MS = 95;
+const MOBILE_SLOW_SWITCH_HYSTERESIS = 0.52;
 
 const smoothstep = (edge0: number, edge1: number, x: number): number => {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
@@ -225,7 +230,14 @@ export const App: React.FC = () => {
 
     let cancelled = false;
     const centersRef: number[] = [];
+    const scrollSamples: { t: number; y: number }[] = [];
+    let isContinuousScrub = false;
+    let committedIdx = mobileActiveIndexRef.current;
+    let displayU = committedIdx;
+    let targetU = committedIdx;
     let rafId = 0;
+    let lastFrameTime = 0;
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
 
     const motionMq =
       typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -248,48 +260,48 @@ export const App: React.FC = () => {
       Math.round(mobileTitleHeightsRef.current[idx] ?? DEFAULT_MOBILE_TITLE_HEIGHT) +
       MOBILE_TITLE_EXTRA_GAP;
 
-    const applyMobileScrub = () => {
-      rafId = 0;
-      if (cancelled) return;
+    const computeScrollU = (): number => {
       if (centersRef.length === 0) {
         measureCenters();
       }
-      if (centersRef.length === 0) return;
+      if (centersRef.length === 0) return committedIdx;
 
       const n = projectsData.length;
       const scrollY = window.scrollY || window.pageYOffset || 0;
       const vh = window.innerHeight;
       const docHeight = document.documentElement.scrollHeight;
-
-      const focusY = scrollY + vh * 0.5 - 35;
-      let u = 0;
+      const focusY = scrollY + vh * 0.5 + 10;
 
       if (n <= 1 || scrollY <= 4 || focusY <= centersRef[0]) {
-        u = 0;
-      } else if (scrollY + vh >= docHeight - 4 || focusY >= centersRef[n - 1]) {
-        u = n - 1;
-      } else {
-        u = n - 1;
-        for (let seg = 0; seg < n - 1; seg++) {
-          const topC = centersRef[seg];
-          const botC = centersRef[seg + 1];
-          if (focusY <= botC) {
-            u = seg + (focusY - topC) / Math.max(1, botC - topC);
-            break;
-          }
+        return 0;
+      }
+      if (scrollY + vh >= docHeight - 4 || focusY >= centersRef[n - 1]) {
+        return n - 1;
+      }
+      for (let seg = 0; seg < n - 1; seg++) {
+        const topC = centersRef[seg];
+        const botC = centersRef[seg + 1];
+        if (focusY <= botC) {
+          return seg + (focusY - topC) / Math.max(1, botC - topC);
         }
       }
+      return n - 1;
+    };
 
-      const k = n <= 1 ? 0 : Math.min(n - 2, Math.floor(u));
-      const t = n <= 1 ? 0 : u - k;
-      const e = reduced ? (t < 0.5 ? 0 : 1) : smoothstep(0.10, 0.90, t);
+    const renderMobileScrub = (u: number) => {
+      if (cancelled) return;
+      const n = projectsData.length;
+      const clampedU = Math.max(0, Math.min(Math.max(0, n - 1), u));
+      const k = n <= 1 ? 0 : Math.min(n - 2, Math.floor(clampedU));
+      const t = n <= 1 ? 0 : clampedU - k;
+      const e = reduced ? (t < 0.5 ? 0 : 1) : smoothstep(0.16, 0.84, t);
 
       const sK = getPocketHeight(k);
       const sNext = n > 1 ? getPocketHeight(k + 1) : sK;
 
-      const pK = reduced ? (t < 0.5 ? 1 : 0) : 1 - smoothstep(0.12, 0.44, t);
+      const pK = reduced ? (t < 0.5 ? 1 : 0) : 1 - smoothstep(0.22, 0.48, t);
       const pNext =
-        n <= 1 ? 0 : reduced ? (t >= 0.5 ? 1 : 0) : smoothstep(0.54, 0.88, t);
+        n <= 1 ? 0 : reduced ? (t >= 0.5 ? 1 : 0) : smoothstep(0.46, 0.74, t);
 
       for (let i = 0; i < n; i++) {
         const entry = mobileItemRefs.current[i];
@@ -335,9 +347,10 @@ export const App: React.FC = () => {
       }
 
       const prevIdx = mobileActiveIndexRef.current;
-      const roundedIdx = Math.max(0, Math.min(n - 1, Math.round(u)));
+      const roundedIdx = Math.max(0, Math.min(n - 1, Math.round(clampedU)));
       if (roundedIdx !== prevIdx) {
-        const shouldCommit = u === 0 || u === n - 1 || Math.abs(u - prevIdx) > 0.53;
+        const shouldCommit =
+          clampedU === 0 || clampedU === n - 1 || Math.abs(clampedU - prevIdx) > 0.53;
         if (shouldCommit) {
           mobileActiveIndexRef.current = roundedIdx;
           setMobileActiveIndex(roundedIdx);
@@ -346,25 +359,122 @@ export const App: React.FC = () => {
       }
     };
 
-    const handleScroll = () => {
-      if (!rafId) {
-        rafId = window.requestAnimationFrame(applyMobileScrub);
+    const tick = (now: number) => {
+      if (cancelled) {
+        rafId = 0;
+        return;
       }
+
+      const dt = lastFrameTime ? Math.min((now - lastFrameTime) / 1000, 0.05) : 0.016;
+      lastFrameTime = now;
+
+      if (reduced) {
+        displayU = targetU;
+      } else {
+        const lambda = isContinuousScrub ? 24 : 10.5;
+        displayU += (targetU - displayU) * (1 - Math.exp(-lambda * dt));
+        if (Math.abs(targetU - displayU) < 0.001) {
+          displayU = targetU;
+        }
+      }
+
+      renderMobileScrub(displayU);
+
+      if (Math.abs(targetU - displayU) > 0.001) {
+        rafId = window.requestAnimationFrame(tick);
+      } else {
+        rafId = 0;
+        lastFrameTime = 0;
+      }
+    };
+
+    const ensureLoopRunning = () => {
+      if (!rafId && !cancelled) {
+        lastFrameTime = 0;
+        rafId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    const snapToNearest = (instant = false) => {
+      const n = projectsData.length;
+      const scrollU = computeScrollU();
+      isContinuousScrub = false;
+      committedIdx = Math.max(0, Math.min(n - 1, Math.round(scrollU)));
+      targetU = committedIdx;
+
+      if (instant || reduced) {
+        if (rafId) {
+          window.cancelAnimationFrame(rafId);
+          rafId = 0;
+        }
+        lastFrameTime = 0;
+        displayU = targetU;
+        renderMobileScrub(displayU);
+      } else {
+        ensureLoopRunning();
+      }
+    };
+
+    const handleScroll = () => {
+      const now = performance.now();
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      scrollSamples.push({ t: now, y: scrollY });
+      while (scrollSamples.length > 0 && now - scrollSamples[0].t > MOBILE_SCRUB_WINDOW_MS) {
+        scrollSamples.shift();
+      }
+      const windowDelta =
+        scrollSamples.length >= 2
+          ? Math.abs(scrollSamples[scrollSamples.length - 1].y - scrollSamples[0].y)
+          : 0;
+
+      const n = projectsData.length;
+      const scrollU = computeScrollU();
+
+      if (!isContinuousScrub && windowDelta >= MOBILE_SCRUB_ENTER_DELTA) {
+        isContinuousScrub = true;
+        targetU = scrollU;
+      } else if (isContinuousScrub) {
+        if (windowDelta <= MOBILE_SCRUB_EXIT_DELTA) {
+          isContinuousScrub = false;
+          committedIdx = Math.max(0, Math.min(n - 1, Math.round(scrollU)));
+          targetU = committedIdx;
+        } else {
+          targetU = scrollU;
+        }
+      } else {
+        if (scrollU === 0) {
+          committedIdx = 0;
+        } else if (scrollU === n - 1) {
+          committedIdx = n - 1;
+        } else if (Math.abs(scrollU - committedIdx) > MOBILE_SLOW_SWITCH_HYSTERESIS) {
+          committedIdx = Math.max(0, Math.min(n - 1, Math.round(scrollU)));
+        }
+        targetU = committedIdx;
+      }
+
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        if (cancelled) return;
+        scrollSamples.length = 0;
+        snapToNearest(false);
+      }, MOBILE_SETTLE_DELAY_MS);
+
+      ensureLoopRunning();
     };
 
     const handleResize = () => {
       measureCenters();
-      applyMobileScrub();
+      snapToNearest(true);
     };
 
     const handleMotionChange = (ev: MediaQueryListEvent) => {
       reduced = ev.matches;
-      applyMobileScrub();
+      snapToNearest(true);
     };
 
-    rescrubMobileRef.current = applyMobileScrub;
+    rescrubMobileRef.current = () => renderMobileScrub(displayU);
     measureCenters();
-    applyMobileScrub();
+    snapToNearest(true);
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
@@ -375,13 +485,14 @@ export const App: React.FC = () => {
       fonts.ready.then(() => {
         if (cancelled) return;
         measureCenters();
-        applyMobileScrub();
+        snapToNearest(true);
       });
     }
 
     return () => {
       cancelled = true;
       rescrubMobileRef.current = null;
+      if (settleTimer) clearTimeout(settleTimer);
       if (rafId) window.cancelAnimationFrame(rafId);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
