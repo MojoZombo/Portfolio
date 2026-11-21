@@ -1,7 +1,7 @@
-import React, { Suspense, lazy, useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { Suspense, lazy, useState, useRef, useEffect } from 'react';
 import type { PointerHoverState } from './ModelCanvas';
 import { POSTER_VERSION, preloadModelAssets } from './ModelPreloadManager';
-import { computeMatchedDpr } from './stageConfig';
+import { getNativeDpr } from './stageConfig';
 import { useTheme } from '../context/ThemeContext';
 import { Pause, Play, RotateCcw } from 'lucide-react';
 
@@ -21,13 +21,6 @@ interface ModelViewerProps {
   className?: string;
   allowZoom?: boolean;
 }
-
-const getInitialMatchedDpr = (): number => {
-  if (typeof window === 'undefined') return computeMatchedDpr(0);
-  const mobile = window.innerWidth < 768;
-  const estimatedHeight = mobile ? (window.innerWidth < 480 ? 270 : 310) : 490;
-  return computeMatchedDpr(estimatedHeight);
-};
 
 export const ModelViewer: React.FC<ModelViewerProps> = ({
   modelType,
@@ -103,42 +96,30 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [isMobileWidth, setIsMobileWidth] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
-  const [dynamicDpr, setDynamicDpr] = useState<number>(() => getInitialMatchedDpr());
+  const [nativeDpr, setNativeDpr] = useState<number>(() => getNativeDpr());
 
   useEffect(() => {
     const handleResize = () => {
       const mobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
       setIsMobileWidth(mobile);
+      const nextDpr = getNativeDpr();
+      setNativeDpr((prev) => (Math.abs(prev - nextDpr) > 0.01 ? nextDpr : prev));
     };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Lock WebGL backing height to the baked 784px poster PNG before first paint and on container resize
-  useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const updateDprFromHeight = (height: number) => {
-      if (height > 0) {
-        const calculated = computeMatchedDpr(height);
-        setDynamicDpr((prev) => (Math.abs(prev - calculated) > 0.01 ? calculated : prev));
-      }
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const syncDpr = () => {
+      const nextDpr = getNativeDpr();
+      setNativeDpr((prev) => (Math.abs(prev - nextDpr) > 0.01 ? nextDpr : prev));
     };
-
-    updateDprFromHeight(el.getBoundingClientRect().height);
-
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        updateDprFromHeight(entry.contentRect.height);
-      }
-    });
-
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    mq.addEventListener('change', syncDpr);
+    return () => mq.removeEventListener('change', syncDpr);
+  }, [nativeDpr]);
 
   const isMobileMode = !allowZoom && (isTouchDevice || isMobileWidth);
 
@@ -385,7 +366,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               isMobileMode={isMobileMode}
               isTouchDevice={isTouchDevice}
               isMobileWidth={isMobileWidth}
-              dynamicDpr={dynamicDpr}
+              dynamicDpr={nativeDpr}
               showLiveCanvas={showLiveCanvas}
               isDrawingActiveReveal={isDrawingActiveReveal}
               isActiveAndSettled={isActiveAndSettled}

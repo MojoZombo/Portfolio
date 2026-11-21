@@ -1,21 +1,23 @@
 import React from 'react';
 
 export const POSTER_STAGE_HEIGHT = 490;
-export const POSTER_BAKE_DPR = 1.6;
+export const POSTER_BAKE_DPR = 2.0;
 export const POSTER_BUFFER_HEIGHT = Math.round(POSTER_STAGE_HEIGHT * POSTER_BAKE_DPR);
+
+export const CAD_LINE_HEIGHT_RATIO = 1.15 / 784;
+export const MAX_LIVE_DPR = 3.0;
 
 export const CAD_CAMERA_POSITION: [number, number, number] = [4.6, 3.2, 5.0];
 export const CAD_CAMERA_FOV = 34;
 
 /**
- * Matches live WebGL canvas backing height to the baked 784px poster PNG so 1px
- * WebGL edge lines render at identical screen thickness across all viewports.
+ * Returns the device's native pixel ratio capped for responsive high-DPI WebGL rendering.
  */
-export function computeMatchedDpr(containerHeight: number): number {
-  if (!containerHeight || containerHeight <= 0) {
-    return POSTER_BAKE_DPR;
+export function getNativeDpr(): number {
+  if (typeof window === 'undefined') {
+    return 1;
   }
-  return Math.min(3.0, Math.max(1.0, +(POSTER_BUFFER_HEIGHT / containerHeight).toFixed(2)));
+  return Math.min(MAX_LIVE_DPR, Math.max(1, window.devicePixelRatio || 1));
 }
 
 /**

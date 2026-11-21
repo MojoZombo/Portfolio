@@ -7,6 +7,7 @@ useGLTF.setDecoderPath('./draco/gltf/');
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { projectsData } from '../../data/projectsData';
 import { ModelRenderer } from '../../canvas/ModelRenderer';
+import { CADEdgeManager } from '../../canvas/cadEdges';
 import { CADStageLights } from '../../canvas/stageConfig';
 import { useTheme } from '../../context/ThemeContext';
 import { useTransformCalibration, SplitPartRecord, AxisAlignment, PartColorInfo, TransformSettings, PartAnimationConfig, AnimationType } from '../../context/TransformCalibrationContext';
@@ -106,6 +107,7 @@ function StudioSceneBridge({
     const time = isPlaying ? localTimeRef.current : 0;
 
     const isHelperOrGizmo = (obj: THREE.Object3D): boolean => {
+      if (obj.userData?.isCadEdgeQuad) return true;
       if ((obj as THREE.Mesh).isMesh) {
         const m = obj as THREE.Mesh;
         if (!m.name || m.name === 'undefined' || (m.geometry?.attributes?.position?.count && m.geometry.attributes.position.count <= 4)) {
@@ -135,7 +137,7 @@ function StudioSceneBridge({
     const meshMap = new Map<number, THREE.Mesh>();
     let partFallbackIdx = 0;
     scene.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh && !(child instanceof THREE.LineSegments)) {
+      if ((child as THREE.Mesh).isMesh && !(child instanceof THREE.LineSegments) && !child.userData?.isCadEdgeQuad) {
         const mesh = child as THREE.Mesh;
         if (!isHelperOrGizmo(mesh)) {
           const currentIdx =
@@ -627,7 +629,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     exportGroup.name = activeModelId + '_split';
     
     sceneRef.current.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh && (child.userData?.isCadMesh || child.userData?.partIndex !== undefined)) {
+      if ((child as THREE.Mesh).isMesh && !child.userData?.isCadEdgeQuad && (child.userData?.isCadMesh || child.userData?.partIndex !== undefined)) {
         const mesh = child as THREE.Mesh;
         // Skip helpers, gizmos, grids, and stray helper planes
         if (
@@ -677,7 +679,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
         }
         
         // Remove children lines (blueprints, cel shading borders)
-        clone.children = clone.children.filter(c => !(c instanceof THREE.LineSegments));
+        clone.children = clone.children.filter(c => !(c instanceof THREE.LineSegments) && !c.userData?.isCadEdgeQuad);
         
         exportGroup.add(clone);
       }
@@ -1011,7 +1013,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     const cadMeshes: THREE.Mesh[] = [];
     const nonGizmoMeshes: THREE.Mesh[] = [];
     sceneRef.current.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
+      if ((child as THREE.Mesh).isMesh && !child.userData?.isCadEdgeQuad) {
         const m = child as THREE.Mesh;
         if (m.userData?.isCadMesh) {
           cadMeshes.push(m);
@@ -1120,7 +1122,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     const cadMeshes: THREE.Mesh[] = [];
     const nonGizmoMeshes: THREE.Mesh[] = [];
     sceneRef.current.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
+      if ((child as THREE.Mesh).isMesh && !child.userData?.isCadEdgeQuad) {
         const m = child as THREE.Mesh;
         if (m.userData?.isCadMesh) {
           cadMeshes.push(m);
@@ -1227,7 +1229,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
     const subMeshesToRemove: THREE.Mesh[] = [];
 
     sceneRef.current.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
+      if ((child as THREE.Mesh).isMesh && !child.userData?.isCadEdgeQuad) {
         const m = child as THREE.Mesh;
         if (
           m.userData.cadPartIndex === parentPartIndex ||
@@ -1633,7 +1635,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
           {/* 3D Canvas with Direct Click Selection */}
           <Canvas
             className="grab-cursor"
-            gl={{ antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: true }}
+            gl={{ antialias: true, alpha: true, stencil: true, powerPreference: 'high-performance', preserveDrawingBuffer: true }}
           >
             <InteractiveStudioPivotGizmo
               selectedPartIndex={selectedPartIndex}
@@ -1707,6 +1709,7 @@ export const CADStudioWorkbench: React.FC<StudioProps> = ({ onExit }) => {
                 isAnimating={isPlaying}
               />
             </Suspense>
+            <CADEdgeManager />
 
             {/* Scene Bridge for Dynamic Live Splitting & Material Synchronization */}
             <StudioSceneBridge
@@ -4399,7 +4402,7 @@ function InteractiveStudioPivotGizmo({
 
     let targetMesh: THREE.Mesh | null = null;
     scene.traverse((child) => {
-      if ((child as any).isMesh && (
+      if ((child as any).isMesh && !child.userData?.isCadEdgeQuad && (
         child.userData.cadPartIndex === selectedPartIndex || 
         child.userData.partIndex === selectedPartIndex || 
         child.userData.subPartIndex === selectedPartIndex
@@ -4542,7 +4545,7 @@ function InteractiveStudioPivotGizmo({
 
     let targetMesh: THREE.Mesh | null = null;
     scene.traverse((child) => {
-      if ((child as any).isMesh && (
+      if ((child as any).isMesh && !child.userData?.isCadEdgeQuad && (
         child.userData.cadPartIndex === selectedPartIndex || 
         child.userData.partIndex === selectedPartIndex || 
         child.userData.subPartIndex === selectedPartIndex

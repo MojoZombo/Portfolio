@@ -3,6 +3,7 @@ import React, { Suspense, useRef, useEffect, Component, ErrorInfo, ReactNode } f
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, useGLTF } from '@react-three/drei';
 import { ModelRenderer } from './ModelRenderer';
+import { CADEdgeManager } from './cadEdges';
 import { CAD_CAMERA_FOV, CAD_CAMERA_POSITION, CADStageLights } from './stageConfig';
 
 // Ensure self-hosted Draco WASM decoder is configured before any model mounts
@@ -487,6 +488,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
       gl={{
         antialias: true,
         alpha: true,
+        stencil: true,
         powerPreference: 'high-performance',
         preserveDrawingBuffer: false,
       }}
@@ -546,6 +548,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
           onDrawn={onDrawn}
         />
       </Suspense>
+      <CADEdgeManager />
       <CameraResetController
         resetTrigger={resetTrigger}
         allowZoom={allowZoom}

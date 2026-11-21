@@ -8,6 +8,11 @@ import JSZip from 'jszip';
 import { projectsData } from '../../data/projectsData';
 import { ModelRenderer } from '../../canvas/ModelRenderer';
 import {
+  CADEdgeManager,
+  CADEdgeRegistry,
+  syncCADEdges,
+} from '../../canvas/cadEdges';
+import {
   CAD_CAMERA_FOV,
   CAD_CAMERA_POSITION,
   CADStageLights,
@@ -31,8 +36,10 @@ import {
 // Bridge to safely capture the transparent WebGL buffer from the active stage
 function StageCaptureBridge({
   onRegister,
+  edgeRegistryRef,
 }: {
   onRegister: (captureFn: () => string | null) => void;
+  edgeRegistryRef: React.MutableRefObject<CADEdgeRegistry | null>;
 }) {
   const { gl, scene, camera } = useThree();
 
@@ -42,6 +49,10 @@ function StageCaptureBridge({
         const oldAlpha = gl.getClearAlpha();
         const oldColor = new THREE.Color();
         gl.getClearColor(oldColor);
+
+        if (edgeRegistryRef.current) {
+          syncCADEdges(scene, gl, edgeRegistryRef.current);
+        }
 
         // Clear background to transparent alpha
         gl.setClearColor(0x000000, 0);
@@ -55,7 +66,7 @@ function StageCaptureBridge({
         return null;
       }
     });
-  }, [gl, scene, camera, onRegister]);
+  }, [gl, scene, camera, onRegister, edgeRegistryRef]);
 
   return null;
 }
@@ -107,6 +118,7 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
   const [bakePassId, setBakePassId] = useState(0);
 
   const captureFnRef = useRef<(() => string | null) | null>(null);
+  const edgeRegistryRef = useRef<CADEdgeRegistry | null>(null);
   const nextBakePassRef = useRef(1);
   const settledWaiterRef = useRef<{ key: string; resolve: () => void } | null>(null);
   const currentProject = modelsList[currentIndex] || modelsList[0];
@@ -416,6 +428,7 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
                 gl={{
                   antialias: true,
                   alpha: true,
+                  stencil: true,
                   preserveDrawingBuffer: true,
                   powerPreference: 'high-performance',
                 }}
@@ -447,6 +460,7 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
                     onSettled={handleModelSettled}
                   />
                 </Suspense>
+                <CADEdgeManager registryRef={edgeRegistryRef} />
 
                 <OrbitControls
                   target={[0, 0, 0]}
@@ -456,7 +470,7 @@ export const PosterBakerPage: React.FC<{ onExit: () => void }> = ({ onExit }) =>
                   dampingFactor={0.08}
                 />
 
-                <StageCaptureBridge onRegister={handleRegisterCapture} />
+                <StageCaptureBridge onRegister={handleRegisterCapture} edgeRegistryRef={edgeRegistryRef} />
               </Canvas>
 
               {/* Snapshot Action Pill */}
