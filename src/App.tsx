@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { BackgroundGrid } from './components/BackgroundGrid';
 import { Header } from './components/Header';
+import { ProjectIndex } from './components/ProjectIndex';
 import { TimelineItem } from './components/TimelineItem';
 import { TimelineRuler } from './components/TimelineRuler';
 import { ProjectModal } from './components/ProjectModal';
@@ -93,6 +94,7 @@ export const App: React.FC = () => {
     return null;
   });
   const [activeProjectId, setActiveProjectId] = useState<string>(projectsData[0]?.id || '');
+  const [isProjectIndexOpen, setIsProjectIndexOpen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
@@ -155,6 +157,9 @@ export const App: React.FC = () => {
       setIsResumeOpen(isResume);
       setIsStudioOpen(isStudio);
       setIsBakerOpen(isBaker);
+      if (isResume || isStudio || isBaker || rawHash) {
+        setIsProjectIndexOpen(false);
+      }
 
       if (isStudio || isBaker) {
         window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -177,10 +182,42 @@ export const App: React.FC = () => {
 
   const handleSelectProject = React.useCallback((p: Project) => {
     revertAllButtonRipples();
+    setIsProjectIndexOpen(false);
     setSelectedProject(p);
     if (window.location.hash.replace(/^#\/?/, '') !== p.id) {
       window.history.pushState(null, '', `#${p.id}`);
     }
+  }, []);
+
+  const handleToggleProjectIndex = useCallback(() => {
+    revertAllButtonRipples();
+    setIsProjectIndexOpen((prev) => !prev);
+  }, []);
+
+  const handleJumpToProject = useCallback((project: Project, index: number) => {
+    revertAllButtonRipples();
+    setIsProjectIndexOpen(false);
+    document.body.style.overflow = '';
+
+    window.requestAnimationFrame(() => {
+      const isMobile = window.innerWidth < 768;
+      if (isMobile && index === 0) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      const el = document.getElementById(`project-${project.id}`);
+      if (!el) return;
+
+      if (isMobile) {
+        const rect = el.getBoundingClientRect();
+        const centerDocY =
+          rect.top + (window.scrollY || window.pageYOffset || 0) + rect.height / 2;
+        const targetTop = Math.max(0, centerDocY - (window.innerHeight * 0.5 + 10));
+        window.scrollTo({ top: targetTop, behavior: 'smooth' });
+      } else {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
   }, []);
 
   const handleCloseProjectModal = React.useCallback(() => {
@@ -570,7 +607,19 @@ export const App: React.FC = () => {
       <BackgroundGrid />
 
       {/* Top Header */}
-      <Header />
+      <Header
+        isProjectIndexOpen={isProjectIndexOpen}
+        onToggleProjectIndex={handleToggleProjectIndex}
+      />
+
+      {/* Project Index Popover (desktop) / Bottom Sheet (mobile) */}
+      <ProjectIndex
+        isOpen={isProjectIndexOpen}
+        onClose={() => setIsProjectIndexOpen(false)}
+        projects={projectsData}
+        activeProjectId={activeProjectId}
+        onSelectProject={handleJumpToProject}
+      />
 
       {/* Continuous Dynamic Timeline Ruler along the side */}
       <TimelineRuler projects={projectsData} activeId={activeProjectId} />

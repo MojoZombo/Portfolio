@@ -1,8 +1,16 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { Sun, Moon, FileText, MapPin, GraduationCap, Mail, Linkedin, ArrowUpRight, Copy, Check } from 'lucide-react';
+import { Sun, Moon, FileText, MapPin, GraduationCap, Mail, Linkedin, ArrowUpRight, Copy, Check, List, X } from 'lucide-react';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  isProjectIndexOpen?: boolean;
+  onToggleProjectIndex?: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({
+  isProjectIndexOpen = false,
+  onToggleProjectIndex,
+}) => {
   const { theme, toggleTheme } = useTheme();
 
   const titleAnchorRef = useRef<HTMLDivElement>(null);
@@ -190,7 +198,7 @@ export const Header: React.FC = () => {
         style={{ position: 'fixed', top: 0, left: 0, zIndex: 40 }}
         className="pointer-events-none will-change-transform"
       >
-        <div className="pointer-events-auto flex items-center gap-2.5 font-mono text-xs shrink-0 select-none">
+        <div className="pointer-events-auto flex items-center gap-2 sm:gap-2.5 font-mono text-xs shrink-0 select-none">
           <a
             href="#resume"
             onClick={(e) => {
@@ -224,6 +232,30 @@ export const Header: React.FC = () => {
             <Sun size={14} className="theme-icon-sun pointer-events-none" />
             <Moon size={14} className="theme-icon-moon pointer-events-none" />
           </button>
+
+          {onToggleProjectIndex && (
+            <button
+              type="button"
+              onClick={onToggleProjectIndex}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                if (e.detail > 1) window.getSelection()?.removeAllRanges();
+              }}
+              onDoubleClick={() => window.getSelection()?.removeAllRanges()}
+              aria-expanded={isProjectIndexOpen}
+              aria-haspopup="dialog"
+              aria-label={isProjectIndexOpen ? 'Close project index' : 'Open project index'}
+              title={isProjectIndexOpen ? 'Close project index' : 'Browse all projects'}
+              className={`btn-ripple w-[30px] sm:w-auto h-[30px] sm:px-2.5 p-0 inline-flex items-center justify-center gap-1.5 rounded cursor-pointer select-none font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                isProjectIndexOpen
+                  ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white'
+                  : 'bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-200'
+              }`}
+            >
+              {isProjectIndexOpen ? <X size={14} /> : <List size={14} />}
+              <span className="hidden sm:inline">Projects</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -240,7 +272,7 @@ export const Header: React.FC = () => {
             </div>
 
             {/* Anchor Placeholder for Buttons - stays strictly on the right */}
-            <div ref={buttonsAnchorRef} aria-hidden="true" className="invisible select-none pointer-events-none flex items-center gap-2.5 font-mono text-xs shrink-0">
+            <div ref={buttonsAnchorRef} aria-hidden="true" className="invisible select-none pointer-events-none flex items-center gap-2 sm:gap-2.5 font-mono text-xs shrink-0">
               <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded">
                 <FileText size={13} />
                 <span>Resume</span>
@@ -248,6 +280,12 @@ export const Header: React.FC = () => {
               <div className="w-[30px] h-[30px] flex items-center justify-center rounded">
                 <Sun size={14} />
               </div>
+              {onToggleProjectIndex && (
+                <div className="w-[30px] sm:w-auto h-[30px] sm:px-2.5 inline-flex items-center justify-center gap-1.5 rounded">
+                  <List size={14} />
+                  <span className="hidden sm:inline font-medium">Projects</span>
+                </div>
+              )}
             </div>
           </div>
 
