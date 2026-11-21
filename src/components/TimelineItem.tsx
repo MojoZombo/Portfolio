@@ -29,9 +29,11 @@ interface TimelineItemProps {
   /** Optional custom vertical translation distance for text card */
   textTranslateY?: number;
   mobileIsActive?: boolean;
-  mobileRelation?: -1 | 0 | 1;
-  mobileModelOffsetY?: number;
-  enableMobilePushTransition?: boolean;
+  onRegisterMobileRefs?: (
+    index: number,
+    modelEl: HTMLDivElement | null,
+    titleEl: HTMLDivElement | null
+  ) => void;
   onMobileTitleMeasure?: (index: number, height: number) => void;
 }
 
@@ -46,9 +48,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   modelTranslateY,
   textTranslateY,
   mobileIsActive,
-  mobileRelation = 0,
-  mobileModelOffsetY = 0,
-  enableMobilePushTransition = true,
+  onRegisterMobileRefs,
   onMobileTitleMeasure,
 }) => {
   // Resolve custom translation distances for both directions:
@@ -84,6 +84,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
 
   const itemRef = useRef<HTMLDivElement | null>(null);
   const titleBlockRef = useRef<HTMLDivElement | null>(null);
+  const modelPushRef = useRef<HTMLDivElement | null>(null);
   const [isActive, setIsActive] = useState(index === 0);
   const isActiveRef = useRef(index === 0);
   const [isNearby, setIsNearby] = useState(index <= 1);
@@ -96,22 +97,17 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true
   );
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
-    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      : false
-  );
 
   const effectiveIsActive = isDesktop ? isActive : (mobileIsActive ?? isActive);
   isActiveRef.current = effectiveIsActive;
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
+  useLayoutEffect(() => {
+    if (isDesktop || !onRegisterMobileRefs) return;
+    onRegisterMobileRefs(index, modelPushRef.current, titleBlockRef.current);
+    return () => {
+      onRegisterMobileRefs(index, null, null);
+    };
+  }, [isDesktop, index, onRegisterMobileRefs]);
 
   useLayoutEffect(() => {
     if (isDesktop || !onMobileTitleMeasure) return;
@@ -404,15 +400,6 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
     };
   }, [project.id, project.modelType, onVisible, measureDocCenter]);
 
-  const mobileTuckY = mobileRelation < 0 ? -10 : 10;
-  const titleTransition = isDesktop
-    ? 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
-    : !enableMobilePushTransition || prefersReducedMotion
-    ? 'none'
-    : effectiveIsActive
-    ? 'transform 300ms cubic-bezier(0.22, 1, 0.36, 1) 25ms, opacity 200ms ease-out 35ms'
-    : 'transform 180ms ease-out, opacity 130ms ease-out';
-
   return (
     <section
       id={`project-${project.id}`}
@@ -425,24 +412,26 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
         
         {/* Project Header / Details:
             - Desktop: Floats on left and slides in dynamically when active in center view
-            - Mobile: Unveils inside the GPU push-apart pocket opened above the active model
-            - Compositor-driven: Uses native GPU CSS transitions for guaranteed 60/120fps motion without main-thread jank
+            - Mobile: Unveils inside the scroll-scrubbed pocket opened above the active model
+            - Compositor-driven: Uses native GPU CSS transforms without main-thread React churn
         */}
         <div
           ref={titleBlockRef}
           aria-hidden={!effectiveIsActive}
-          style={{
-            transform: isDesktop
-              ? `translate3d(${effectiveIsActive ? 0 : textShiftX}px, ${effectiveIsActive ? 0 : textShiftY}px, 0)`
-              : effectiveIsActive
-              ? 'translate3d(0, 0, 0) scale(1)'
-              : `translate3d(0, ${mobileTuckY}px, 0) scale(0.985)`,
-            transformOrigin: 'left bottom',
-            opacity: effectiveIsActive ? 1 : 0,
-            pointerEvents: effectiveIsActive ? 'auto' : 'none',
-            transition: titleTransition,
-            willChange: 'transform, opacity',
-          }}
+          style={
+            isDesktop
+              ? {
+                  transform: `translate3d(${effectiveIsActive ? 0 : textShiftX}px, ${effectiveIsActive ? 0 : textShiftY}px, 0)`,
+                  opacity: effectiveIsActive ? 1 : 0,
+                  pointerEvents: effectiveIsActive ? 'auto' : 'none',
+                  transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                  willChange: 'transform, opacity',
+                }
+              : {
+                  transformOrigin: 'left bottom',
+                  willChange: 'transform, opacity',
+                }
+          }
           className="absolute top-1 left-4 right-4 sm:left-6 sm:right-6 md:top-auto md:right-auto md:w-5/12 md:left-4 lg:left-8 z-30 md:z-20 will-change-transform transform-gpu"
         >
           <div className="space-y-2.5 p-0">
@@ -482,18 +471,8 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
         </div>
 
         <div
+          ref={modelPushRef}
           className="w-full flex items-center justify-center overflow-visible will-change-transform pointer-events-auto"
-          style={
-            !isDesktop
-              ? {
-                  transform: `translate3d(0, ${mobileModelOffsetY}px, 0)`,
-                  transition:
-                    enableMobilePushTransition && !prefersReducedMotion
-                      ? 'transform 420ms cubic-bezier(0.22, 1, 0.36, 1)'
-                      : 'none',
-                }
-              : undefined
-          }
         >
           <motion.div
             initial={false}

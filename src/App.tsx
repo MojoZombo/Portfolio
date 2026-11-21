@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { BackgroundGrid } from './components/BackgroundGrid';
 import { Header } from './components/Header';
 import { TimelineItem } from './components/TimelineItem';
@@ -30,11 +30,11 @@ import { initButtonRipple, revertAllButtonRipples } from './utils/buttonRipple';
 const DEFAULT_MOBILE_TITLE_HEIGHT = 116;
 const MOBILE_TITLE_EXTRA_GAP = 10;
 const MOBILE_BELOW_BREATHE = 24;
-const MOBILE_ACTIVE_HYSTERESIS = 36;
-const MOBILE_VELOCITY_WINDOW_MS = 180;
-const MOBILE_FAST_ENTER_DELTA = 145;
-const MOBILE_FAST_EXIT_DELTA = 45;
-const MOBILE_SCROLL_SETTLE_MS = 100;
+
+const smoothstep = (edge0: number, edge1: number, x: number): number => {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+};
 
 export const App: React.FC = () => {
   useEffect(() => {
@@ -93,13 +93,11 @@ export const App: React.FC = () => {
   );
   const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
   const mobileActiveIndexRef = useRef(0);
-  const [mobilePushIndex, setMobilePushIndex] = useState(0);
-  const mobilePushIndexRef = useRef(0);
   const mobileTitleHeightsRef = useRef<Record<number, number>>({});
-  const [mobilePushAmount, setMobilePushAmount] = useState(
-    DEFAULT_MOBILE_TITLE_HEIGHT + MOBILE_TITLE_EXTRA_GAP
-  );
-  const [enableMobilePushTransition, setEnableMobilePushTransition] = useState(false);
+  const mobileItemRefs = useRef<
+    Record<number, { modelEl: HTMLDivElement | null; titleEl: HTMLDivElement | null }>
+  >({});
+  const rescrubMobileRef = useRef<(() => void) | null>(null);
   const [copiedFooterEmail, setCopiedFooterEmail] = useState(false);
   const footerCopyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -193,11 +191,23 @@ export const App: React.FC = () => {
     setActiveProjectId(id);
   }, []);
 
+  const handleRegisterMobileRefs = useCallback(
+    (idx: number, modelEl: HTMLDivElement | null, titleEl: HTMLDivElement | null) => {
+      if (!modelEl && !titleEl) {
+        delete mobileItemRefs.current[idx];
+      } else {
+        mobileItemRefs.current[idx] = { modelEl, titleEl };
+        rescrubMobileRef.current?.();
+      }
+    },
+    []
+  );
+
   const handleMobileTitleMeasure = useCallback((idx: number, height: number) => {
-    mobileTitleHeightsRef.current[idx] = height;
-    if (idx === mobilePushIndexRef.current) {
-      const nextPush = Math.round(height) + MOBILE_TITLE_EXTRA_GAP;
-      setMobilePushAmount((prev) => (Math.abs(prev - nextPush) >= 1 ? nextPush : prev));
+    const prev = mobileTitleHeightsRef.current[idx];
+    if (prev === undefined || Math.abs(prev - height) >= 1) {
+      mobileTitleHeightsRef.current[idx] = height;
+      rescrubMobileRef.current?.();
     }
   }, []);
 
@@ -210,29 +220,18 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('resize', updateViewport);
   }, []);
 
-  useEffect(() => {
-    let raf1 = 0;
-    let raf2 = 0;
-    raf1 = window.requestAnimationFrame(() => {
-      raf2 = window.requestAnimationFrame(() => {
-        setEnableMobilePushTransition(true);
-      });
-    });
-    return () => {
-      window.cancelAnimationFrame(raf1);
-      window.cancelAnimationFrame(raf2);
-    };
-  }, []);
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isMobileViewport || isBakerOpen || isStudioOpen) return;
 
     let cancelled = false;
     const centersRef: number[] = [];
-    const scrollSamples: { t: number; y: number }[] = [];
-    let isFastScrolling = false;
-    let settleTimer: ReturnType<typeof setTimeout> | null = null;
     let rafId = 0;
+
+    const motionMq =
+      typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)')
+        : null;
+    let reduced = motionMq?.matches ?? false;
 
     const measureCenters = () => {
       const scrollY = window.scrollY || window.pageYOffset || 0;
@@ -245,159 +244,160 @@ export const App: React.FC = () => {
       }
     };
 
-    const resolveNearestIndex = (): number => {
+    const getPocketHeight = (idx: number): number =>
+      Math.round(mobileTitleHeightsRef.current[idx] ?? DEFAULT_MOBILE_TITLE_HEIGHT) +
+      MOBILE_TITLE_EXTRA_GAP;
+
+    const applyMobileScrub = () => {
+      rafId = 0;
+      if (cancelled) return;
       if (centersRef.length === 0) {
         measureCenters();
       }
-      if (centersRef.length === 0) return mobilePushIndexRef.current;
+      if (centersRef.length === 0) return;
 
+      const n = projectsData.length;
       const scrollY = window.scrollY || window.pageYOffset || 0;
       const vh = window.innerHeight;
       const docHeight = document.documentElement.scrollHeight;
-      const n = projectsData.length;
 
-      if (scrollY <= 8) return 0;
-      if (scrollY + vh >= docHeight - 8) return n - 1;
+      const focusY = scrollY + vh * 0.5 - 35;
+      let u = 0;
 
-      const pushIdx = mobilePushIndexRef.current;
-      const currentPush =
-        (mobileTitleHeightsRef.current[pushIdx] ?? DEFAULT_MOBILE_TITLE_HEIGHT) +
-        MOBILE_TITLE_EXTRA_GAP;
-      const viewportCenterY = scrollY + vh * 0.5 + 28;
+      if (n <= 1 || scrollY <= 4 || focusY <= centersRef[0]) {
+        u = 0;
+      } else if (scrollY + vh >= docHeight - 4 || focusY >= centersRef[n - 1]) {
+        u = n - 1;
+      } else {
+        u = n - 1;
+        for (let seg = 0; seg < n - 1; seg++) {
+          const topC = centersRef[seg];
+          const botC = centersRef[seg + 1];
+          if (focusY <= botC) {
+            u = seg + (focusY - topC) / Math.max(1, botC - topC);
+            break;
+          }
+        }
+      }
 
-      const getVisualCenter = (idx: number): number | undefined => {
-        const base = centersRef[idx];
-        if (base === undefined) return undefined;
-        if (idx < pushIdx) return base;
-        if (idx === pushIdx) return base + currentPush / 2;
-        return base + currentPush + MOBILE_BELOW_BREATHE;
-      };
+      const k = n <= 1 ? 0 : Math.min(n - 2, Math.floor(u));
+      const t = n <= 1 ? 0 : u - k;
+      const e = reduced ? (t < 0.5 ? 0 : 1) : smoothstep(0.10, 0.90, t);
 
-      let nearestIdx = 0;
-      let nearestDist = Infinity;
+      const sK = getPocketHeight(k);
+      const sNext = n > 1 ? getPocketHeight(k + 1) : sK;
+
+      const pK = reduced ? (t < 0.5 ? 1 : 0) : 1 - smoothstep(0.12, 0.44, t);
+      const pNext =
+        n <= 1 ? 0 : reduced ? (t >= 0.5 ? 1 : 0) : smoothstep(0.54, 0.88, t);
+
       for (let i = 0; i < n; i++) {
-        const visualCenter = getVisualCenter(i);
-        if (visualCenter === undefined) continue;
-        const dist = Math.abs(visualCenter - viewportCenterY);
-        if (dist < nearestDist) {
-          nearestDist = dist;
-          nearestIdx = i;
+        const entry = mobileItemRefs.current[i];
+        if (!entry) continue;
+
+        let offsetY = 0;
+        if (i < k) {
+          offsetY = 0;
+        } else if (i === k) {
+          offsetY = sK * (1 - e);
+        } else if (i === k + 1) {
+          offsetY = (sK + MOBILE_BELOW_BREATHE) * (1 - e) + sNext * e;
+        } else {
+          offsetY =
+            (sK + MOBILE_BELOW_BREATHE) * (1 - e) +
+            (sNext + MOBILE_BELOW_BREATHE) * e;
+        }
+
+        if (entry.modelEl) {
+          entry.modelEl.style.transition = 'none';
+          entry.modelEl.style.transform = `translate3d(0, ${offsetY.toFixed(2)}px, 0)`;
+        }
+
+        let titleProgress = 0;
+        let tuckY = i < k ? -8 : 8;
+        if (i === k) {
+          titleProgress = pK;
+          tuckY = reduced ? 0 : -8 * (1 - pK);
+        } else if (n > 1 && i === k + 1) {
+          titleProgress = pNext;
+          tuckY = reduced ? 0 : 8 * (1 - pNext);
+        }
+
+        const scale = reduced ? 1 : 0.985 + 0.015 * titleProgress;
+        if (entry.titleEl) {
+          entry.titleEl.style.transition = 'none';
+          entry.titleEl.style.opacity = titleProgress.toFixed(3);
+          entry.titleEl.style.transform = `translate3d(0, ${tuckY.toFixed(
+            2
+          )}px, 0) scale(${scale.toFixed(4)})`;
+          entry.titleEl.style.pointerEvents = titleProgress > 0.5 ? 'auto' : 'none';
         }
       }
 
-      const currentIdx = mobileActiveIndexRef.current;
-      if (currentIdx >= 0) {
-        const currentVisualCenter = getVisualCenter(currentIdx);
-        const currentDist =
-          currentVisualCenter !== undefined ? Math.abs(currentVisualCenter - viewportCenterY) : Infinity;
-        if (nearestIdx !== currentIdx && nearestDist + MOBILE_ACTIVE_HYSTERESIS >= currentDist) {
-          return currentIdx;
+      const prevIdx = mobileActiveIndexRef.current;
+      const roundedIdx = Math.max(0, Math.min(n - 1, Math.round(u)));
+      if (roundedIdx !== prevIdx) {
+        const shouldCommit = u === 0 || u === n - 1 || Math.abs(u - prevIdx) > 0.53;
+        if (shouldCommit) {
+          mobileActiveIndexRef.current = roundedIdx;
+          setMobileActiveIndex(roundedIdx);
+          setActiveProjectId(projectsData[roundedIdx].id);
         }
-      }
-
-      return nearestIdx;
-    };
-
-    const commitActiveIndex = (targetIdx: number) => {
-      if (targetIdx === mobileActiveIndexRef.current) return;
-      mobileActiveIndexRef.current = targetIdx;
-      setMobileActiveIndex(targetIdx);
-
-      if (targetIdx >= 0) {
-        mobilePushIndexRef.current = targetIdx;
-        setMobilePushIndex(targetIdx);
-        setActiveProjectId(projectsData[targetIdx].id);
-        const measured = mobileTitleHeightsRef.current[targetIdx] ?? DEFAULT_MOBILE_TITLE_HEIGHT;
-        setMobilePushAmount(Math.round(measured) + MOBILE_TITLE_EXTRA_GAP);
-      }
-    };
-
-    const evaluateScroll = () => {
-      rafId = 0;
-      if (cancelled) return;
-
-      const now = performance.now();
-      while (scrollSamples.length > 0 && now - scrollSamples[0].t > MOBILE_VELOCITY_WINDOW_MS) {
-        scrollSamples.shift();
-      }
-      const windowDelta =
-        scrollSamples.length >= 2
-          ? Math.abs(scrollSamples[scrollSamples.length - 1].y - scrollSamples[0].y)
-          : 0;
-
-      if (!isFastScrolling && windowDelta >= MOBILE_FAST_ENTER_DELTA) {
-        isFastScrolling = true;
-        if (mobileActiveIndexRef.current !== -1) {
-          commitActiveIndex(-1);
-        }
-        return;
-      }
-
-      if (isFastScrolling) {
-        if (windowDelta <= MOBILE_FAST_EXIT_DELTA) {
-          isFastScrolling = false;
-          commitActiveIndex(resolveNearestIndex());
-        }
-        return;
-      }
-
-      const nextIdx = resolveNearestIndex();
-      if (nextIdx !== mobileActiveIndexRef.current) {
-        commitActiveIndex(nextIdx);
       }
     };
 
     const handleScroll = () => {
-      const now = performance.now();
-      const scrollY = window.scrollY || window.pageYOffset || 0;
-      scrollSamples.push({ t: now, y: scrollY });
-      while (scrollSamples.length > 0 && now - scrollSamples[0].t > MOBILE_VELOCITY_WINDOW_MS) {
-        scrollSamples.shift();
-      }
-
-      if (settleTimer) clearTimeout(settleTimer);
-      settleTimer = setTimeout(() => {
-        if (cancelled) return;
-        isFastScrolling = false;
-        scrollSamples.length = 0;
-        commitActiveIndex(resolveNearestIndex());
-      }, MOBILE_SCROLL_SETTLE_MS);
-
       if (!rafId) {
-        rafId = window.requestAnimationFrame(evaluateScroll);
+        rafId = window.requestAnimationFrame(applyMobileScrub);
       }
     };
 
     const handleResize = () => {
       measureCenters();
-      if (!isFastScrolling) {
-        commitActiveIndex(resolveNearestIndex());
-      }
+      applyMobileScrub();
     };
 
+    const handleMotionChange = (ev: MediaQueryListEvent) => {
+      reduced = ev.matches;
+      applyMobileScrub();
+    };
+
+    rescrubMobileRef.current = applyMobileScrub;
     measureCenters();
-    commitActiveIndex(resolveNearestIndex());
+    applyMobileScrub();
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
+    motionMq?.addEventListener('change', handleMotionChange);
 
     const fonts = (document as any).fonts;
     if (fonts?.ready) {
       fonts.ready.then(() => {
         if (cancelled) return;
         measureCenters();
-        if (!isFastScrolling) {
-          commitActiveIndex(resolveNearestIndex());
-        }
+        applyMobileScrub();
       });
     }
 
     return () => {
       cancelled = true;
-      if (settleTimer) clearTimeout(settleTimer);
+      rescrubMobileRef.current = null;
       if (rafId) window.cancelAnimationFrame(rafId);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
+      motionMq?.removeEventListener('change', handleMotionChange);
+      Object.values(mobileItemRefs.current).forEach(({ modelEl, titleEl }) => {
+        if (modelEl) {
+          modelEl.style.transform = '';
+          modelEl.style.transition = '';
+        }
+        if (titleEl) {
+          titleEl.style.transform = '';
+          titleEl.style.opacity = '';
+          titleEl.style.pointerEvents = '';
+          titleEl.style.transition = '';
+        }
+      });
     };
   }, [isMobileViewport, isBakerOpen, isStudioOpen]);
 
@@ -446,7 +446,7 @@ export const App: React.FC = () => {
 
       {/* Main Interactive Projects Timeline */}
       <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex flex-col pb-44 md:pb-0">
+        <div className="flex flex-col pb-56 md:pb-0">
           {projectsData.map((project, index) => (
             <TimelineItem
               key={project.id}
@@ -456,15 +456,7 @@ export const App: React.FC = () => {
               onVisible={handleVisibleProject}
               isPausedByModal={Boolean(selectedProject) || isResumeOpen}
               mobileIsActive={index === mobileActiveIndex}
-              mobileRelation={index < mobilePushIndex ? -1 : index > mobilePushIndex ? 1 : 0}
-              mobileModelOffsetY={
-                index < mobilePushIndex
-                  ? 0
-                  : index === mobilePushIndex
-                  ? mobilePushAmount
-                  : mobilePushAmount + MOBILE_BELOW_BREATHE
-              }
-              enableMobilePushTransition={enableMobilePushTransition}
+              onRegisterMobileRefs={handleRegisterMobileRefs}
               onMobileTitleMeasure={handleMobileTitleMeasure}
             />
           ))}
