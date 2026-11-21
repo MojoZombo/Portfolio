@@ -1,9 +1,17 @@
-import React, { Suspense, lazy, useState, useRef, useEffect } from 'react';
-import type { PointerHoverState } from './ModelCanvas';
+import React, { Suspense, lazy, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import type { PointerHoverState, ScrollExitState } from './ModelCanvas';
 import { POSTER_VERSION, preloadModelAssets } from './ModelPreloadManager';
 import { getNativeDpr } from './stageConfig';
 import { useTheme } from '../context/ThemeContext';
 import { Pause, Play, RotateCcw } from 'lucide-react';
+
+const EXIT_DURATION_MS = 420;
+const RECOVERY_DURATION_MS = 180;
+
+const smoothstep = (edge0: number, edge1: number, x: number): number => {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+};
 
 const LazyModelCanvas = lazy(() =>
   import('./ModelCanvas').then((m) => ({ default: m.ModelCanvas }))
@@ -18,6 +26,7 @@ interface ModelViewerProps {
   isPaused?: boolean;
   isAnimationPlaying?: boolean;
   onToggleAnimation?: (playing: boolean) => void;
+  scrollExitRef?: React.MutableRefObject<ScrollExitState>;
   className?: string;
   allowZoom?: boolean;
 }
@@ -31,6 +40,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   isPaused = false,
   isAnimationPlaying: isAnimationPlayingProp,
   onToggleAnimation,
+  scrollExitRef,
   className = 'h-[340px] sm:h-[480px] md:h-[560px] w-full',
   allowZoom = false,
 }) => {
@@ -59,7 +69,13 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [isCameraMoved, setIsCameraMoved] = useState(false);
   const [isPrewarmed, setIsPrewarmed] = useState(false);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const bpLayerRef = useRef<HTMLImageElement | null>(null);
+  const liveLayerRef = useRef<HTMLDivElement | null>(null);
+  const exitProgressRef = useRef(0);
+  const exitRafRef = useRef<number | null>(null);
+  const wasLiveCanvasRef = useRef(false);
   const resumeRotateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerHoverRef = useRef<PointerHoverState>({ hovered: false, x: 0, y: 0 });
 
@@ -79,7 +95,30 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       if (resumeRotateTimerRef.current) {
         clearTimeout(resumeRotateTimerRef.current);
       }
+      if (exitRafRef.current !== null) {
+        cancelAnimationFrame(exitRafRef.current);
+      }
     };
+  }, []);
+
+  const clearLayerInlineOpacity = useCallback(() => {
+    if (bpLayerRef.current) {
+      bpLayerRef.current.style.opacity = '';
+      bpLayerRef.current.style.transition = '';
+    }
+    if (liveLayerRef.current) {
+      liveLayerRef.current.style.opacity = '';
+    }
+  }, []);
+
+  const applyCrossfadeOpacity = useCallback((p: number) => {
+    if (bpLayerRef.current) {
+      bpLayerRef.current.style.transition = 'none';
+      bpLayerRef.current.style.opacity = smoothstep(0.0, 0.50, p).toFixed(3);
+    }
+    if (liveLayerRef.current) {
+      liveLayerRef.current.style.opacity = (1 - smoothstep(0.18, 1.0, p)).toFixed(3);
+    }
   }, []);
 
   const [isTouchDevice, setIsTouchDevice] = useState(false);
@@ -159,13 +198,17 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     }
   }, [isActive, isNearby, allowZoom, modelType, isDark]);
 
-  // Re-warm dormant pre-mounted canvases if theme changes while inactive
+  const prevIsDarkRef = useRef(isDark);
+
+  // Re-warm dormant pre-mounted canvases only when theme actually changes while idle
   useEffect(() => {
-    if (!isActive && !allowZoom && shouldMountWebGL) {
+    const themeChanged = prevIsDarkRef.current !== isDark;
+    prevIsDarkRef.current = isDark;
+    if (themeChanged && !isActive && !allowZoom && !isExiting && shouldMountWebGL) {
       setIsPrewarmed(false);
       setIsCanvasReady(false);
     }
-  }, [isDark, isActive, allowZoom, shouldMountWebGL]);
+  }, [isDark, isActive, allowZoom, isExiting, shouldMountWebGL]);
 
   // Manage WebGL mounting:
   // - Only mount WebGL when the card is active and settled (or in allowZoom modal view)
@@ -181,7 +224,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       if (isSettled) {
         setShouldMountWebGL(true);
       }
-    } else if (!isNearby) {
+    } else if (!isNearby && !isExiting) {
       // Card left proximity ring: unmount WebGL far off-screen
       timer = setTimeout(() => {
         setShouldMountWebGL(false);
@@ -190,32 +233,118 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       }, 420);
     }
     return () => clearTimeout(timer);
-  }, [isActive, isNearby, isSettled, allowZoom]);
+  }, [isActive, isNearby, isSettled, allowZoom, isExiting]);
 
-  // Reset active reveal state, camera view, zoom status, and controls ONLY when model becomes inactive
-  useEffect(() => {
-    if (!isActive && !allowZoom) {
-      if (resumeRotateTimerRef.current) {
-        clearTimeout(resumeRotateTimerRef.current);
-        resumeRotateTimerRef.current = null;
-      }
+  const isActiveAndSettled = allowZoom || (isActive && isSettled);
+  const keepModelShaded = isActiveAndSettled || isExiting;
+  const isDrawingActiveReveal = shouldMountWebGL && isActiveAndSettled && !isCanvasReady;
+  const showLiveCanvas = (isActiveAndSettled && isCanvasReady) || isExiting;
+  const isAnimationsStarted = isActiveAndSettled && isCanvasReady;
+  const effectiveIsRotating =
+    effectiveAnimationPlaying && !prefersReducedMotion && !isDragging && !isExiting && !(allowZoom && isRotationHeld);
+
+  // Smooth scroll-linked exit & shortest-path morph to static blueprint when scrolling past
+  useLayoutEffect(() => {
+    if (allowZoom) return;
+
+    if (exitRafRef.current !== null) {
+      cancelAnimationFrame(exitRafRef.current);
+      exitRafRef.current = null;
+    }
+
+    const finalizeReset = () => {
+      exitProgressRef.current = 0;
+      clearLayerInlineOpacity();
+      setIsExiting(false);
       setIsCanvasReady(false);
       setResetTrigger((prev) => prev + 1);
-      setIsDragging(false);
       setIsRotationHeld(false);
       setIsResettingView(false);
       setInternalAnimationPlaying(!prefersReducedMotion);
       setIsCameraMoved(false);
-      pointerHoverRef.current.hovered = false;
-    }
-  }, [isActive, allowZoom, prefersReducedMotion]);
+    };
 
-  const isActiveAndSettled = allowZoom || (isActive && isSettled);
-  const isDrawingActiveReveal = shouldMountWebGL && isActiveAndSettled && !isCanvasReady;
-  const showLiveCanvas = isActiveAndSettled && isCanvasReady;
-  const isAnimationsStarted = showLiveCanvas;
-  const effectiveIsRotating =
-    effectiveAnimationPlaying && !prefersReducedMotion && !isDragging && !(allowZoom && isRotationHeld);
+    if (!isActive) {
+      if (resumeRotateTimerRef.current) {
+        clearTimeout(resumeRotateTimerRef.current);
+        resumeRotateTimerRef.current = null;
+      }
+      setIsDragging(false);
+      pointerHoverRef.current.hovered = false;
+
+      if (wasLiveCanvasRef.current && !prefersReducedMotion) {
+        const initialFloor = scrollExitRef?.current.scrollExit ?? 0;
+        const startP = Math.max(exitProgressRef.current, initialFloor);
+        if (startP >= 0.999) {
+          finalizeReset();
+          return;
+        }
+
+        setIsExiting(true);
+        const startTime = performance.now();
+        exitProgressRef.current = startP;
+        applyCrossfadeOpacity(startP);
+
+        const stepExit = (now: number) => {
+          const timeProgress = Math.min(1, (now - startTime) / EXIT_DURATION_MS);
+          const scrollFloor = scrollExitRef?.current.scrollExit ?? 0;
+          const p = Math.max(exitProgressRef.current, timeProgress, scrollFloor);
+          exitProgressRef.current = p;
+          applyCrossfadeOpacity(p);
+
+          if (p >= 0.999) {
+            exitRafRef.current = null;
+            finalizeReset();
+            return;
+          }
+
+          exitRafRef.current = requestAnimationFrame(stepExit);
+        };
+
+        exitRafRef.current = requestAnimationFrame(stepExit);
+      } else {
+        finalizeReset();
+      }
+      return;
+    }
+
+    // Re-entered active center mid-exit: smoothly recover back to live 3D without snapping
+    setIsExiting(false);
+    const currentExitP = exitProgressRef.current;
+    if (currentExitP > 0.001 && isActiveAndSettled) {
+      const recoverStart = performance.now();
+      const stepRecover = (now: number) => {
+        const elapsed = Math.min(1, (now - recoverStart) / RECOVERY_DURATION_MS);
+        const p = currentExitP * (1 - elapsed);
+        exitProgressRef.current = p;
+        applyCrossfadeOpacity(p);
+
+        if (p <= 0.001 || elapsed >= 1) {
+          exitRafRef.current = null;
+          exitProgressRef.current = 0;
+          clearLayerInlineOpacity();
+          return;
+        }
+        exitRafRef.current = requestAnimationFrame(stepRecover);
+      };
+      exitRafRef.current = requestAnimationFrame(stepRecover);
+    } else {
+      exitProgressRef.current = 0;
+      clearLayerInlineOpacity();
+    }
+  }, [
+    isActive,
+    allowZoom,
+    isActiveAndSettled,
+    prefersReducedMotion,
+    scrollExitRef,
+    applyCrossfadeOpacity,
+    clearLayerInlineOpacity,
+  ]);
+
+  useEffect(() => {
+    wasLiveCanvasRef.current = isActiveAndSettled && isCanvasReady;
+  }, [isActiveAndSettled, isCanvasReady]);
 
   // Image Paths (theme-specific with fallback)
   const themeSuffix = isDark ? 'dark' : 'light';
@@ -323,10 +452,11 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
     >
       {/* 1. LAYER 0: BLUEPRINT (Visible when Inactive) */}
       <img
+        ref={bpLayerRef}
         src={bpPosterPath}
         alt={`${modelType} blueprint`}
         onError={() => setBpFallback(true)}
-        className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-0 transition-opacity duration-150 ease-in-out ${
+        className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-0 transition-opacity duration-300 ease-out ${
           isActive || allowZoom ? 'opacity-0' : 'opacity-100'
         }`}
         loading={isActive ? 'eager' : 'lazy'}
@@ -343,7 +473,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             ? 'opacity-0 pointer-events-none'
             : isActive || allowZoom
             ? 'opacity-100'
-            : 'opacity-0 transition-opacity duration-150 ease-in-out'
+            : 'opacity-0 transition-opacity duration-300 ease-out'
         }`}
         loading={isActive || allowZoom ? 'eager' : 'lazy'}
         {...({ fetchpriority: isActive ? 'high' : 'auto' } as Record<string, string>)}
@@ -353,6 +483,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       {/* 3. LAYER 2: LIVE WEBGL CANVAS (Lazy-loaded once WebGL mounts) */}
       {shouldMountWebGL && (
         <div
+          ref={liveLayerRef}
           className={`absolute inset-0 w-full h-full z-20 ${
             showLiveCanvas ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
@@ -369,7 +500,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               dynamicDpr={nativeDpr}
               showLiveCanvas={showLiveCanvas}
               isDrawingActiveReveal={isDrawingActiveReveal}
-              isActiveAndSettled={isActiveAndSettled}
+              isActiveAndSettled={keepModelShaded}
+              isExiting={isExiting}
               isHovered={isHovered}
               isAnimationPlaying={effectiveAnimationPlaying}
               isRotating={effectiveIsRotating}
@@ -381,6 +513,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               isPrewarmed={isPrewarmed}
               resetTrigger={resetTrigger}
               pointerHoverRef={pointerHoverRef}
+              scrollExitRef={scrollExitRef}
               onDrawn={() => {
                 setIsCanvasReady(true);
                 setIsPrewarmed(true);

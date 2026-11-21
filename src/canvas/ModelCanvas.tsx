@@ -21,6 +21,11 @@ export interface PointerHoverState {
   y: number;
 }
 
+export interface ScrollExitState {
+  preExit: number;
+  scrollExit: number;
+}
+
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const _camRight = new THREE.Vector3();
 const _camUp = new THREE.Vector3();
@@ -87,17 +92,20 @@ function CameraResetController({
   resetTrigger,
   allowZoom,
   isDragging,
+  isExiting = false,
   onResetComplete,
 }: {
   resetTrigger: number;
   allowZoom: boolean;
   isDragging: boolean;
+  isExiting?: boolean;
   onResetComplete: () => void;
 }) {
   const { camera } = useThree();
   const controls = useThree((state) => state.controls as any);
 
   const isResettingRef = useRef(false);
+  const isExitSpringingRef = useRef(false);
   const lastHandledTriggerRef = useRef(0);
   const onResetCompleteRef = useRef(onResetComplete);
   onResetCompleteRef.current = onResetComplete;
@@ -115,6 +123,7 @@ function CameraResetController({
 
     if (!allowZoom) {
       isResettingRef.current = false;
+      isExitSpringingRef.current = false;
       camera.position.copy(DEFAULT_CAMERA_POS);
       camera.lookAt(0, 0, 0);
       if (controls) {
@@ -132,21 +141,41 @@ function CameraResetController({
     phiVelRef.current = 0;
     thetaVelRef.current = 0;
     targetVelRef.current.set(0, 0, 0);
+    isExitSpringingRef.current = false;
     isResettingRef.current = true;
   }, [resetTrigger, allowZoom, camera, controls]);
+
+  useEffect(() => {
+    if (allowZoom || !isExiting) {
+      isExitSpringingRef.current = false;
+      return;
+    }
+    const targetLenSq = controls?.target ? controls.target.lengthSq() : 0;
+    if (camera.position.distanceToSquared(DEFAULT_CAMERA_POS) > 1e-4 || targetLenSq > 1e-4) {
+      rVelRef.current = 0;
+      phiVelRef.current = 0;
+      thetaVelRef.current = 0;
+      targetVelRef.current.set(0, 0, 0);
+      isExitSpringingRef.current = true;
+    }
+  }, [allowZoom, isExiting, camera, controls]);
 
   useEffect(() => {
     if (isDragging && isResettingRef.current) {
       isResettingRef.current = false;
       onResetCompleteRef.current();
     }
+    if (isDragging && isExitSpringingRef.current) {
+      isExitSpringingRef.current = false;
+    }
   }, [isDragging]);
 
   useFrame((_, rawDelta) => {
-    if (!isResettingRef.current) return;
+    const exitMode = isExitSpringingRef.current && !isResettingRef.current;
+    if (!isResettingRef.current && !isExitSpringingRef.current) return;
 
     const delta = Math.min(rawDelta, 0.035);
-    const omega = 3.2;
+    const omega = exitMode ? 7.5 : 3.2;
 
     const target: THREE.Vector3 | undefined = controls?.target;
     const activeTarget = target ?? _zeroTarget;
@@ -205,8 +234,12 @@ function CameraResetController({
       } else {
         camera.lookAt(0, 0, 0);
       }
+      const wasExplicitReset = isResettingRef.current;
       isResettingRef.current = false;
-      onResetComplete();
+      isExitSpringingRef.current = false;
+      if (wasExplicitReset) {
+        onResetCompleteRef.current();
+      }
       return;
     }
 
@@ -302,6 +335,7 @@ interface InteractiveModelStageProps {
   allowZoom: boolean;
   showLiveCanvas: boolean;
   isActiveAndSettled: boolean;
+  isExiting: boolean;
   isRotating: boolean;
   isAnimating: boolean;
   isDragging: boolean;
@@ -310,17 +344,19 @@ interface InteractiveModelStageProps {
   prefersReducedMotion: boolean;
   resetTrigger: number;
   pointerHoverRef: React.MutableRefObject<PointerHoverState>;
+  scrollExitRef?: React.MutableRefObject<ScrollExitState>;
   children: ReactNode;
 }
 
 /**
- * Adds stage-level gentle hover spin braking and camera-aligned pointer parallax
- * tilt without modifying individual model files.
+ * Adds stage-level hover & scroll spin braking, shortest-path exit home morph,
+ * and camera-aligned pointer parallax tilt without modifying individual model files.
  */
 function InteractiveModelStage({
   allowZoom,
   showLiveCanvas,
   isActiveAndSettled,
+  isExiting,
   isRotating,
   isAnimating,
   isDragging,
@@ -329,29 +365,35 @@ function InteractiveModelStage({
   prefersReducedMotion,
   resetTrigger,
   pointerHoverRef,
+  scrollExitRef,
   children,
 }: InteractiveModelStageProps) {
   const stageRef = useRef<THREE.Group>(null);
   const baseYawRef = useRef(0);
   const spinRampRef = useRef(0);
   const hoverBrakeRef = useRef(0);
+  const scrollBrakeRef = useRef(0);
+  const yawVelRef = useRef(0);
   const currentYawTiltRef = useRef(0);
   const currentPitchTiltRef = useRef(0);
 
   useEffect(() => {
-    if (!isActiveAndSettled) {
+    if (!isActiveAndSettled && !isExiting) {
       baseYawRef.current = 0;
       spinRampRef.current = 0;
       hoverBrakeRef.current = 0;
+      scrollBrakeRef.current = 0;
+      yawVelRef.current = 0;
       currentYawTiltRef.current = 0;
       currentPitchTiltRef.current = 0;
       stageRef.current?.quaternion.identity();
     }
-  }, [isActiveAndSettled]);
+  }, [isActiveAndSettled, isExiting]);
 
   useEffect(() => {
     if (resetTrigger > 0 && !allowZoom) {
       baseYawRef.current = 0;
+      yawVelRef.current = 0;
       currentYawTiltRef.current = 0;
       currentPitchTiltRef.current = 0;
       stageRef.current?.quaternion.identity();
@@ -369,34 +411,61 @@ function InteractiveModelStage({
 
     const delta = Math.min(rawDelta, 0.035);
 
-    if (isRotating && isAnimating && !isPaused) {
-      spinRampRef.current = Math.min(1, spinRampRef.current + delta / 1.2);
-    } else {
+    if (isExiting) {
       spinRampRef.current = 0;
+      hoverBrakeRef.current = 0;
+      scrollBrakeRef.current = 0;
+
+      const childYaw = stage.children[0]?.rotation.y ?? 0;
+      const totalYaw = baseYawRef.current + childYaw;
+      const yawError = -Math.atan2(Math.sin(totalYaw), Math.cos(totalYaw));
+      const omega = 9.5;
+      const accel = omega * omega * yawError - 2 * omega * yawVelRef.current;
+      yawVelRef.current += accel * delta;
+      baseYawRef.current += yawVelRef.current * delta;
+
+      currentYawTiltRef.current = THREE.MathUtils.damp(currentYawTiltRef.current, 0, 10, delta);
+      currentPitchTiltRef.current = THREE.MathUtils.damp(currentPitchTiltRef.current, 0, 10, delta);
+    } else {
+      yawVelRef.current = 0;
+
+      if (isRotating && isAnimating && !isPaused) {
+        spinRampRef.current = Math.min(1, spinRampRef.current + delta / 1.2);
+      } else {
+        spinRampRef.current = 0;
+      }
+
+      const isHoverBraking =
+        isRotating &&
+        isAnimating &&
+        !isPaused &&
+        !isDragging &&
+        !prefersReducedMotion &&
+        pointerHoverRef.current.hovered;
+      const hoverTarget = isHoverBraking ? 0.11 * spinRampRef.current : 0;
+      hoverBrakeRef.current = THREE.MathUtils.damp(hoverBrakeRef.current, hoverTarget, 6.0, delta);
+
+      const preExit = !allowZoom && scrollExitRef ? scrollExitRef.current.preExit : 0;
+      const scrollTarget =
+        isRotating && isAnimating && !isPaused && !isDragging && !allowZoom && preExit > 0.01
+          ? 0.185 * preExit * spinRampRef.current
+          : 0;
+      scrollBrakeRef.current = THREE.MathUtils.damp(scrollBrakeRef.current, scrollTarget, 6.0, delta);
+
+      baseYawRef.current -= delta * Math.min(0.195, hoverBrakeRef.current + scrollBrakeRef.current);
+
+      const tiltActive =
+        showLiveCanvas &&
+        !disableHoverTilt &&
+        !isPaused &&
+        !isDragging &&
+        !prefersReducedMotion &&
+        pointerHoverRef.current.hovered;
+      const targetYawTilt = tiltActive ? pointerHoverRef.current.x * 0.095 : 0;
+      const targetPitchTilt = tiltActive ? pointerHoverRef.current.y * 0.070 : 0;
+      currentYawTiltRef.current = THREE.MathUtils.damp(currentYawTiltRef.current, targetYawTilt, 6.5, delta);
+      currentPitchTiltRef.current = THREE.MathUtils.damp(currentPitchTiltRef.current, targetPitchTilt, 6.5, delta);
     }
-
-    const isHoverBraking =
-      isRotating &&
-      isAnimating &&
-      !isPaused &&
-      !isDragging &&
-      !prefersReducedMotion &&
-      pointerHoverRef.current.hovered;
-    const targetBrake = isHoverBraking ? 0.11 * spinRampRef.current : 0;
-    hoverBrakeRef.current = THREE.MathUtils.damp(hoverBrakeRef.current, targetBrake, 5.0, delta);
-    baseYawRef.current -= delta * hoverBrakeRef.current;
-
-    const tiltActive =
-      showLiveCanvas &&
-      !disableHoverTilt &&
-      !isPaused &&
-      !isDragging &&
-      !prefersReducedMotion &&
-      pointerHoverRef.current.hovered;
-    const targetYawTilt = tiltActive ? pointerHoverRef.current.x * 0.095 : 0;
-    const targetPitchTilt = tiltActive ? pointerHoverRef.current.y * 0.070 : 0;
-    currentYawTiltRef.current = THREE.MathUtils.damp(currentYawTiltRef.current, targetYawTilt, 6.5, delta);
-    currentPitchTiltRef.current = THREE.MathUtils.damp(currentPitchTiltRef.current, targetPitchTilt, 6.5, delta);
 
     _camRight.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
     _camUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
@@ -422,6 +491,7 @@ export interface ModelCanvasProps {
   showLiveCanvas: boolean;
   isDrawingActiveReveal: boolean;
   isActiveAndSettled: boolean;
+  isExiting?: boolean;
   isHovered: boolean;
   isAnimationPlaying: boolean;
   isRotating: boolean;
@@ -433,6 +503,7 @@ export interface ModelCanvasProps {
   isPrewarmed: boolean;
   resetTrigger: number;
   pointerHoverRef: React.MutableRefObject<PointerHoverState>;
+  scrollExitRef?: React.MutableRefObject<ScrollExitState>;
   onDrawn: () => void;
   onCameraMove: (isMoved: boolean) => void;
   onResetComplete: () => void;
@@ -454,6 +525,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
   showLiveCanvas,
   isDrawingActiveReveal,
   isActiveAndSettled,
+  isExiting = false,
   isHovered,
   isAnimationPlaying,
   isRotating,
@@ -465,6 +537,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
   isPrewarmed,
   resetTrigger,
   pointerHoverRef,
+  scrollExitRef,
   onDrawn,
   onCameraMove,
   onResetComplete,
@@ -483,7 +556,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
           : 'grab-cursor !touch-pan-y'
       }
       style={{ background: 'transparent' }}
-      frameloop={!isPaused && (showLiveCanvas || isDrawingActiveReveal) ? 'always' : 'never'}
+      frameloop={!isPaused && (showLiveCanvas || isDrawingActiveReveal || isExiting) ? 'always' : 'never'}
       dpr={dynamicDpr}
       gl={{
         antialias: true,
@@ -524,6 +597,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
             allowZoom={allowZoom}
             showLiveCanvas={showLiveCanvas}
             isActiveAndSettled={isActiveAndSettled}
+            isExiting={isExiting}
             isRotating={isRotating}
             isAnimating={!isPaused && isAnimationPlaying && isAnimationsStarted && !isThemeTransitioning}
             isDragging={isDragging}
@@ -532,6 +606,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
             prefersReducedMotion={prefersReducedMotion}
             resetTrigger={resetTrigger}
             pointerHoverRef={pointerHoverRef}
+            scrollExitRef={scrollExitRef}
           >
             <ModelRenderer
               modelType={modelType}
@@ -553,6 +628,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
         resetTrigger={resetTrigger}
         allowZoom={allowZoom}
         isDragging={isDragging}
+        isExiting={isExiting}
         onResetComplete={onResetComplete}
       />
       <CameraStateDetector onCameraMove={onCameraMove} />
@@ -560,6 +636,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
         active={
           !allowZoom &&
           showLiveCanvas &&
+          !isExiting &&
           !isPaused &&
           isAnimationPlaying &&
           isRotating &&

@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Project } from '../types/project';
 import { ModelViewer } from '../canvas/ModelViewer';
+import type { ScrollExitState } from '../canvas/ModelCanvas';
 import { preloadModelAssets } from '../canvas/ModelPreloadManager';
 import { useTheme } from '../context/ThemeContext';
 import { ArrowUpRight } from 'lucide-react';
@@ -77,6 +78,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   const [isNearby, setIsNearby] = useState(index <= 1);
   const isNearbyRef = useRef(index <= 1);
   const [isSettled, setIsSettled] = useState(index === 0);
+  const scrollExitRef = useRef<ScrollExitState>({ preExit: 0, scrollExit: 0 });
   const preloadStageRef = useRef<0 | 1 | 2>(0); // 0: none, 1: outer ring, 2: inner ring (high priority)
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true
@@ -257,6 +259,17 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           const enterThreshold = windowHeight * (isMobileDevice ? 0.26 : 0.22);
           const exitThreshold = windowHeight * (isMobileDevice ? 0.36 : 0.32);
 
+          const brakeStart = windowHeight * (isMobileDevice ? 0.25 : 0.23);
+          const scrollExitEnd = windowHeight * (isMobileDevice ? 0.54 : 0.48);
+          scrollExitRef.current.preExit = Math.max(
+            0,
+            Math.min(1, (distance - brakeStart) / Math.max(1, exitThreshold - brakeStart))
+          );
+          scrollExitRef.current.scrollExit = Math.max(
+            0,
+            Math.min(1, (distance - exitThreshold) / Math.max(1, scrollExitEnd - exitThreshold))
+          );
+
           // Proximity pre-mount ring (adjacent cards N-1 and N+1) with hysteresis
           const nearbyEnterThreshold = windowHeight * 1.15;
           const nearbyExitThreshold = windowHeight * 1.35;
@@ -417,6 +430,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
               isNearby={isNearby}
               isSettled={!isDesktop || isSettled}
               isPaused={isPausedByModal}
+              scrollExitRef={scrollExitRef}
               className="h-[270px] xs:h-[310px] sm:h-[400px] md:h-[490px] w-full"
             />
           </div>
