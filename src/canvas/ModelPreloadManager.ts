@@ -2,7 +2,7 @@ import React from 'react';
 
 let dracoConfigured = false;
 
-export const POSTER_VERSION = '20261120-v2';
+export const POSTER_VERSION = '20261120-v3';
 
 let isWindowScrolling = false;
 let scrollStopTimer: ReturnType<typeof setTimeout> | null = null;
