@@ -224,3 +224,26 @@ canvas {
   cursor: grabbing;
 }
 
+/* Feathered bottom fade for mobile scrolled header backdrop (masks both background fill & backdrop blur) */
+.mobile-header-fade {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 46%,
+    rgba(0, 0, 0, 0.72) 64%,
+    rgba(0, 0, 0, 0.34) 80%,
+    rgba(0, 0, 0, 0.08) 92%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 46%,
+    rgba(0, 0, 0, 0.72) 64%,
+    rgba(0, 0, 0, 0.34) 80%,
+    rgba(0, 0, 0, 0.08) 92%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+
