@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { BackgroundGrid } from './components/BackgroundGrid';
 import { Header } from './components/Header';
 import { TimelineItem } from './components/TimelineItem';
@@ -26,6 +26,11 @@ import { projectsData } from './data/projectsData';
 import { Project } from './types/project';
 import { ExternalLink, Cpu, Camera, Mail, Linkedin, Copy, Check } from 'lucide-react';
 import { initButtonRipple, revertAllButtonRipples } from './utils/buttonRipple';
+
+const DEFAULT_MOBILE_TITLE_HEIGHT = 116;
+const MOBILE_TITLE_EXTRA_GAP = 10;
+const MOBILE_BELOW_BREATHE = 24;
+const MOBILE_ACTIVE_HYSTERESIS = 36;
 
 export const App: React.FC = () => {
   useEffect(() => {
@@ -79,6 +84,16 @@ export const App: React.FC = () => {
     return null;
   });
   const [activeProjectId, setActiveProjectId] = useState<string>(projectsData[0]?.id || '');
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
+  const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
+  const mobileActiveIndexRef = useRef(0);
+  const mobileTitleHeightsRef = useRef<Record<number, number>>({});
+  const [mobilePushAmount, setMobilePushAmount] = useState(
+    DEFAULT_MOBILE_TITLE_HEIGHT + MOBILE_TITLE_EXTRA_GAP
+  );
+  const [enableMobilePushTransition, setEnableMobilePushTransition] = useState(false);
   const [copiedFooterEmail, setCopiedFooterEmail] = useState(false);
   const footerCopyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -172,6 +187,142 @@ export const App: React.FC = () => {
     setActiveProjectId(id);
   }, []);
 
+  const handleMobileTitleMeasure = useCallback((idx: number, height: number) => {
+    mobileTitleHeightsRef.current[idx] = height;
+    if (idx === mobileActiveIndexRef.current) {
+      const nextPush = Math.round(height) + MOBILE_TITLE_EXTRA_GAP;
+      setMobilePushAmount((prev) => (Math.abs(prev - nextPush) >= 1 ? nextPush : prev));
+    }
+  }, []);
+
+  useEffect(() => {
+    const updateViewport = () => {
+      setIsMobileViewport(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    };
+    updateViewport();
+    window.addEventListener('resize', updateViewport, { passive: true });
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
+
+  useEffect(() => {
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        setEnableMobilePushTransition(true);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(raf1);
+      window.cancelAnimationFrame(raf2);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileViewport || isBakerOpen || isStudioOpen) return;
+
+    const centersRef: number[] = [];
+    let ticking = false;
+
+    const measureCenters = () => {
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      for (let i = 0; i < projectsData.length; i++) {
+        const el = document.getElementById(`project-${projectsData[i].id}`);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          centersRef[i] = rect.top + scrollY + rect.height / 2;
+        }
+      }
+    };
+
+    const updateMobileActive = () => {
+      if (centersRef.length === 0) {
+        measureCenters();
+      }
+      if (centersRef.length === 0) return;
+
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      const vh = window.innerHeight;
+      const docHeight = document.documentElement.scrollHeight;
+      const n = projectsData.length;
+
+      let targetIdx = mobileActiveIndexRef.current;
+
+      if (scrollY <= 8) {
+        targetIdx = 0;
+      } else if (scrollY + vh >= docHeight - 8) {
+        targetIdx = n - 1;
+      } else {
+        const currentIdx = mobileActiveIndexRef.current;
+        const currentPush =
+          (mobileTitleHeightsRef.current[currentIdx] ?? DEFAULT_MOBILE_TITLE_HEIGHT) +
+          MOBILE_TITLE_EXTRA_GAP;
+        const focusY = scrollY + vh * 0.5 + 28 - currentPush / 2;
+
+        let nearestIdx = 0;
+        let nearestDist = Infinity;
+        for (let i = 0; i < n; i++) {
+          const center = centersRef[i];
+          if (center === undefined) continue;
+          const dist = Math.abs(center - focusY);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestIdx = i;
+          }
+        }
+
+        const currentCenter = centersRef[currentIdx];
+        const currentDist = currentCenter !== undefined ? Math.abs(currentCenter - focusY) : Infinity;
+
+        if (nearestIdx !== currentIdx && nearestDist + MOBILE_ACTIVE_HYSTERESIS < currentDist) {
+          targetIdx = nearestIdx;
+        }
+      }
+
+      if (targetIdx !== mobileActiveIndexRef.current) {
+        mobileActiveIndexRef.current = targetIdx;
+        setMobileActiveIndex(targetIdx);
+        setActiveProjectId(projectsData[targetIdx].id);
+        const measured = mobileTitleHeightsRef.current[targetIdx] ?? DEFAULT_MOBILE_TITLE_HEIGHT;
+        setMobilePushAmount(Math.round(measured) + MOBILE_TITLE_EXTRA_GAP);
+      }
+    };
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          ticking = false;
+          updateMobileActive();
+        });
+        ticking = true;
+      }
+    };
+
+    const handleResize = () => {
+      measureCenters();
+      updateMobileActive();
+    };
+
+    measureCenters();
+    updateMobileActive();
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize, { passive: true });
+
+    const fonts = (document as any).fonts;
+    if (fonts?.ready) {
+      fonts.ready.then(() => {
+        measureCenters();
+        updateMobileActive();
+      });
+    }
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isMobileViewport, isBakerOpen, isStudioOpen]);
+
   // If in dedicated Poster Baker mode, render full-screen Poster Baker
   if (isBakerOpen) {
     return (
@@ -217,7 +368,7 @@ export const App: React.FC = () => {
 
       {/* Main Interactive Projects Timeline */}
       <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex flex-col">
+        <div className="flex flex-col pb-44 md:pb-0">
           {projectsData.map((project, index) => (
             <TimelineItem
               key={project.id}
@@ -226,6 +377,17 @@ export const App: React.FC = () => {
               onSelect={handleSelectProject}
               onVisible={handleVisibleProject}
               isPausedByModal={Boolean(selectedProject) || isResumeOpen}
+              mobileIsActive={index === mobileActiveIndex}
+              mobileRelation={index < mobileActiveIndex ? -1 : index > mobileActiveIndex ? 1 : 0}
+              mobileModelOffsetY={
+                index < mobileActiveIndex
+                  ? 0
+                  : index === mobileActiveIndex
+                  ? mobilePushAmount
+                  : mobilePushAmount + MOBILE_BELOW_BREATHE
+              }
+              enableMobilePushTransition={enableMobilePushTransition}
+              onMobileTitleMeasure={handleMobileTitleMeasure}
             />
           ))}
         </div>

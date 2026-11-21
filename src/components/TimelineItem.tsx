@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { Project } from '../types/project';
 import { ModelViewer } from '../canvas/ModelViewer';
 import type { ScrollExitState } from '../canvas/ModelCanvas';
@@ -28,6 +28,11 @@ interface TimelineItemProps {
   modelTranslateY?: number;
   /** Optional custom vertical translation distance for text card */
   textTranslateY?: number;
+  mobileIsActive?: boolean;
+  mobileRelation?: -1 | 0 | 1;
+  mobileModelOffsetY?: number;
+  enableMobilePushTransition?: boolean;
+  onMobileTitleMeasure?: (index: number, height: number) => void;
 }
 
 const TimelineItemComponent: React.FC<TimelineItemProps> = ({
@@ -40,6 +45,11 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   textTranslateX,
   modelTranslateY,
   textTranslateY,
+  mobileIsActive,
+  mobileRelation = 0,
+  mobileModelOffsetY = 0,
+  enableMobilePushTransition = true,
+  onMobileTitleMeasure,
 }) => {
   // Resolve custom translation distances for both directions:
   // Priority: Prop override > Project level setting > Default distance
@@ -73,6 +83,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   isDarkRef.current = isDark;
 
   const itemRef = useRef<HTMLDivElement | null>(null);
+  const titleBlockRef = useRef<HTMLDivElement | null>(null);
   const [isActive, setIsActive] = useState(index === 0);
   const isActiveRef = useRef(index === 0);
   const [isNearby, setIsNearby] = useState(index <= 1);
@@ -85,6 +96,54 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true
   );
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  );
+
+  const effectiveIsActive = isDesktop ? isActive : (mobileIsActive ?? isActive);
+  isActiveRef.current = effectiveIsActive;
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (isDesktop || !onMobileTitleMeasure) return;
+    const el = titleBlockRef.current;
+    if (!el) return;
+
+    const measureTitle = () => {
+      const h = el.offsetHeight;
+      if (h > 0) {
+        onMobileTitleMeasure(index, h);
+      }
+    };
+
+    measureTitle();
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measureTitle);
+      ro.observe(el);
+    }
+
+    window.addEventListener('resize', measureTitle, { passive: true });
+    const fonts = (document as any).fonts;
+    if (fonts?.ready) {
+      fonts.ready.then(measureTitle);
+    }
+
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', measureTitle);
+    };
+  }, [isDesktop, index, project.title, project.company, project.date, onMobileTitleMeasure]);
 
   // Immediately pre-warm top 2 timeline items on initial boot
   useEffect(() => {
@@ -260,18 +319,18 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
 
           // Adaptive threshold for mobile vs desktop with compact spacing
           const isMobileDevice = window.innerWidth < 768;
-          const enterThreshold = windowHeight * (isMobileDevice ? 0.26 : 0.22);
-          const exitThreshold = windowHeight * (isMobileDevice ? 0.36 : 0.32);
+          const enterThreshold = windowHeight * 0.22;
+          const exitThreshold = isMobileDevice ? Math.min(windowHeight * 0.24, 180) : windowHeight * 0.32;
 
-          const scrollExitEnd = windowHeight * (isMobileDevice ? 0.56 : 0.50);
+          const scrollExitEnd = isMobileDevice ? Math.min(windowHeight * 0.50, 380) : windowHeight * 0.50;
           scrollExitRef.current.scrollExit = Math.max(
             0,
             Math.min(1, (distance - exitThreshold) / Math.max(1, scrollExitEnd - exitThreshold))
           );
 
           // Full-card viewport retention ring with hysteresis: never reset while visible on-screen
-          const onScreenEnterThreshold = windowHeight * 0.5 + halfHeightRef.current + 40;
-          const onScreenExitThreshold = windowHeight * 0.5 + halfHeightRef.current + 120;
+          const onScreenEnterThreshold = windowHeight * 0.5 + halfHeightRef.current + (isMobileDevice ? 200 : 40);
+          const onScreenExitThreshold = windowHeight * 0.5 + halfHeightRef.current + (isMobileDevice ? 280 : 120);
           let nextOnScreen = isOnScreenRef.current;
           if (distance < onScreenEnterThreshold) {
             nextOnScreen = true;
@@ -297,19 +356,21 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             setIsNearby(nextNearby);
           }
 
-          let nextActive = isActiveRef.current;
-          if (distance < enterThreshold) {
-            nextActive = true;
-          } else if (distance > exitThreshold) {
-            nextActive = false;
-          }
+          if (!isMobileDevice) {
+            let nextActive = isActiveRef.current;
+            if (distance < enterThreshold) {
+              nextActive = true;
+            } else if (distance > exitThreshold) {
+              nextActive = false;
+            }
 
-          if (nextActive !== isActiveRef.current) {
-            isActiveRef.current = nextActive;
-            setIsActive(nextActive);
-            setIsSettled(false);
-            if (nextActive) {
-              onVisible(project.id);
+            if (nextActive !== isActiveRef.current) {
+              isActiveRef.current = nextActive;
+              setIsActive(nextActive);
+              setIsSettled(false);
+              if (nextActive) {
+                onVisible(project.id);
+              }
             }
           }
 
@@ -343,31 +404,46 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
     };
   }, [project.id, project.modelType, onVisible, measureDocCenter]);
 
+  const mobileTuckY = mobileRelation < 0 ? -10 : 10;
+  const titleTransition = isDesktop
+    ? 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+    : !enableMobilePushTransition || prefersReducedMotion
+    ? 'none'
+    : effectiveIsActive
+    ? 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1) 50ms, opacity 260ms ease-out 70ms'
+    : 'transform 220ms ease-out, opacity 160ms ease-out';
+
   return (
     <section
       id={`project-${project.id}`}
       ref={itemRef}
-      className="relative min-h-[360px] sm:min-h-[420px] md:min-h-[44vh] flex items-center justify-center py-3 sm:py-5 md:py-8 overflow-visible"
+      className={`relative min-h-0 md:min-h-[44vh] flex items-center justify-center py-1 sm:py-2 md:py-8 overflow-visible pointer-events-none ${
+        effectiveIsActive ? 'z-20' : 'z-10'
+      }`}
     >
-      <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center justify-center overflow-visible gap-4 md:gap-0">
+      <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center justify-center overflow-visible">
         
         {/* Project Header / Details:
             - Desktop: Floats on left and slides in dynamically when active in center view
-            - Mobile: Positioned cleanly above the 3D model with transparent background, animating in when active
+            - Mobile: Unveils inside the GPU push-apart pocket opened above the active model
             - Compositor-driven: Uses native GPU CSS transitions for guaranteed 60/120fps motion without main-thread jank
         */}
         <div
-          aria-hidden={!isActive}
+          ref={titleBlockRef}
+          aria-hidden={!effectiveIsActive}
           style={{
             transform: isDesktop
-              ? `translate3d(${isActive ? 0 : textShiftX}px, ${isActive ? 0 : textShiftY}px, 0)`
-              : `translate3d(0, ${isActive ? 0 : 24}px, 0)`,
-            opacity: isActive ? 1 : 0,
-            pointerEvents: isActive ? 'auto' : 'none',
-            transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+              ? `translate3d(${effectiveIsActive ? 0 : textShiftX}px, ${effectiveIsActive ? 0 : textShiftY}px, 0)`
+              : effectiveIsActive
+              ? 'translate3d(0, 0, 0) scale(1)'
+              : `translate3d(0, ${mobileTuckY}px, 0) scale(0.985)`,
+            transformOrigin: 'left bottom',
+            opacity: effectiveIsActive ? 1 : 0,
+            pointerEvents: effectiveIsActive ? 'auto' : 'none',
+            transition: titleTransition,
             willChange: 'transform, opacity',
           }}
-          className="w-full md:w-5/12 md:absolute md:left-4 lg:left-8 z-20 will-change-transform transform-gpu"
+          className="absolute top-1 left-4 right-4 sm:left-6 sm:right-6 md:top-auto md:right-auto md:w-5/12 md:left-4 lg:left-8 z-30 md:z-20 will-change-transform transform-gpu"
         >
           <div className="space-y-2.5 p-0">
             {/* Company Badge & Date */}
@@ -394,7 +470,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
             <div className="pt-1">
               <button
                 type="button"
-                tabIndex={isActive ? 0 : -1}
+                tabIndex={effectiveIsActive ? 0 : -1}
                 onClick={() => onSelect(project)}
                 className="btn-ripple inline-flex items-center gap-2 px-3.5 py-2 rounded text-xs font-mono font-medium bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
@@ -405,50 +481,65 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           </div>
         </div>
 
-        <motion.div
-          initial={false}
-          animate={{
-            x: isDesktop && isActive ? modelShiftX : 0,
-            y: isDesktop && isActive ? modelShiftY : 0,
-          }}
-          transition={{ duration: 0.38, ease: [0.25, 0.9, 0.3, 1] }}
-          onAnimationStart={() => {
-            setIsSettled(false);
-          }}
-          onAnimationComplete={() => {
-            if (isActiveRef.current) {
-              setIsSettled(true);
-            }
-          }}
-          className="w-full flex items-center justify-center overflow-visible will-change-transform relative"
+        <div
+          className="w-full flex items-center justify-center overflow-visible will-change-transform pointer-events-auto"
+          style={
+            !isDesktop
+              ? {
+                  transform: `translate3d(0, ${mobileModelOffsetY}px, 0)`,
+                  transition:
+                    enableMobilePushTransition && !prefersReducedMotion
+                      ? 'transform 420ms cubic-bezier(0.22, 1, 0.36, 1)'
+                      : 'none',
+                }
+              : undefined
+          }
         >
-          <div
-            className={`relative w-full max-w-2xl flex items-center justify-center overflow-visible ${
-              !isDesktop ? 'cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500' : ''
-            }`}
-            onClick={handleModelClick}
-            onTouchStart={handleModelTouchStart}
-            onTouchMove={handleModelTouchMove}
-            onTouchEnd={handleModelTouchEnd}
-            onTouchCancel={handleModelTouchCancel}
-            onMouseDown={handleModelMouseDown}
-            role={!isDesktop ? 'button' : undefined}
-            tabIndex={!isDesktop ? 0 : undefined}
-            aria-label={!isDesktop ? `View details for ${project.title}` : undefined}
-            onKeyDown={!isDesktop ? handleModelKeyDown : undefined}
+          <motion.div
+            initial={false}
+            animate={{
+              x: isDesktop && effectiveIsActive ? modelShiftX : 0,
+              y: isDesktop && effectiveIsActive ? modelShiftY : 0,
+            }}
+            transition={{ duration: 0.38, ease: [0.25, 0.9, 0.3, 1] }}
+            onAnimationStart={() => {
+              setIsSettled(false);
+            }}
+            onAnimationComplete={() => {
+              if (isActiveRef.current) {
+                setIsSettled(true);
+              }
+            }}
+            className="w-full flex items-center justify-center overflow-visible will-change-transform relative"
           >
-            <ModelViewer
-              modelType={project.modelType}
-              isActive={isActive}
-              isNearby={isNearby}
-              isOnScreen={isOnScreen}
-              isSettled={!isDesktop || isSettled}
-              isPaused={isPausedByModal}
-              scrollExitRef={scrollExitRef}
-              className="h-[270px] xs:h-[310px] sm:h-[400px] md:h-[490px] w-full"
-            />
-          </div>
-        </motion.div>
+            <div
+              className={`relative w-full max-w-2xl flex items-center justify-center overflow-visible ${
+                !isDesktop ? 'cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500' : ''
+              }`}
+              onClick={handleModelClick}
+              onTouchStart={handleModelTouchStart}
+              onTouchMove={handleModelTouchMove}
+              onTouchEnd={handleModelTouchEnd}
+              onTouchCancel={handleModelTouchCancel}
+              onMouseDown={handleModelMouseDown}
+              role={!isDesktop ? 'button' : undefined}
+              tabIndex={!isDesktop ? 0 : undefined}
+              aria-label={!isDesktop ? `View details for ${project.title}` : undefined}
+              onKeyDown={!isDesktop ? handleModelKeyDown : undefined}
+            >
+              <ModelViewer
+                modelType={project.modelType}
+                isActive={effectiveIsActive}
+                isNearby={isNearby}
+                isOnScreen={isOnScreen}
+                isSettled={!isDesktop || isSettled}
+                isPaused={isPausedByModal}
+                scrollExitRef={scrollExitRef}
+                className="h-[270px] xs:h-[310px] sm:h-[400px] md:h-[490px] w-full"
+              />
+            </div>
+          </motion.div>
+        </div>
 
       </div>
     </section>
