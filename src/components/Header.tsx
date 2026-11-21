@@ -248,7 +248,10 @@ export const Header: React.FC<HeaderProps> = ({
               title={isProjectIndexOpen ? 'Close project list' : 'Project list'}
               className="btn-ripple list-toggle-btn w-[30px] sm:w-auto h-[30px] sm:px-2.5 p-0 inline-flex items-center justify-center gap-1.5 rounded bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-200 cursor-pointer select-none font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
-              {isProjectIndexOpen ? <X size={14} /> : <List size={14} />}
+              <span className="relative inline-flex w-[14px] h-[14px] items-center justify-center shrink-0 pointer-events-none">
+                <List size={14} className="list-icon-open pointer-events-none" />
+                <X size={14} className="list-icon-close pointer-events-none" />
+              </span>
               <span className="hidden sm:inline">List</span>
             </button>
           )}

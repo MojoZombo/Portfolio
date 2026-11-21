@@ -112,7 +112,7 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
                 ? { duration: 0.26, ease: [0.16, 1, 0.3, 1] }
                 : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }
             }
-            className="fixed z-[45] inset-x-0 bottom-0 sm:inset-x-auto sm:bottom-auto sm:top-[92px] md:top-[106px] sm:right-6 lg:right-14 min-[1440px]:right-[72px] sm:w-[300px] max-h-[78dvh] sm:max-h-[calc(100vh-124px)] flex flex-col rounded-t-2xl sm:rounded-xl overflow-hidden bg-white dark:bg-[#0c121e] text-slate-900 dark:text-slate-100"
+            className="fixed z-[45] inset-x-0 bottom-0 sm:inset-x-auto sm:bottom-auto sm:top-[92px] md:top-[106px] sm:right-6 lg:right-14 min-[1440px]:right-[72px] sm:w-[300px] max-h-[78dvh] sm:max-h-[calc(100vh-124px)] flex flex-col rounded-t-2xl sm:rounded-xl overflow-visible sm:overflow-hidden bg-white dark:bg-[#0c121e] text-slate-900 dark:text-slate-100"
           >
             {/* Mobile-only concise draggable header */}
             <div
@@ -120,7 +120,7 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
                 if ((e.target as HTMLElement).closest('button')) return;
                 dragControls.start(e);
               }}
-              className="sm:hidden bg-slate-100 dark:bg-slate-950 px-3 pt-1.5 pb-1.5 shrink-0 select-none touch-none cursor-grab active:cursor-grabbing"
+              className="sm:hidden rounded-t-2xl bg-slate-100 dark:bg-slate-950 px-3 pt-1.5 pb-1.5 shrink-0 select-none touch-none cursor-grab active:cursor-grabbing"
             >
               <div
                 aria-hidden="true"
@@ -190,6 +190,12 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
                 );
               })}
             </nav>
+
+            {/* Solid overscroll skirt so pulling the mobile sheet upward continues the list background instead of showing backdrop */}
+            <div
+              aria-hidden="true"
+              className="sm:hidden absolute left-0 right-0 top-[calc(100%-1px)] h-40 bg-white dark:bg-[#0c121e] pointer-events-none"
+            />
           </motion.div>
         </>
       )}

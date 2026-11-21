@@ -193,6 +193,31 @@ html.dark .list-toggle-btn[aria-expanded='true'] {
   color: #ffffff;
 }
 
+/* Stack List <-> X icons like theme-toggle-vt for smooth rotate/scale/opacity swap */
+.list-toggle-btn .list-icon-open,
+.list-toggle-btn .list-icon-close {
+  position: absolute !important;
+  inset: 0;
+  margin: auto;
+  transition: opacity 300ms ease, transform 400ms cubic-bezier(0.2, 0.85, 0.32, 1), color 200ms ease;
+}
+.list-toggle-btn .list-icon-open {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+.list-toggle-btn .list-icon-close {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.4);
+}
+.list-toggle-btn[aria-expanded='true'] .list-icon-open {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.4);
+}
+.list-toggle-btn[aria-expanded='true'] .list-icon-close {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn-ripple:hover,
   .btn-ripple:hover * {
