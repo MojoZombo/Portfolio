@@ -145,7 +145,7 @@ export const Header: React.FC = () => {
       {/* Full-width mobile frosted backdrop bar when scrolled so wireframes never collide with sticky header */}
       <div
         aria-hidden="true"
-        className={`fixed top-0 inset-x-0 h-[96px] bg-slate-50/90 dark:bg-[#141C28]/90 backdrop-blur-md mobile-header-fade z-[35] pointer-events-none transition-opacity duration-300 sm:hidden ${
+        className={`fixed top-0 inset-x-0 h-[96px] bg-slate-50/75 dark:bg-[#141C28]/75 backdrop-blur-sm mobile-header-fade z-[35] pointer-events-none transition-opacity duration-300 sm:hidden ${
           isScrolled ? 'opacity-100' : 'opacity-0'
         }`}
       />

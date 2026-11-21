@@ -410,8 +410,8 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
     : !enableMobilePushTransition || prefersReducedMotion
     ? 'none'
     : effectiveIsActive
-    ? 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1) 50ms, opacity 260ms ease-out 70ms'
-    : 'transform 220ms ease-out, opacity 160ms ease-out';
+    ? 'transform 300ms cubic-bezier(0.22, 1, 0.36, 1) 25ms, opacity 200ms ease-out 35ms'
+    : 'transform 180ms ease-out, opacity 130ms ease-out';
 
   return (
     <section

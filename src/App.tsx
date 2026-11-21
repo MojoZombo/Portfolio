@@ -31,6 +31,10 @@ const DEFAULT_MOBILE_TITLE_HEIGHT = 116;
 const MOBILE_TITLE_EXTRA_GAP = 10;
 const MOBILE_BELOW_BREATHE = 24;
 const MOBILE_ACTIVE_HYSTERESIS = 36;
+const MOBILE_VELOCITY_WINDOW_MS = 180;
+const MOBILE_FAST_ENTER_DELTA = 145;
+const MOBILE_FAST_EXIT_DELTA = 45;
+const MOBILE_SCROLL_SETTLE_MS = 100;
 
 export const App: React.FC = () => {
   useEffect(() => {
@@ -89,6 +93,8 @@ export const App: React.FC = () => {
   );
   const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
   const mobileActiveIndexRef = useRef(0);
+  const [mobilePushIndex, setMobilePushIndex] = useState(0);
+  const mobilePushIndexRef = useRef(0);
   const mobileTitleHeightsRef = useRef<Record<number, number>>({});
   const [mobilePushAmount, setMobilePushAmount] = useState(
     DEFAULT_MOBILE_TITLE_HEIGHT + MOBILE_TITLE_EXTRA_GAP
@@ -189,7 +195,7 @@ export const App: React.FC = () => {
 
   const handleMobileTitleMeasure = useCallback((idx: number, height: number) => {
     mobileTitleHeightsRef.current[idx] = height;
-    if (idx === mobileActiveIndexRef.current) {
+    if (idx === mobilePushIndexRef.current) {
       const nextPush = Math.round(height) + MOBILE_TITLE_EXTRA_GAP;
       setMobilePushAmount((prev) => (Math.abs(prev - nextPush) >= 1 ? nextPush : prev));
     }
@@ -221,8 +227,12 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (!isMobileViewport || isBakerOpen || isStudioOpen) return;
 
+    let cancelled = false;
     const centersRef: number[] = [];
-    let ticking = false;
+    const scrollSamples: { t: number; y: number }[] = [];
+    let isFastScrolling = false;
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    let rafId = 0;
 
     const measureCenters = () => {
       const scrollY = window.scrollY || window.pageYOffset || 0;
@@ -235,76 +245,138 @@ export const App: React.FC = () => {
       }
     };
 
-    const updateMobileActive = () => {
+    const resolveNearestIndex = (): number => {
       if (centersRef.length === 0) {
         measureCenters();
       }
-      if (centersRef.length === 0) return;
+      if (centersRef.length === 0) return mobilePushIndexRef.current;
 
       const scrollY = window.scrollY || window.pageYOffset || 0;
       const vh = window.innerHeight;
       const docHeight = document.documentElement.scrollHeight;
       const n = projectsData.length;
 
-      let targetIdx = mobileActiveIndexRef.current;
+      if (scrollY <= 8) return 0;
+      if (scrollY + vh >= docHeight - 8) return n - 1;
 
-      if (scrollY <= 8) {
-        targetIdx = 0;
-      } else if (scrollY + vh >= docHeight - 8) {
-        targetIdx = n - 1;
-      } else {
-        const currentIdx = mobileActiveIndexRef.current;
-        const currentPush =
-          (mobileTitleHeightsRef.current[currentIdx] ?? DEFAULT_MOBILE_TITLE_HEIGHT) +
-          MOBILE_TITLE_EXTRA_GAP;
-        const focusY = scrollY + vh * 0.5 + 28 - currentPush / 2;
+      const pushIdx = mobilePushIndexRef.current;
+      const currentPush =
+        (mobileTitleHeightsRef.current[pushIdx] ?? DEFAULT_MOBILE_TITLE_HEIGHT) +
+        MOBILE_TITLE_EXTRA_GAP;
+      const viewportCenterY = scrollY + vh * 0.5 + 28;
 
-        let nearestIdx = 0;
-        let nearestDist = Infinity;
-        for (let i = 0; i < n; i++) {
-          const center = centersRef[i];
-          if (center === undefined) continue;
-          const dist = Math.abs(center - focusY);
-          if (dist < nearestDist) {
-            nearestDist = dist;
-            nearestIdx = i;
-          }
-        }
+      const getVisualCenter = (idx: number): number | undefined => {
+        const base = centersRef[idx];
+        if (base === undefined) return undefined;
+        if (idx < pushIdx) return base;
+        if (idx === pushIdx) return base + currentPush / 2;
+        return base + currentPush + MOBILE_BELOW_BREATHE;
+      };
 
-        const currentCenter = centersRef[currentIdx];
-        const currentDist = currentCenter !== undefined ? Math.abs(currentCenter - focusY) : Infinity;
-
-        if (nearestIdx !== currentIdx && nearestDist + MOBILE_ACTIVE_HYSTERESIS < currentDist) {
-          targetIdx = nearestIdx;
+      let nearestIdx = 0;
+      let nearestDist = Infinity;
+      for (let i = 0; i < n; i++) {
+        const visualCenter = getVisualCenter(i);
+        if (visualCenter === undefined) continue;
+        const dist = Math.abs(visualCenter - viewportCenterY);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestIdx = i;
         }
       }
 
-      if (targetIdx !== mobileActiveIndexRef.current) {
-        mobileActiveIndexRef.current = targetIdx;
-        setMobileActiveIndex(targetIdx);
+      const currentIdx = mobileActiveIndexRef.current;
+      if (currentIdx >= 0) {
+        const currentVisualCenter = getVisualCenter(currentIdx);
+        const currentDist =
+          currentVisualCenter !== undefined ? Math.abs(currentVisualCenter - viewportCenterY) : Infinity;
+        if (nearestIdx !== currentIdx && nearestDist + MOBILE_ACTIVE_HYSTERESIS >= currentDist) {
+          return currentIdx;
+        }
+      }
+
+      return nearestIdx;
+    };
+
+    const commitActiveIndex = (targetIdx: number) => {
+      if (targetIdx === mobileActiveIndexRef.current) return;
+      mobileActiveIndexRef.current = targetIdx;
+      setMobileActiveIndex(targetIdx);
+
+      if (targetIdx >= 0) {
+        mobilePushIndexRef.current = targetIdx;
+        setMobilePushIndex(targetIdx);
         setActiveProjectId(projectsData[targetIdx].id);
         const measured = mobileTitleHeightsRef.current[targetIdx] ?? DEFAULT_MOBILE_TITLE_HEIGHT;
         setMobilePushAmount(Math.round(measured) + MOBILE_TITLE_EXTRA_GAP);
       }
     };
 
+    const evaluateScroll = () => {
+      rafId = 0;
+      if (cancelled) return;
+
+      const now = performance.now();
+      while (scrollSamples.length > 0 && now - scrollSamples[0].t > MOBILE_VELOCITY_WINDOW_MS) {
+        scrollSamples.shift();
+      }
+      const windowDelta =
+        scrollSamples.length >= 2
+          ? Math.abs(scrollSamples[scrollSamples.length - 1].y - scrollSamples[0].y)
+          : 0;
+
+      if (!isFastScrolling && windowDelta >= MOBILE_FAST_ENTER_DELTA) {
+        isFastScrolling = true;
+        if (mobileActiveIndexRef.current !== -1) {
+          commitActiveIndex(-1);
+        }
+        return;
+      }
+
+      if (isFastScrolling) {
+        if (windowDelta <= MOBILE_FAST_EXIT_DELTA) {
+          isFastScrolling = false;
+          commitActiveIndex(resolveNearestIndex());
+        }
+        return;
+      }
+
+      const nextIdx = resolveNearestIndex();
+      if (nextIdx !== mobileActiveIndexRef.current) {
+        commitActiveIndex(nextIdx);
+      }
+    };
+
     const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          ticking = false;
-          updateMobileActive();
-        });
-        ticking = true;
+      const now = performance.now();
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      scrollSamples.push({ t: now, y: scrollY });
+      while (scrollSamples.length > 0 && now - scrollSamples[0].t > MOBILE_VELOCITY_WINDOW_MS) {
+        scrollSamples.shift();
+      }
+
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        if (cancelled) return;
+        isFastScrolling = false;
+        scrollSamples.length = 0;
+        commitActiveIndex(resolveNearestIndex());
+      }, MOBILE_SCROLL_SETTLE_MS);
+
+      if (!rafId) {
+        rafId = window.requestAnimationFrame(evaluateScroll);
       }
     };
 
     const handleResize = () => {
       measureCenters();
-      updateMobileActive();
+      if (!isFastScrolling) {
+        commitActiveIndex(resolveNearestIndex());
+      }
     };
 
     measureCenters();
-    updateMobileActive();
+    commitActiveIndex(resolveNearestIndex());
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
@@ -312,12 +384,18 @@ export const App: React.FC = () => {
     const fonts = (document as any).fonts;
     if (fonts?.ready) {
       fonts.ready.then(() => {
+        if (cancelled) return;
         measureCenters();
-        updateMobileActive();
+        if (!isFastScrolling) {
+          commitActiveIndex(resolveNearestIndex());
+        }
       });
     }
 
     return () => {
+      cancelled = true;
+      if (settleTimer) clearTimeout(settleTimer);
+      if (rafId) window.cancelAnimationFrame(rafId);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
     };
@@ -378,11 +456,11 @@ export const App: React.FC = () => {
               onVisible={handleVisibleProject}
               isPausedByModal={Boolean(selectedProject) || isResumeOpen}
               mobileIsActive={index === mobileActiveIndex}
-              mobileRelation={index < mobileActiveIndex ? -1 : index > mobileActiveIndex ? 1 : 0}
+              mobileRelation={index < mobilePushIndex ? -1 : index > mobilePushIndex ? 1 : 0}
               mobileModelOffsetY={
-                index < mobileActiveIndex
+                index < mobilePushIndex
                   ? 0
-                  : index === mobileActiveIndex
+                  : index === mobilePushIndex
                   ? mobilePushAmount
                   : mobilePushAmount + MOBILE_BELOW_BREATHE
               }
