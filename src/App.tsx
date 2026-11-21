@@ -31,7 +31,11 @@ import { initButtonRipple, revertAllButtonRipples } from './utils/buttonRipple';
 const DEFAULT_MOBILE_TITLE_HEIGHT = 116;
 const MOBILE_TITLE_EXTRA_GAP = 14;
 const MOBILE_BELOW_BREATHE = 24;
-const MOBILE_SWITCH_HYSTERESIS = 0.56;
+const MOBILE_SWITCH_HYSTERESIS = 0.52;
+const MOBILE_FAST_ENTER_VELOCITY = 1.15; // px/ms (~1150 px/s, >4 cards/sec)
+const MOBILE_FAST_EXIT_VELOCITY = 0.14;  // px/ms (~140 px/s, ~70px coast left)
+const MOBILE_FAST_JUMP_CARDS = 1.35;     // enter cruising on multi-card jump (e.g., List jump)
+const MOBILE_SETTLE_IDLE_MS = 110;       // fallback settle timer when scrollend is absent
 
 const smootherstep = (edge0: number, edge1: number, x: number): number => {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
@@ -263,10 +267,20 @@ export const App: React.FC = () => {
 
     let cancelled = false;
     const centersRef: number[] = [];
-    let committedIdx = mobileActiveIndexRef.current;
+    let committedIdx = Math.max(0, mobileActiveIndexRef.current);
     let displayU = committedIdx;
     let displayVel = 0;
     let targetU = committedIdx;
+    let displayOpen = 1;
+    let openVel = 0;
+    let targetOpen = 1;
+    let isCruising = false;
+    let pendingLandIdx: number | null = null;
+    let lastScrollY = window.scrollY || window.pageYOffset || 0;
+    let lastScrollTime = 0;
+    let smoothVel = 0;
+    let settleTimer: number | null = null;
+    let lastRulerIdx = -1;
     let rafId = 0;
     let lastFrameTime = 0;
 
@@ -319,9 +333,25 @@ export const App: React.FC = () => {
       return n - 1;
     };
 
-    const renderMobileScrub = (u: number) => {
+    const setActiveMobileIdx = (next: number) => {
+      if (next !== mobileActiveIndexRef.current) {
+        mobileActiveIndexRef.current = next;
+        setMobileActiveIndex(next);
+      }
+    };
+
+    const syncRuler = (idx: number) => {
+      const clamped = Math.max(0, Math.min(projectsData.length - 1, idx));
+      if (clamped !== lastRulerIdx) {
+        lastRulerIdx = clamped;
+        setActiveProjectId(projectsData[clamped].id);
+      }
+    };
+
+    const renderMobileScrub = (u: number, openness: number) => {
       if (cancelled) return;
       const n = projectsData.length;
+      const o = reduced ? 1 : Math.max(0, Math.min(1, openness));
       const clampedU = Math.max(0, Math.min(Math.max(0, n - 1), u));
       const k = n <= 1 ? 0 : Math.min(n - 2, Math.floor(clampedU));
       const t = n <= 1 ? 0 : clampedU - k;
@@ -338,33 +368,36 @@ export const App: React.FC = () => {
         const entry = mobileItemRefs.current[i];
         if (!entry) continue;
 
-        let offsetY = 0;
+        let baseOffsetY = 0;
         if (i < k) {
-          offsetY = 0;
+          baseOffsetY = 0;
         } else if (i === k) {
-          offsetY = sK * (1 - e);
+          baseOffsetY = sK * (1 - e);
         } else if (i === k + 1) {
-          offsetY = (sK + MOBILE_BELOW_BREATHE) * (1 - e) + sNext * e;
+          baseOffsetY = (sK + MOBILE_BELOW_BREATHE) * (1 - e) + sNext * e;
         } else {
-          offsetY =
+          baseOffsetY =
             (sK + MOBILE_BELOW_BREATHE) * (1 - e) +
             (sNext + MOBILE_BELOW_BREATHE) * e;
         }
+        const offsetY = baseOffsetY * o;
 
         if (entry.modelEl) {
           entry.modelEl.style.transition = 'none';
           entry.modelEl.style.transform = `translate3d(0, ${offsetY.toFixed(2)}px, 0)`;
         }
 
-        let titleProgress = 0;
+        let baseTitleProgress = 0;
         let tuckY = i < k ? -10 : 10;
+        const revealTuck = 10 * (1 - o);
         if (i === k) {
-          titleProgress = pK;
-          tuckY = reduced ? 0 : -10 * (1 - pK);
+          baseTitleProgress = pK;
+          tuckY = reduced ? 0 : -10 * (1 - pK) * o + revealTuck;
         } else if (n > 1 && i === k + 1) {
-          titleProgress = pNext;
-          tuckY = reduced ? 0 : 10 * (1 - pNext);
+          baseTitleProgress = pNext;
+          tuckY = reduced ? 0 : 10 * (1 - pNext) * o + revealTuck;
         }
+        const titleProgress = baseTitleProgress * o;
 
         const scale = reduced ? 1 : 0.98 + 0.02 * titleProgress;
         if (entry.titleEl) {
@@ -390,14 +423,22 @@ export const App: React.FC = () => {
       if (reduced) {
         displayU = targetU;
         displayVel = 0;
+        displayOpen = 1;
+        openVel = 0;
       } else {
-        const omega = 12;
+        const omegaU = 12;
+        const omegaOpen = targetOpen < displayOpen ? 16 : 12;
         const steps = rawDt > 0.018 ? 2 : 1;
         const stepDt = rawDt / steps;
         for (let s = 0; s < steps; s++) {
-          const accel = omega * omega * (targetU - displayU) - 2 * omega * displayVel;
-          displayVel += accel * stepDt;
+          const accelU = omegaU * omegaU * (targetU - displayU) - 2 * omegaU * displayVel;
+          displayVel += accelU * stepDt;
           displayU += displayVel * stepDt;
+
+          const accelOpen =
+            omegaOpen * omegaOpen * (targetOpen - displayOpen) - 2 * omegaOpen * openVel;
+          openVel += accelOpen * stepDt;
+          displayOpen += openVel * stepDt;
         }
 
         const maxU = Math.max(0, projectsData.length - 1);
@@ -409,15 +450,50 @@ export const App: React.FC = () => {
           displayVel = 0;
         }
 
+        if (displayOpen < 0) {
+          displayOpen = 0;
+          openVel = 0;
+        } else if (displayOpen > 1) {
+          displayOpen = 1;
+          openVel = 0;
+        }
+
         if (Math.abs(targetU - displayU) < 0.0008 && Math.abs(displayVel) < 0.004) {
           displayU = targetU;
           displayVel = 0;
         }
+        if (Math.abs(targetOpen - displayOpen) < 0.001 && Math.abs(openVel) < 0.005) {
+          displayOpen = targetOpen;
+          openVel = 0;
+        }
+
+        // Keep pocket position aligned with current focus while tucked during fast flicks
+        if (isCruising && displayOpen <= 0.03) {
+          const nearestIdx = Math.round(computeScrollU());
+          displayU = nearestIdx;
+          targetU = nearestIdx;
+          displayVel = 0;
+        }
+
+        // Complete two-phase jump once old pocket finishes tucking
+        if (!isCruising && pendingLandIdx !== null && displayOpen <= 0.04) {
+          committedIdx = pendingLandIdx;
+          displayU = pendingLandIdx;
+          targetU = pendingLandIdx;
+          displayVel = 0;
+          pendingLandIdx = null;
+          targetOpen = 1;
+          setActiveMobileIdx(committedIdx);
+          syncRuler(committedIdx);
+        }
       }
 
-      renderMobileScrub(displayU);
+      renderMobileScrub(displayU, displayOpen);
 
-      if (Math.abs(targetU - displayU) > 0.0008 || Math.abs(displayVel) > 0.004) {
+      const uSettled = Math.abs(targetU - displayU) <= 0.0008 && Math.abs(displayVel) <= 0.004;
+      const openSettled = Math.abs(targetOpen - displayOpen) <= 0.001 && Math.abs(openVel) <= 0.005;
+
+      if (!uSettled || !openSettled || pendingLandIdx !== null) {
         rafId = window.requestAnimationFrame(tick);
       } else {
         rafId = 0;
@@ -432,51 +508,166 @@ export const App: React.FC = () => {
       }
     };
 
-    const commitProjectIndex = (nextIdx: number, instant = false) => {
-      const n = projectsData.length;
-      const clamped = Math.max(0, Math.min(n - 1, nextIdx));
-      committedIdx = clamped;
-      targetU = clamped;
+    const enterCruising = (scrollU: number) => {
+      if (reduced) return;
+      isCruising = true;
+      pendingLandIdx = null;
+      targetOpen = 0;
+      setActiveMobileIdx(-1);
+      syncRuler(Math.round(scrollU));
+      ensureLoopRunning();
+    };
 
-      if (clamped !== mobileActiveIndexRef.current) {
-        mobileActiveIndexRef.current = clamped;
-        setMobileActiveIndex(clamped);
-        setActiveProjectId(projectsData[clamped].id);
-      }
+    const settleToIndex = (rawIdx: number, instant = false) => {
+      const n = projectsData.length;
+      const clamped = Math.max(0, Math.min(n - 1, rawIdx));
+      isCruising = false;
+      syncRuler(clamped);
 
       if (instant || reduced) {
+        pendingLandIdx = null;
+        committedIdx = clamped;
+        displayU = clamped;
+        targetU = clamped;
+        displayVel = 0;
+        displayOpen = 1;
+        targetOpen = 1;
+        openVel = 0;
+        setActiveMobileIdx(clamped);
         if (rafId) {
           window.cancelAnimationFrame(rafId);
           rafId = 0;
         }
         lastFrameTime = 0;
-        displayU = targetU;
-        displayVel = 0;
-        renderMobileScrub(displayU);
-      } else {
-        ensureLoopRunning();
+        renderMobileScrub(displayU, displayOpen);
+        return;
       }
+
+      if (displayOpen <= 0.04) {
+        pendingLandIdx = null;
+        committedIdx = clamped;
+        displayU = clamped;
+        targetU = clamped;
+        displayVel = 0;
+        targetOpen = 1;
+        setActiveMobileIdx(clamped);
+        ensureLoopRunning();
+        return;
+      }
+
+      if (Math.abs(clamped - displayU) > 1.05) {
+        pendingLandIdx = clamped;
+        committedIdx = clamped;
+        targetOpen = 0;
+        setActiveMobileIdx(-1);
+        ensureLoopRunning();
+        return;
+      }
+
+      pendingLandIdx = null;
+      committedIdx = clamped;
+      targetU = clamped;
+      targetOpen = 1;
+      setActiveMobileIdx(clamped);
+      ensureLoopRunning();
     };
 
     const snapImmediate = () => {
-      commitProjectIndex(Math.round(computeScrollU()), true);
+      settleToIndex(Math.round(computeScrollU()), true);
+    };
+
+    const handleScrollEnd = () => {
+      if (settleTimer !== null) {
+        window.clearTimeout(settleTimer);
+        settleTimer = null;
+      }
+      smoothVel = 0;
+      lastScrollTime = 0;
+      const finalIdx = Math.round(computeScrollU());
+      if (
+        isCruising ||
+        pendingLandIdx !== null ||
+        targetOpen < 1 ||
+        finalIdx !== committedIdx
+      ) {
+        settleToIndex(finalIdx, false);
+      }
+    };
+
+    const scheduleFallbackSettle = () => {
+      if (settleTimer !== null) {
+        window.clearTimeout(settleTimer);
+      }
+      settleTimer = window.setTimeout(() => {
+        settleTimer = null;
+        handleScrollEnd();
+      }, MOBILE_SETTLE_IDLE_MS);
     };
 
     const handleScroll = () => {
       const n = projectsData.length;
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      const now = performance.now();
+      const dt = now - lastScrollTime;
+
+      if (lastScrollTime === 0 || dt > 120) {
+        smoothVel = 0;
+        lastScrollY = scrollY;
+        lastScrollTime = now;
+      } else if (dt >= 6) {
+        const instVel = Math.abs(scrollY - lastScrollY) / dt;
+        smoothVel = smoothVel * 0.55 + instVel * 0.45;
+        lastScrollY = scrollY;
+        lastScrollTime = now;
+      }
+
+      scheduleFallbackSettle();
+
       const scrollU = computeScrollU();
 
+      if (scrollU === 0 || scrollU === n - 1) {
+        const edgeIdx = scrollU === 0 ? 0 : n - 1;
+        if (
+          isCruising ||
+          pendingLandIdx !== null ||
+          targetOpen < 1 ||
+          edgeIdx !== committedIdx
+        ) {
+          settleToIndex(edgeIdx, false);
+        }
+        return;
+      }
+
+      if (
+        !reduced &&
+        (smoothVel >= MOBILE_FAST_ENTER_VELOCITY ||
+          (!isCruising && Math.abs(scrollU - committedIdx) >= MOBILE_FAST_JUMP_CARDS))
+      ) {
+        enterCruising(scrollU);
+        return;
+      }
+
+      if (isCruising) {
+        const nearestIdx = Math.round(scrollU);
+        syncRuler(nearestIdx);
+        if (smoothVel <= MOBILE_FAST_EXIT_VELOCITY) {
+          settleToIndex(nearestIdx, false);
+        }
+        return;
+      }
+
       let nextIdx = committedIdx;
-      if (scrollU === 0) {
-        nextIdx = 0;
-      } else if (scrollU === n - 1) {
-        nextIdx = n - 1;
-      } else if (Math.abs(scrollU - committedIdx) > MOBILE_SWITCH_HYSTERESIS) {
+      if (Math.abs(scrollU - committedIdx) > MOBILE_SWITCH_HYSTERESIS) {
         nextIdx = Math.max(0, Math.min(n - 1, Math.round(scrollU)));
       }
 
-      if (nextIdx !== committedIdx || Math.abs(targetU - nextIdx) > 0.0001) {
-        commitProjectIndex(nextIdx, false);
+      if (
+        pendingLandIdx !== null ||
+        targetOpen < 1 ||
+        nextIdx !== committedIdx ||
+        Math.abs(targetU - nextIdx) > 0.0001
+      ) {
+        settleToIndex(nextIdx, false);
       }
     };
 
@@ -490,11 +681,12 @@ export const App: React.FC = () => {
       snapImmediate();
     };
 
-    rescrubMobileRef.current = () => renderMobileScrub(displayU);
+    rescrubMobileRef.current = () => renderMobileScrub(displayU, displayOpen);
     measureCenters();
     snapImmediate();
 
     window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scrollend', handleScrollEnd, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
     motionMq?.addEventListener('change', handleMotionChange);
 
@@ -511,7 +703,9 @@ export const App: React.FC = () => {
       cancelled = true;
       rescrubMobileRef.current = null;
       if (rafId) window.cancelAnimationFrame(rafId);
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
       window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scrollend', handleScrollEnd);
       window.removeEventListener('resize', handleResize);
       motionMq?.removeEventListener('change', handleMotionChange);
       Object.values(mobileItemRefs.current).forEach(({ modelEl, titleEl }) => {
@@ -621,7 +815,7 @@ export const App: React.FC = () => {
       />
 
       {/* Minimal Engineering Footer */}
-      <footer className="mobile-snap-bottom relative z-20 w-full py-12 text-slate-500 dark:text-slate-400 font-mono text-xs text-center mt-12">
+      <footer className="relative z-20 w-full py-12 text-slate-500 dark:text-slate-400 font-mono text-xs text-center mt-12">
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span>© {new Date().getFullYear()} JADEN FANN</span>
           <div className="flex items-center gap-4 sm:gap-6 flex-wrap">

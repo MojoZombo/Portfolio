@@ -404,7 +404,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
     <section
       id={`project-${project.id}`}
       ref={itemRef}
-      className={`mobile-snap-section relative min-h-0 md:min-h-[44vh] flex items-center justify-center py-1 sm:py-2 md:py-8 overflow-visible pointer-events-none ${
+      className={`relative min-h-0 md:min-h-[44vh] flex items-center justify-center py-1 sm:py-2 md:py-8 overflow-visible pointer-events-none ${
         effectiveIsActive ? 'z-20' : 'z-10'
       }`}
     >
