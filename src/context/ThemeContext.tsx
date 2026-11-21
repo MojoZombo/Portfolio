@@ -30,6 +30,133 @@ const getThemeButtonOrigin = (): { x: number; y: number } => {
   };
 };
 
+const parsePx = (value: string | null | undefined): number => {
+  if (!value) return 0;
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
+const getLargeViewportSize = (): { width: number; height: number } => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return { width: 0, height: 0 };
+  }
+  let width = Math.max(
+    window.innerWidth || 0,
+    document.documentElement.clientWidth || 0,
+    window.visualViewport?.width || 0
+  );
+  let height = Math.max(
+    window.innerHeight || 0,
+    document.documentElement.clientHeight || 0,
+    window.visualViewport?.height || 0
+  );
+
+  if (
+    document.body &&
+    typeof CSS !== 'undefined' &&
+    typeof CSS.supports === 'function' &&
+    CSS.supports('height', '100lvh')
+  ) {
+    const probe = document.createElement('div');
+    probe.style.cssText =
+      'position:fixed;top:0;left:0;width:100lvw;height:100lvh;visibility:hidden;pointer-events:none;z-index:-1;';
+    document.body.appendChild(probe);
+    const rect = probe.getBoundingClientRect();
+    probe.remove();
+    width = Math.max(width, rect.width || 0);
+    height = Math.max(height, rect.height || 0);
+  }
+
+  return { width, height };
+};
+
+const parsePseudoOffset = (style: CSSStyleDeclaration): { x: number; y: number } => {
+  let x = parsePx(style.left);
+  let y = parsePx(style.top);
+  if (style.transform && style.transform !== 'none' && typeof DOMMatrixReadOnly !== 'undefined') {
+    try {
+      const matrix = new DOMMatrixReadOnly(style.transform);
+      if (Number.isFinite(matrix.m41)) x += matrix.m41;
+      if (Number.isFinite(matrix.m42)) y += matrix.m42;
+    } catch {}
+  }
+  return { x, y };
+};
+
+const resolveViewTransitionMetrics = (
+  fallbackOrigin: { x: number; y: number },
+  baseViewport: { width: number; height: number }
+): { origin: { x: number; y: number }; endRadius: number } => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    const dist = Math.hypot(
+      Math.max(fallbackOrigin.x, baseViewport.width - fallbackOrigin.x),
+      Math.max(fallbackOrigin.y, baseViewport.height - fallbackOrigin.y)
+    );
+    return { origin: fallbackOrigin, endRadius: Math.ceil(dist * 1.02 + 32) };
+  }
+
+  const rootEl = document.documentElement;
+  const vtStyle = window.getComputedStyle(rootEl, '::view-transition');
+  const rootGroupStyle = window.getComputedStyle(rootEl, '::view-transition-group(root)');
+  const rootNewStyle = window.getComputedStyle(rootEl, '::view-transition-new(root)');
+  const toggleGroupStyle = window.getComputedStyle(rootEl, '::view-transition-group(theme-toggle)');
+
+  const snapWidth = Math.max(
+    baseViewport.width,
+    parsePx(vtStyle.width),
+    parsePx(rootGroupStyle.width),
+    parsePx(rootNewStyle.width)
+  );
+  const snapHeight = Math.max(
+    baseViewport.height,
+    parsePx(vtStyle.height),
+    parsePx(rootGroupStyle.height),
+    parsePx(rootNewStyle.height)
+  );
+
+  let origin = fallbackOrigin;
+  const toggleW = parsePx(toggleGroupStyle.width);
+  const toggleH = parsePx(toggleGroupStyle.height);
+  if (toggleW > 0 && toggleH > 0) {
+    const rootPos = parsePseudoOffset(rootGroupStyle);
+    const togglePos = parsePseudoOffset(toggleGroupStyle);
+    const candidateX = togglePos.x - rootPos.x + toggleW / 2;
+    const candidateY = togglePos.y - rootPos.y + toggleH / 2;
+    const isNonDegenerate =
+      togglePos.x !== 0 ||
+      togglePos.y !== 0 ||
+      (fallbackOrigin.x < 40 && fallbackOrigin.y < 40);
+    if (
+      isNonDegenerate &&
+      Number.isFinite(candidateX) &&
+      Number.isFinite(candidateY) &&
+      candidateX >= 0 &&
+      candidateX <= snapWidth &&
+      candidateY >= 0 &&
+      candidateY <= snapHeight
+    ) {
+      origin = { x: Math.round(candidateX), y: Math.round(candidateY) };
+    }
+  }
+
+  const maxDistX = Math.max(
+    origin.x,
+    snapWidth - origin.x,
+    fallbackOrigin.x,
+    snapWidth - fallbackOrigin.x
+  );
+  const maxDistY = Math.max(
+    origin.y,
+    snapHeight - origin.y,
+    fallbackOrigin.y,
+    snapHeight - fallbackOrigin.y
+  );
+  const cornerDistance = Math.hypot(maxDistX, maxDistY);
+  const endRadius = Math.ceil(cornerDistance * 1.02 + 32);
+
+  return { origin, endRadius };
+};
+
 const getCurrentRadius = (): number | null => {
   if (typeof window === 'undefined' || typeof document === 'undefined') return null;
   try {
@@ -266,31 +393,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const origin = getThemeButtonOrigin();
     originRef.current = origin;
 
-    // Measure exact viewport dimensions: accounts for mobile dynamic browser toolbars and virtual viewports
-    const viewportWidth = Math.max(
-      window.innerWidth || 0,
-      document.documentElement.clientWidth || 0
-    );
-    const viewportHeight = Math.max(
-      window.innerHeight || 0,
-      document.documentElement.clientHeight || 0,
-      window.visualViewport?.height || 0
-    );
+    // Measure large viewport (100lvw/100lvh): W3C ::view-transition snapshot spans large viewport including mobile browser bar
+    const baseViewport = getLargeViewportSize();
 
     // Calculate maximum distance to the furthest screen corner
-    const maxDistX = Math.max(origin.x, viewportWidth - origin.x);
-    const maxDistY = Math.max(origin.y, viewportHeight - origin.y);
+    const maxDistX = Math.max(origin.x, baseViewport.width - origin.x);
+    const maxDistY = Math.max(origin.y, baseViewport.height - origin.y);
     const cornerDistance = Math.hypot(maxDistX, maxDistY);
 
-    // Add a calibrated 24px safety buffer so the expanding circle comfortably sweeps past all 4 screen corners
-    // on tall phone screens before the animation settles, with zero over-inflation on desktop
-    const endRadius = Math.ceil(cornerDistance + 24);
+    // Add a calibrated safety buffer so the expanding circle comfortably sweeps past all 4 screen corners
+    const endRadius = Math.ceil(cornerDistance * 1.02 + 32);
     endRadiusRef.current = endRadius;
 
     // Calibrate timing and easing to screen size for silky smooth transitions
-    const isMobile = viewportWidth < 640;
-    const isTablet = viewportWidth >= 640 && viewportWidth < 1024;
-    const isLargeDesktop = viewportWidth >= 1920;
+    const isMobile = baseViewport.width < 640;
+    const isTablet = baseViewport.width >= 640 && baseViewport.width < 1024;
+    const isLargeDesktop = baseViewport.width >= 1920;
 
     const duration = isMobile ? 520 : isTablet ? 580 : isLargeDesktop ? 700 : 640;
     const easing = 'cubic-bezier(0.2, 0.85, 0.32, 1)';
@@ -321,9 +439,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     transition.ready.then(() => {
       if (activeTransitionRef.current !== transition || directionRef.current !== 'forward') return;
 
+      const resolved = resolveViewTransitionMetrics(origin, baseViewport);
+      originRef.current = resolved.origin;
+      endRadiusRef.current = resolved.endRadius;
+
       const clipPath = [
-        `circle(0px at ${origin.x}px ${origin.y}px)`,
-        `circle(${endRadius}px at ${origin.x}px ${origin.y}px)`,
+        `circle(0px at ${resolved.origin.x}px ${resolved.origin.y}px)`,
+        `circle(${resolved.endRadius}px at ${resolved.origin.x}px ${resolved.origin.y}px)`,
       ];
 
       const anim = document.documentElement.animate(
