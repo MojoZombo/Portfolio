@@ -404,7 +404,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
     <section
       id={`project-${project.id}`}
       ref={itemRef}
-      className={`mobile-snap-section relative min-h-[336px] py-6 sm:min-h-[420px] sm:py-5 md:min-h-[44vh] md:py-8 flex items-center justify-center overflow-visible pointer-events-none ${
+      className={`mobile-snap-section relative min-h-0 md:min-h-[44vh] flex items-center justify-center py-1 sm:py-2 md:py-8 overflow-visible pointer-events-none ${
         effectiveIsActive ? 'z-20' : 'z-10'
       }`}
     >
@@ -432,7 +432,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
                   willChange: 'transform, opacity',
                 }
           }
-          className="absolute top-2 left-4 right-4 sm:left-6 sm:right-6 md:top-auto md:right-auto md:w-5/12 md:left-4 lg:left-8 z-30 md:z-20 will-change-transform transform-gpu"
+          className="absolute top-1 left-4 right-4 sm:left-6 sm:right-6 md:top-auto md:right-auto md:w-5/12 md:left-4 lg:left-8 z-30 md:z-20 will-change-transform transform-gpu"
         >
           <div className="space-y-2.5 p-0">
             {/* Company Badge & Date */}

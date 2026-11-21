@@ -285,12 +285,14 @@ canvas {
   html {
     scroll-snap-type: y proximity;
     scroll-padding-top: 56px;
+    scroll-padding-bottom: 140px;
   }
   .mobile-snap-top {
     scroll-snap-align: start;
   }
   .mobile-snap-section {
     scroll-snap-align: center;
+    scroll-snap-stop: always;
   }
   .mobile-snap-bottom {
     scroll-snap-align: end;

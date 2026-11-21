@@ -29,10 +29,9 @@ import { ExternalLink, Cpu, Camera, Mail, Linkedin, Copy, Check } from 'lucide-r
 import { initButtonRipple, revertAllButtonRipples } from './utils/buttonRipple';
 
 const DEFAULT_MOBILE_TITLE_HEIGHT = 116;
-const MOBILE_TITLE_OFFSET_ADJUST = -16;
-const MOBILE_MIN_POCKET_PUSH = 76;
-const MOBILE_BELOW_BREATHE = 22;
-const MOBILE_SWITCH_HYSTERESIS = 0.60;
+const MOBILE_TITLE_EXTRA_GAP = 14;
+const MOBILE_BELOW_BREATHE = 24;
+const MOBILE_SWITCH_HYSTERESIS = 0.56;
 
 const smootherstep = (edge0: number, edge1: number, x: number): number => {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
@@ -209,7 +208,7 @@ export const App: React.FC = () => {
         const rect = el.getBoundingClientRect();
         const centerDocY =
           rect.top + (window.scrollY || window.pageYOffset || 0) + rect.height / 2;
-        const targetTop = Math.max(0, centerDocY - (window.innerHeight * 0.5 + 28));
+        const targetTop = Math.max(0, centerDocY - (window.innerHeight * 0.5 - 42));
         window.scrollTo({ top: targetTop, behavior: 'smooth' });
       } else {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -289,11 +288,8 @@ export const App: React.FC = () => {
     };
 
     const getPocketHeight = (idx: number): number =>
-      Math.max(
-        MOBILE_MIN_POCKET_PUSH,
-        Math.round(mobileTitleHeightsRef.current[idx] ?? DEFAULT_MOBILE_TITLE_HEIGHT) +
-          MOBILE_TITLE_OFFSET_ADJUST
-      );
+      Math.round(mobileTitleHeightsRef.current[idx] ?? DEFAULT_MOBILE_TITLE_HEIGHT) +
+      MOBILE_TITLE_EXTRA_GAP;
 
     const computeScrollU = (): number => {
       if (centersRef.length === 0) {
@@ -305,7 +301,7 @@ export const App: React.FC = () => {
       const scrollY = window.scrollY || window.pageYOffset || 0;
       const vh = window.innerHeight;
       const docHeight = document.documentElement.scrollHeight;
-      const focusY = scrollY + vh * 0.5 + 28;
+      const focusY = scrollY + vh * 0.5 - 42;
 
       if (n <= 1 || scrollY <= 4 || focusY <= centersRef[0]) {
         return 0;
@@ -590,7 +586,7 @@ export const App: React.FC = () => {
 
       {/* Main Interactive Projects Timeline */}
       <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex flex-col pb-40 md:pb-0">
+        <div className="flex flex-col pb-56 md:pb-0">
           {projectsData.map((project, index) => (
             <TimelineItem
               key={project.id}
