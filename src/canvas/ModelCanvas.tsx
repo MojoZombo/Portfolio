@@ -587,7 +587,7 @@ function CADBlueprintMorphController({
         morphProgressRef.current = 1;
       } else {
         const scrollHint = scrollExitRef?.current.scrollExit ?? 0;
-        const rate = 1 / 0.46 + scrollHint * 1.65;
+        const rate = 1 / 0.30 + scrollHint * 2.2;
         morphProgressRef.current = Math.min(1, morphProgressRef.current + delta * rate);
       }
     } else {
@@ -597,7 +597,7 @@ function CADBlueprintMorphController({
       if (prefersReducedMotion) {
         morphProgressRef.current = 0;
       } else {
-        morphProgressRef.current = Math.max(0, morphProgressRef.current - delta / 0.3);
+        morphProgressRef.current = Math.max(0, morphProgressRef.current - delta / 0.26);
       }
     }
 
@@ -615,7 +615,7 @@ function CADBlueprintMorphController({
       prevChildYawRef.current = childYaw;
 
       const rotationSettled =
-        prefersReducedMotion || yawSpeed < 0.014 || exitElapsedRef.current >= 0.72;
+        prefersReducedMotion || yawSpeed < 0.02 || exitElapsedRef.current >= 0.45;
 
       if (mix >= 0.999 && rotationSettled) {
         settledFramesRef.current += 1;

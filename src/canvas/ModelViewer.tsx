@@ -189,7 +189,14 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       }, 180);
     } else if (isActive) {
       if (isSettled) {
-        setShouldMountWebGL(true);
+        if (isMobileMode && !shouldMountWebGL) {
+          // Defer brand-new mobile WebGL mount until parting/title reveal finishes (Layer 1 2x shaded poster covers seamlessly)
+          timer = setTimeout(() => {
+            setShouldMountWebGL(true);
+          }, 240);
+        } else {
+          setShouldMountWebGL(true);
+        }
       }
     } else if (!isNearby && !isOnScreen) {
       // Card left proximity ring: unmount WebGL far off-screen
@@ -201,7 +208,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       }, 420);
     }
     return () => clearTimeout(timer);
-  }, [isActive, isNearby, isOnScreen, isSettled, allowZoom]);
+  }, [isActive, isNearby, isOnScreen, isSettled, allowZoom, isMobileMode, shouldMountWebGL]);
 
   const isActiveAndSettled = allowZoom || (isActive && isSettled);
   const isRetainingLiveCanvas = !allowZoom && isCanvasReady && isOnScreen;
@@ -376,8 +383,10 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-10 ${
           showLiveCanvas
             ? 'opacity-0 pointer-events-none'
-            : isActive || allowZoom
+            : allowZoom
             ? 'opacity-100'
+            : isActive
+            ? 'opacity-100 transition-opacity duration-300 ease-out'
             : 'opacity-0 transition-opacity duration-300 ease-out'
         }`}
         loading={isActive || allowZoom ? 'eager' : 'lazy'}

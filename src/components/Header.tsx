@@ -259,7 +259,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Main Header Container in document flow - spaced generously from top on big screens */}
-      <header className="relative z-30 w-full bg-transparent pt-10 sm:pt-14 md:pt-16 pb-4 pointer-events-none">
+      <header className="relative z-30 w-full bg-transparent pt-10 sm:pt-14 md:pt-16 pb-4 pointer-events-none mobile-snap-top">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 pointer-events-auto">
           {/* Top Row: Always Name on the Left, Buttons on the Right regardless of screen size */}
           <div className="flex items-center justify-between gap-4 w-full">

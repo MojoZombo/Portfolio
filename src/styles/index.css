@@ -281,4 +281,20 @@ canvas {
   );
 }
 
+@media (max-width: 767px) {
+  html {
+    scroll-snap-type: y proximity;
+    scroll-padding-top: 56px;
+  }
+  .mobile-snap-top {
+    scroll-snap-align: start;
+  }
+  .mobile-snap-section {
+    scroll-snap-align: center;
+  }
+  .mobile-snap-bottom {
+    scroll-snap-align: end;
+  }
+}
+
 

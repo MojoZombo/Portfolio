@@ -29,13 +29,10 @@ import { ExternalLink, Cpu, Camera, Mail, Linkedin, Copy, Check } from 'lucide-r
 import { initButtonRipple, revertAllButtonRipples } from './utils/buttonRipple';
 
 const DEFAULT_MOBILE_TITLE_HEIGHT = 116;
-const MOBILE_TITLE_EXTRA_GAP = 10;
-const MOBILE_BELOW_BREATHE = 24;
-const MOBILE_SCRUB_WINDOW_MS = 150;
-const MOBILE_SCRUB_ENTER_DELTA = 95;
-const MOBILE_SCRUB_EXIT_DELTA = 35;
-const MOBILE_SETTLE_DELAY_MS = 95;
-const MOBILE_SLOW_SWITCH_HYSTERESIS = 0.52;
+const MOBILE_TITLE_OFFSET_ADJUST = -16;
+const MOBILE_MIN_POCKET_PUSH = 76;
+const MOBILE_BELOW_BREATHE = 22;
+const MOBILE_SWITCH_HYSTERESIS = 0.60;
 
 const smootherstep = (edge0: number, edge1: number, x: number): number => {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
@@ -212,7 +209,7 @@ export const App: React.FC = () => {
         const rect = el.getBoundingClientRect();
         const centerDocY =
           rect.top + (window.scrollY || window.pageYOffset || 0) + rect.height / 2;
-        const targetTop = Math.max(0, centerDocY - (window.innerHeight * 0.5 + 10));
+        const targetTop = Math.max(0, centerDocY - (window.innerHeight * 0.5 + 28));
         window.scrollTo({ top: targetTop, behavior: 'smooth' });
       } else {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -267,15 +264,12 @@ export const App: React.FC = () => {
 
     let cancelled = false;
     const centersRef: number[] = [];
-    const scrollSamples: { t: number; y: number }[] = [];
-    let isContinuousScrub = false;
     let committedIdx = mobileActiveIndexRef.current;
     let displayU = committedIdx;
     let displayVel = 0;
     let targetU = committedIdx;
     let rafId = 0;
     let lastFrameTime = 0;
-    let settleTimer: ReturnType<typeof setTimeout> | null = null;
 
     const motionMq =
       typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -295,8 +289,11 @@ export const App: React.FC = () => {
     };
 
     const getPocketHeight = (idx: number): number =>
-      Math.round(mobileTitleHeightsRef.current[idx] ?? DEFAULT_MOBILE_TITLE_HEIGHT) +
-      MOBILE_TITLE_EXTRA_GAP;
+      Math.max(
+        MOBILE_MIN_POCKET_PUSH,
+        Math.round(mobileTitleHeightsRef.current[idx] ?? DEFAULT_MOBILE_TITLE_HEIGHT) +
+          MOBILE_TITLE_OFFSET_ADJUST
+      );
 
     const computeScrollU = (): number => {
       if (centersRef.length === 0) {
@@ -308,7 +305,7 @@ export const App: React.FC = () => {
       const scrollY = window.scrollY || window.pageYOffset || 0;
       const vh = window.innerHeight;
       const docHeight = document.documentElement.scrollHeight;
-      const focusY = scrollY + vh * 0.5 + 10;
+      const focusY = scrollY + vh * 0.5 + 28;
 
       if (n <= 1 || scrollY <= 4 || focusY <= centersRef[0]) {
         return 0;
@@ -332,14 +329,14 @@ export const App: React.FC = () => {
       const clampedU = Math.max(0, Math.min(Math.max(0, n - 1), u));
       const k = n <= 1 ? 0 : Math.min(n - 2, Math.floor(clampedU));
       const t = n <= 1 ? 0 : clampedU - k;
-      const e = reduced ? (t < 0.5 ? 0 : 1) : smootherstep(0.06, 0.94, t);
+      const e = reduced ? (t < 0.5 ? 0 : 1) : smootherstep(0.05, 0.95, t);
 
       const sK = getPocketHeight(k);
       const sNext = n > 1 ? getPocketHeight(k + 1) : sK;
 
-      const pK = reduced ? (t < 0.5 ? 1 : 0) : 1 - smootherstep(0.18, 0.48, t);
+      const pK = reduced ? (t < 0.5 ? 1 : 0) : 1 - smootherstep(0.08, 0.44, t);
       const pNext =
-        n <= 1 ? 0 : reduced ? (t >= 0.5 ? 1 : 0) : smootherstep(0.44, 0.76, t);
+        n <= 1 ? 0 : reduced ? (t >= 0.5 ? 1 : 0) : smootherstep(0.42, 0.78, t);
 
       for (let i = 0; i < n; i++) {
         const entry = mobileItemRefs.current[i];
@@ -383,18 +380,6 @@ export const App: React.FC = () => {
           entry.titleEl.style.pointerEvents = titleProgress > 0.5 ? 'auto' : 'none';
         }
       }
-
-      const prevIdx = mobileActiveIndexRef.current;
-      const roundedIdx = Math.max(0, Math.min(n - 1, Math.round(clampedU)));
-      if (roundedIdx !== prevIdx) {
-        const shouldCommit =
-          clampedU === 0 || clampedU === n - 1 || Math.abs(clampedU - prevIdx) > 0.53;
-        if (shouldCommit) {
-          mobileActiveIndexRef.current = roundedIdx;
-          setMobileActiveIndex(roundedIdx);
-          setActiveProjectId(projectsData[roundedIdx].id);
-        }
-      }
     };
 
     const tick = (now: number) => {
@@ -410,7 +395,7 @@ export const App: React.FC = () => {
         displayU = targetU;
         displayVel = 0;
       } else {
-        const omega = isContinuousScrub ? 22 : 11;
+        const omega = 12;
         const steps = rawDt > 0.018 ? 2 : 1;
         const stepDt = rawDt / steps;
         for (let s = 0; s < steps; s++) {
@@ -451,12 +436,17 @@ export const App: React.FC = () => {
       }
     };
 
-    const snapToNearest = (instant = false) => {
+    const commitProjectIndex = (nextIdx: number, instant = false) => {
       const n = projectsData.length;
-      const scrollU = computeScrollU();
-      isContinuousScrub = false;
-      committedIdx = Math.max(0, Math.min(n - 1, Math.round(scrollU)));
-      targetU = committedIdx;
+      const clamped = Math.max(0, Math.min(n - 1, nextIdx));
+      committedIdx = clamped;
+      targetU = clamped;
+
+      if (clamped !== mobileActiveIndexRef.current) {
+        mobileActiveIndexRef.current = clamped;
+        setMobileActiveIndex(clamped);
+        setActiveProjectId(projectsData[clamped].id);
+      }
 
       if (instant || reduced) {
         if (rafId) {
@@ -472,66 +462,41 @@ export const App: React.FC = () => {
       }
     };
 
-    const handleScroll = () => {
-      const now = performance.now();
-      const scrollY = window.scrollY || window.pageYOffset || 0;
-      scrollSamples.push({ t: now, y: scrollY });
-      while (scrollSamples.length > 0 && now - scrollSamples[0].t > MOBILE_SCRUB_WINDOW_MS) {
-        scrollSamples.shift();
-      }
-      const windowDelta =
-        scrollSamples.length >= 2
-          ? Math.abs(scrollSamples[scrollSamples.length - 1].y - scrollSamples[0].y)
-          : 0;
+    const snapImmediate = () => {
+      commitProjectIndex(Math.round(computeScrollU()), true);
+    };
 
+    const handleScroll = () => {
       const n = projectsData.length;
       const scrollU = computeScrollU();
 
-      if (!isContinuousScrub && windowDelta >= MOBILE_SCRUB_ENTER_DELTA) {
-        isContinuousScrub = true;
-        targetU = scrollU;
-      } else if (isContinuousScrub) {
-        if (windowDelta <= MOBILE_SCRUB_EXIT_DELTA) {
-          isContinuousScrub = false;
-          committedIdx = Math.max(0, Math.min(n - 1, Math.round(scrollU)));
-          targetU = committedIdx;
-        } else {
-          targetU = scrollU;
-        }
-      } else {
-        if (scrollU === 0) {
-          committedIdx = 0;
-        } else if (scrollU === n - 1) {
-          committedIdx = n - 1;
-        } else if (Math.abs(scrollU - committedIdx) > MOBILE_SLOW_SWITCH_HYSTERESIS) {
-          committedIdx = Math.max(0, Math.min(n - 1, Math.round(scrollU)));
-        }
-        targetU = committedIdx;
+      let nextIdx = committedIdx;
+      if (scrollU === 0) {
+        nextIdx = 0;
+      } else if (scrollU === n - 1) {
+        nextIdx = n - 1;
+      } else if (Math.abs(scrollU - committedIdx) > MOBILE_SWITCH_HYSTERESIS) {
+        nextIdx = Math.max(0, Math.min(n - 1, Math.round(scrollU)));
       }
 
-      if (settleTimer) clearTimeout(settleTimer);
-      settleTimer = setTimeout(() => {
-        if (cancelled) return;
-        scrollSamples.length = 0;
-        snapToNearest(false);
-      }, MOBILE_SETTLE_DELAY_MS);
-
-      ensureLoopRunning();
+      if (nextIdx !== committedIdx || Math.abs(targetU - nextIdx) > 0.0001) {
+        commitProjectIndex(nextIdx, false);
+      }
     };
 
     const handleResize = () => {
       measureCenters();
-      snapToNearest(true);
+      snapImmediate();
     };
 
     const handleMotionChange = (ev: MediaQueryListEvent) => {
       reduced = ev.matches;
-      snapToNearest(true);
+      snapImmediate();
     };
 
     rescrubMobileRef.current = () => renderMobileScrub(displayU);
     measureCenters();
-    snapToNearest(true);
+    snapImmediate();
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
@@ -542,14 +507,13 @@ export const App: React.FC = () => {
       fonts.ready.then(() => {
         if (cancelled) return;
         measureCenters();
-        snapToNearest(true);
+        snapImmediate();
       });
     }
 
     return () => {
       cancelled = true;
       rescrubMobileRef.current = null;
-      if (settleTimer) clearTimeout(settleTimer);
       if (rafId) window.cancelAnimationFrame(rafId);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
@@ -626,7 +590,7 @@ export const App: React.FC = () => {
 
       {/* Main Interactive Projects Timeline */}
       <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex flex-col pb-56 md:pb-0">
+        <div className="flex flex-col pb-40 md:pb-0">
           {projectsData.map((project, index) => (
             <TimelineItem
               key={project.id}
@@ -661,7 +625,7 @@ export const App: React.FC = () => {
       />
 
       {/* Minimal Engineering Footer */}
-      <footer className="relative z-20 w-full py-12 text-slate-500 dark:text-slate-400 font-mono text-xs text-center mt-12">
+      <footer className="mobile-snap-bottom relative z-20 w-full py-12 text-slate-500 dark:text-slate-400 font-mono text-xs text-center mt-12">
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span>© {new Date().getFullYear()} JADEN FANN</span>
           <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
