@@ -36,9 +36,9 @@ const MOBILE_SCRUB_EXIT_DELTA = 35;
 const MOBILE_SETTLE_DELAY_MS = 95;
 const MOBILE_SLOW_SWITCH_HYSTERESIS = 0.52;
 
-const smoothstep = (edge0: number, edge1: number, x: number): number => {
+const smootherstep = (edge0: number, edge1: number, x: number): number => {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-  return t * t * (3 - 2 * t);
+  return t * t * t * (t * (t * 6 - 15) + 10);
 };
 
 export const App: React.FC = () => {
@@ -234,6 +234,7 @@ export const App: React.FC = () => {
     let isContinuousScrub = false;
     let committedIdx = mobileActiveIndexRef.current;
     let displayU = committedIdx;
+    let displayVel = 0;
     let targetU = committedIdx;
     let rafId = 0;
     let lastFrameTime = 0;
@@ -294,14 +295,14 @@ export const App: React.FC = () => {
       const clampedU = Math.max(0, Math.min(Math.max(0, n - 1), u));
       const k = n <= 1 ? 0 : Math.min(n - 2, Math.floor(clampedU));
       const t = n <= 1 ? 0 : clampedU - k;
-      const e = reduced ? (t < 0.5 ? 0 : 1) : smoothstep(0.16, 0.84, t);
+      const e = reduced ? (t < 0.5 ? 0 : 1) : smootherstep(0.06, 0.94, t);
 
       const sK = getPocketHeight(k);
       const sNext = n > 1 ? getPocketHeight(k + 1) : sK;
 
-      const pK = reduced ? (t < 0.5 ? 1 : 0) : 1 - smoothstep(0.22, 0.48, t);
+      const pK = reduced ? (t < 0.5 ? 1 : 0) : 1 - smootherstep(0.18, 0.48, t);
       const pNext =
-        n <= 1 ? 0 : reduced ? (t >= 0.5 ? 1 : 0) : smoothstep(0.46, 0.74, t);
+        n <= 1 ? 0 : reduced ? (t >= 0.5 ? 1 : 0) : smootherstep(0.44, 0.76, t);
 
       for (let i = 0; i < n; i++) {
         const entry = mobileItemRefs.current[i];
@@ -326,16 +327,16 @@ export const App: React.FC = () => {
         }
 
         let titleProgress = 0;
-        let tuckY = i < k ? -8 : 8;
+        let tuckY = i < k ? -10 : 10;
         if (i === k) {
           titleProgress = pK;
-          tuckY = reduced ? 0 : -8 * (1 - pK);
+          tuckY = reduced ? 0 : -10 * (1 - pK);
         } else if (n > 1 && i === k + 1) {
           titleProgress = pNext;
-          tuckY = reduced ? 0 : 8 * (1 - pNext);
+          tuckY = reduced ? 0 : 10 * (1 - pNext);
         }
 
-        const scale = reduced ? 1 : 0.985 + 0.015 * titleProgress;
+        const scale = reduced ? 1 : 0.98 + 0.02 * titleProgress;
         if (entry.titleEl) {
           entry.titleEl.style.transition = 'none';
           entry.titleEl.style.opacity = titleProgress.toFixed(3);
@@ -365,22 +366,40 @@ export const App: React.FC = () => {
         return;
       }
 
-      const dt = lastFrameTime ? Math.min((now - lastFrameTime) / 1000, 0.05) : 0.016;
+      const rawDt = lastFrameTime ? Math.min((now - lastFrameTime) / 1000, 0.05) : 0.016;
       lastFrameTime = now;
 
       if (reduced) {
         displayU = targetU;
+        displayVel = 0;
       } else {
-        const lambda = isContinuousScrub ? 24 : 10.5;
-        displayU += (targetU - displayU) * (1 - Math.exp(-lambda * dt));
-        if (Math.abs(targetU - displayU) < 0.001) {
+        const omega = isContinuousScrub ? 22 : 11;
+        const steps = rawDt > 0.018 ? 2 : 1;
+        const stepDt = rawDt / steps;
+        for (let s = 0; s < steps; s++) {
+          const accel = omega * omega * (targetU - displayU) - 2 * omega * displayVel;
+          displayVel += accel * stepDt;
+          displayU += displayVel * stepDt;
+        }
+
+        const maxU = Math.max(0, projectsData.length - 1);
+        if (displayU < 0) {
+          displayU = 0;
+          displayVel = 0;
+        } else if (displayU > maxU) {
+          displayU = maxU;
+          displayVel = 0;
+        }
+
+        if (Math.abs(targetU - displayU) < 0.0008 && Math.abs(displayVel) < 0.004) {
           displayU = targetU;
+          displayVel = 0;
         }
       }
 
       renderMobileScrub(displayU);
 
-      if (Math.abs(targetU - displayU) > 0.001) {
+      if (Math.abs(targetU - displayU) > 0.0008 || Math.abs(displayVel) > 0.004) {
         rafId = window.requestAnimationFrame(tick);
       } else {
         rafId = 0;
@@ -409,6 +428,7 @@ export const App: React.FC = () => {
         }
         lastFrameTime = 0;
         displayU = targetU;
+        displayVel = 0;
         renderMobileScrub(displayU);
       } else {
         ensureLoopRunning();
