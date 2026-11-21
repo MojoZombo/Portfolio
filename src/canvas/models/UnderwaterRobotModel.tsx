@@ -697,7 +697,10 @@ export const UnderwaterRobotModel: React.FC<ModelProps> = ({
     const time = localTimeRef.current;
 
     // Smooth cubic ramp-in from rest pose to eliminate initial pop on load
-    const smoothWeight = isModelCalibrating ? 1 : animEase;
+    const introProgress = Math.min(1, localTimeRef.current / 0.6);
+    const smoothWeight = isModelCalibrating
+      ? 1
+      : introProgress * introProgress * (3 - 2 * introProgress);
 
     if ((isPlaying || isModelCalibrating) && meshNodesRef.current.length > 0) {
       const computedTransforms = new Map<

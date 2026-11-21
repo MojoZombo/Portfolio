@@ -992,7 +992,10 @@ export const RobotHandModel: React.FC<ModelProps> = ({ isActive = false, isRotat
 
     // 3. Execute Live Kinematics Animations around Center of Mass / Custom Pivot
     // Smooth cubic ramp-in from rest pose to eliminate initial finger pop on load
-    const smoothWeight = isModelCalibrating ? 1 : animEase;
+    const introProgress = Math.min(1, localTimeRef.current / 0.6);
+    const smoothWeight = isModelCalibrating
+      ? 1
+      : introProgress * introProgress * (3 - 2 * introProgress);
 
     if ((isPlaying || isModelCalibrating) && meshNodesRef.current.length > 0) {
       const computedTransforms = new Map<

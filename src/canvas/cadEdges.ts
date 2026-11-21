@@ -6,6 +6,9 @@ import { CAD_LINE_HEIGHT_RATIO } from './stageConfig';
 const ORIGINAL_LINE_LAYER = 31;
 const DEFAULT_CAMERA_LAYER = 0;
 
+const BLUEPRINT_LINE_DARK = new THREE.Color('#94A8C4');
+const BLUEPRINT_LINE_LIGHT = new THREE.Color('#1E293B');
+
 const QUAD_POSITIONS = new Float32Array([
   -1, 0, 0,
    1, 0, 0,
@@ -307,7 +310,9 @@ function syncEntryUniformsAndBuffers(
   bufHeight: number,
   desiredPhysPx: number,
   lineWidthPx: number,
-  coverageAlpha: number
+  coverageAlpha: number,
+  blueprintMix = 0,
+  isDark = false
 ) {
   const line = entry.line;
   const posAttr = line.geometry.attributes?.position;
@@ -338,6 +343,12 @@ function syncEntryUniformsAndBuffers(
   const edgeMat = entry.material;
 
   edgeMat.uniforms.uColor.value.copy(lineMat.color);
+  if (blueprintMix > 0.0001) {
+    edgeMat.uniforms.uColor.value.lerp(
+      isDark ? BLUEPRINT_LINE_DARK : BLUEPRINT_LINE_LIGHT,
+      blueprintMix
+    );
+  }
   edgeMat.uniforms.uAlpha.value = finalAlpha;
   edgeMat.uniforms.uResolution.value.set(bufWidth, bufHeight);
   edgeMat.uniforms.uLineWidthPx.value = lineWidthPx;
@@ -369,7 +380,9 @@ function syncEntryUniformsAndBuffers(
 export function syncCADEdges(
   scene: THREE.Scene,
   gl: THREE.WebGLRenderer,
-  registry: CADEdgeRegistry
+  registry: CADEdgeRegistry,
+  blueprintMix = 0,
+  isDark = false
 ) {
   gl.getDrawingBufferSize(registry.drawSize);
   const bufWidth = Math.max(1, registry.drawSize.x);
@@ -415,7 +428,16 @@ export function syncCADEdges(
       obj.layers.set(ORIGINAL_LINE_LAYER);
     }
 
-    syncEntryUniformsAndBuffers(entry, bufWidth, bufHeight, desiredPhysPx, lineWidthPx, coverageAlpha);
+    syncEntryUniformsAndBuffers(
+      entry,
+      bufWidth,
+      bufHeight,
+      desiredPhysPx,
+      lineWidthPx,
+      coverageAlpha,
+      blueprintMix,
+      isDark
+    );
   });
 
   if (registry.entries.size > seenLines.size) {
@@ -446,7 +468,9 @@ export function disposeCADEdgeRegistry(registry: CADEdgeRegistry) {
 
 export const CADEdgeManager: React.FC<{
   registryRef?: React.MutableRefObject<CADEdgeRegistry | null>;
-}> = ({ registryRef }) => {
+  blueprintMixRef?: React.MutableRefObject<number>;
+  isDark?: boolean;
+}> = ({ registryRef, blueprintMixRef, isDark = false }) => {
   const { scene, gl } = useThree();
   const localRegistryRef = useRef<CADEdgeRegistry | null>(null);
 
@@ -470,7 +494,7 @@ export const CADEdgeManager: React.FC<{
   useFrame(() => {
     const reg = localRegistryRef.current;
     if (reg) {
-      syncCADEdges(scene, gl, reg);
+      syncCADEdges(scene, gl, reg, blueprintMixRef?.current ?? 0, isDark);
     }
   });
 

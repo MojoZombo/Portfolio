@@ -77,8 +77,10 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   const isActiveRef = useRef(index === 0);
   const [isNearby, setIsNearby] = useState(index <= 1);
   const isNearbyRef = useRef(index <= 1);
+  const [isOnScreen, setIsOnScreen] = useState(index <= 1);
+  const isOnScreenRef = useRef(index <= 1);
   const [isSettled, setIsSettled] = useState(index === 0);
-  const scrollExitRef = useRef<ScrollExitState>({ preExit: 0, scrollExit: 0 });
+  const scrollExitRef = useRef<ScrollExitState>({ scrollExit: 0 });
   const preloadStageRef = useRef<0 | 1 | 2>(0); // 0: none, 1: outer ring, 2: inner ring (high priority)
   const [isDesktop, setIsDesktop] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true
@@ -216,12 +218,14 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
   };
 
   const docCenterYRef = useRef(0);
+  const halfHeightRef = useRef(260);
 
   const measureDocCenter = useCallback(() => {
     const el = itemRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
     docCenterYRef.current = rect.top + (window.scrollY || window.pageYOffset || 0) + rect.height / 2;
+    halfHeightRef.current = rect.height / 2;
   }, []);
 
   useEffect(() => {
@@ -259,20 +263,29 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           const enterThreshold = windowHeight * (isMobileDevice ? 0.26 : 0.22);
           const exitThreshold = windowHeight * (isMobileDevice ? 0.36 : 0.32);
 
-          const brakeStart = windowHeight * (isMobileDevice ? 0.25 : 0.23);
-          const scrollExitEnd = windowHeight * (isMobileDevice ? 0.54 : 0.48);
-          scrollExitRef.current.preExit = Math.max(
-            0,
-            Math.min(1, (distance - brakeStart) / Math.max(1, exitThreshold - brakeStart))
-          );
+          const scrollExitEnd = windowHeight * (isMobileDevice ? 0.56 : 0.50);
           scrollExitRef.current.scrollExit = Math.max(
             0,
             Math.min(1, (distance - exitThreshold) / Math.max(1, scrollExitEnd - exitThreshold))
           );
 
-          // Proximity pre-mount ring (adjacent cards N-1 and N+1) with hysteresis
-          const nearbyEnterThreshold = windowHeight * 1.15;
-          const nearbyExitThreshold = windowHeight * 1.35;
+          // Full-card viewport retention ring with hysteresis: never reset while visible on-screen
+          const onScreenEnterThreshold = windowHeight * 0.5 + halfHeightRef.current + 40;
+          const onScreenExitThreshold = windowHeight * 0.5 + halfHeightRef.current + 120;
+          let nextOnScreen = isOnScreenRef.current;
+          if (distance < onScreenEnterThreshold) {
+            nextOnScreen = true;
+          } else if (distance > onScreenExitThreshold) {
+            nextOnScreen = false;
+          }
+          if (nextOnScreen !== isOnScreenRef.current) {
+            isOnScreenRef.current = nextOnScreen;
+            setIsOnScreen(nextOnScreen);
+          }
+
+          // Proximity pre-mount ring (adjacent cards N-1 and N+1) strictly outside viewport ring
+          const nearbyEnterThreshold = Math.max(windowHeight * 1.15, onScreenExitThreshold + 80);
+          const nearbyExitThreshold = Math.max(windowHeight * 1.35, onScreenExitThreshold + 160);
           let nextNearby = isNearbyRef.current;
           if (distance < nearbyEnterThreshold) {
             nextNearby = true;
@@ -428,6 +441,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
               modelType={project.modelType}
               isActive={isActive}
               isNearby={isNearby}
+              isOnScreen={isOnScreen}
               isSettled={!isDesktop || isSettled}
               isPaused={isPausedByModal}
               scrollExitRef={scrollExitRef}

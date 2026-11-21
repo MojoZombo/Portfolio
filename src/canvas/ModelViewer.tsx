@@ -1,17 +1,9 @@
-import React, { Suspense, lazy, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { Suspense, lazy, useState, useRef, useEffect, useCallback } from 'react';
 import type { PointerHoverState, ScrollExitState } from './ModelCanvas';
 import { POSTER_VERSION, preloadModelAssets } from './ModelPreloadManager';
 import { getNativeDpr } from './stageConfig';
 import { useTheme } from '../context/ThemeContext';
 import { Pause, Play, RotateCcw } from 'lucide-react';
-
-const EXIT_DURATION_MS = 420;
-const RECOVERY_DURATION_MS = 180;
-
-const smoothstep = (edge0: number, edge1: number, x: number): number => {
-  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-  return t * t * (3 - 2 * t);
-};
 
 const LazyModelCanvas = lazy(() =>
   import('./ModelCanvas').then((m) => ({ default: m.ModelCanvas }))
@@ -21,6 +13,7 @@ interface ModelViewerProps {
   modelType: string;
   isActive?: boolean;
   isNearby?: boolean;
+  isOnScreen?: boolean;
   isSettled?: boolean;
   isHovered?: boolean;
   isPaused?: boolean;
@@ -35,6 +28,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   modelType,
   isActive = false,
   isNearby = false,
+  isOnScreen = true,
   isSettled = true,
   isHovered = false,
   isPaused = false,
@@ -69,13 +63,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const [isCameraMoved, setIsCameraMoved] = useState(false);
   const [isPrewarmed, setIsPrewarmed] = useState(false);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
+  const [isFrozenBlueprint, setIsFrozenBlueprint] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const bpLayerRef = useRef<HTMLImageElement | null>(null);
-  const liveLayerRef = useRef<HTMLDivElement | null>(null);
-  const exitProgressRef = useRef(0);
-  const exitRafRef = useRef<number | null>(null);
-  const wasLiveCanvasRef = useRef(false);
   const resumeRotateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerHoverRef = useRef<PointerHoverState>({ hovered: false, x: 0, y: 0 });
 
@@ -95,30 +84,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       if (resumeRotateTimerRef.current) {
         clearTimeout(resumeRotateTimerRef.current);
       }
-      if (exitRafRef.current !== null) {
-        cancelAnimationFrame(exitRafRef.current);
-      }
     };
-  }, []);
-
-  const clearLayerInlineOpacity = useCallback(() => {
-    if (bpLayerRef.current) {
-      bpLayerRef.current.style.opacity = '';
-      bpLayerRef.current.style.transition = '';
-    }
-    if (liveLayerRef.current) {
-      liveLayerRef.current.style.opacity = '';
-    }
-  }, []);
-
-  const applyCrossfadeOpacity = useCallback((p: number) => {
-    if (bpLayerRef.current) {
-      bpLayerRef.current.style.transition = 'none';
-      bpLayerRef.current.style.opacity = smoothstep(0.0, 0.50, p).toFixed(3);
-    }
-    if (liveLayerRef.current) {
-      liveLayerRef.current.style.opacity = (1 - smoothstep(0.18, 1.0, p)).toFixed(3);
-    }
   }, []);
 
   const [isTouchDevice, setIsTouchDevice] = useState(false);
@@ -200,15 +166,16 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
 
   const prevIsDarkRef = useRef(isDark);
 
-  // Re-warm dormant pre-mounted canvases only when theme actually changes while idle
+  // Re-warm dormant off-screen canvases when theme changes while out of view
   useEffect(() => {
     const themeChanged = prevIsDarkRef.current !== isDark;
     prevIsDarkRef.current = isDark;
-    if (themeChanged && !isActive && !allowZoom && !isExiting && shouldMountWebGL) {
+    if (themeChanged && !isActive && !allowZoom && !isOnScreen && shouldMountWebGL) {
       setIsPrewarmed(false);
       setIsCanvasReady(false);
+      setIsFrozenBlueprint(false);
     }
-  }, [isDark, isActive, allowZoom, isExiting, shouldMountWebGL]);
+  }, [isDark, isActive, allowZoom, isOnScreen, shouldMountWebGL]);
 
   // Manage WebGL mounting:
   // - Only mount WebGL when the card is active and settled (or in allowZoom modal view)
@@ -224,127 +191,62 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       if (isSettled) {
         setShouldMountWebGL(true);
       }
-    } else if (!isNearby && !isExiting) {
+    } else if (!isNearby && !isOnScreen) {
       // Card left proximity ring: unmount WebGL far off-screen
       timer = setTimeout(() => {
         setShouldMountWebGL(false);
         setIsPrewarmed(false);
         setIsCanvasReady(false);
+        setIsFrozenBlueprint(false);
       }, 420);
     }
     return () => clearTimeout(timer);
-  }, [isActive, isNearby, isSettled, allowZoom, isExiting]);
+  }, [isActive, isNearby, isOnScreen, isSettled, allowZoom]);
 
   const isActiveAndSettled = allowZoom || (isActive && isSettled);
-  const keepModelShaded = isActiveAndSettled || isExiting;
+  const isRetainingLiveCanvas = !allowZoom && isCanvasReady && isOnScreen;
+  const isMorphingToBlueprint = !allowZoom && !isActive && isCanvasReady && isOnScreen;
+  const showLiveCanvas = allowZoom ? isCanvasReady : isCanvasReady && (isActiveAndSettled || isOnScreen);
+  const keepModelShaded = isActiveAndSettled || isRetainingLiveCanvas;
   const isDrawingActiveReveal = shouldMountWebGL && isActiveAndSettled && !isCanvasReady;
-  const showLiveCanvas = (isActiveAndSettled && isCanvasReady) || isExiting;
   const isAnimationsStarted = isActiveAndSettled && isCanvasReady;
-  const effectiveIsRotating =
-    effectiveAnimationPlaying && !prefersReducedMotion && !isDragging && !isExiting && !(allowZoom && isRotationHeld);
+  const isCanvasRotating =
+    effectiveAnimationPlaying &&
+    !prefersReducedMotion &&
+    !isDragging &&
+    !(allowZoom && isRotationHeld) &&
+    (isAnimationsStarted || (isMorphingToBlueprint && !isFrozenBlueprint));
 
-  // Smooth scroll-linked exit & shortest-path morph to static blueprint when scrolling past
-  useLayoutEffect(() => {
+  const handleBlueprintSettled = useCallback(() => {
+    setIsFrozenBlueprint(true);
+  }, []);
+
+  // Coordinate in-place morph re-entry when scrolling back and silent reset once off-screen
+  useEffect(() => {
     if (allowZoom) return;
 
-    if (exitRafRef.current !== null) {
-      cancelAnimationFrame(exitRafRef.current);
-      exitRafRef.current = null;
+    if (isActive) {
+      setIsFrozenBlueprint(false);
+      return;
     }
 
-    const finalizeReset = () => {
-      exitProgressRef.current = 0;
-      clearLayerInlineOpacity();
-      setIsExiting(false);
+    if (resumeRotateTimerRef.current) {
+      clearTimeout(resumeRotateTimerRef.current);
+      resumeRotateTimerRef.current = null;
+    }
+    setIsDragging(false);
+    pointerHoverRef.current.hovered = false;
+
+    if (!isOnScreen) {
+      setIsFrozenBlueprint(false);
       setIsCanvasReady(false);
       setResetTrigger((prev) => prev + 1);
       setIsRotationHeld(false);
       setIsResettingView(false);
       setInternalAnimationPlaying(!prefersReducedMotion);
       setIsCameraMoved(false);
-    };
-
-    if (!isActive) {
-      if (resumeRotateTimerRef.current) {
-        clearTimeout(resumeRotateTimerRef.current);
-        resumeRotateTimerRef.current = null;
-      }
-      setIsDragging(false);
-      pointerHoverRef.current.hovered = false;
-
-      if (wasLiveCanvasRef.current && !prefersReducedMotion) {
-        const initialFloor = scrollExitRef?.current.scrollExit ?? 0;
-        const startP = Math.max(exitProgressRef.current, initialFloor);
-        if (startP >= 0.999) {
-          finalizeReset();
-          return;
-        }
-
-        setIsExiting(true);
-        const startTime = performance.now();
-        exitProgressRef.current = startP;
-        applyCrossfadeOpacity(startP);
-
-        const stepExit = (now: number) => {
-          const timeProgress = Math.min(1, (now - startTime) / EXIT_DURATION_MS);
-          const scrollFloor = scrollExitRef?.current.scrollExit ?? 0;
-          const p = Math.max(exitProgressRef.current, timeProgress, scrollFloor);
-          exitProgressRef.current = p;
-          applyCrossfadeOpacity(p);
-
-          if (p >= 0.999) {
-            exitRafRef.current = null;
-            finalizeReset();
-            return;
-          }
-
-          exitRafRef.current = requestAnimationFrame(stepExit);
-        };
-
-        exitRafRef.current = requestAnimationFrame(stepExit);
-      } else {
-        finalizeReset();
-      }
-      return;
     }
-
-    // Re-entered active center mid-exit: smoothly recover back to live 3D without snapping
-    setIsExiting(false);
-    const currentExitP = exitProgressRef.current;
-    if (currentExitP > 0.001 && isActiveAndSettled) {
-      const recoverStart = performance.now();
-      const stepRecover = (now: number) => {
-        const elapsed = Math.min(1, (now - recoverStart) / RECOVERY_DURATION_MS);
-        const p = currentExitP * (1 - elapsed);
-        exitProgressRef.current = p;
-        applyCrossfadeOpacity(p);
-
-        if (p <= 0.001 || elapsed >= 1) {
-          exitRafRef.current = null;
-          exitProgressRef.current = 0;
-          clearLayerInlineOpacity();
-          return;
-        }
-        exitRafRef.current = requestAnimationFrame(stepRecover);
-      };
-      exitRafRef.current = requestAnimationFrame(stepRecover);
-    } else {
-      exitProgressRef.current = 0;
-      clearLayerInlineOpacity();
-    }
-  }, [
-    isActive,
-    allowZoom,
-    isActiveAndSettled,
-    prefersReducedMotion,
-    scrollExitRef,
-    applyCrossfadeOpacity,
-    clearLayerInlineOpacity,
-  ]);
-
-  useEffect(() => {
-    wasLiveCanvasRef.current = isActiveAndSettled && isCanvasReady;
-  }, [isActiveAndSettled, isCanvasReady]);
+  }, [isActive, isOnScreen, allowZoom, prefersReducedMotion]);
 
   // Image Paths (theme-specific with fallback)
   const themeSuffix = isDark ? 'dark' : 'light';
@@ -450,14 +352,17 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       style={{ touchAction: allowZoom ? 'none' : 'pan-y' }}
       className={`relative ${className} select-none pointer-events-auto flex items-center justify-center overflow-hidden`}
     >
-      {/* 1. LAYER 0: BLUEPRINT (Visible when Inactive) */}
+      {/* 1. LAYER 0: BLUEPRINT (Visible when Inactive / Off-screen) */}
       <img
-        ref={bpLayerRef}
         src={bpPosterPath}
         alt={`${modelType} blueprint`}
         onError={() => setBpFallback(true)}
-        className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-0 transition-opacity duration-300 ease-out ${
-          isActive || allowZoom ? 'opacity-0' : 'opacity-100'
+        className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-0 ${
+          showLiveCanvas
+            ? 'opacity-0'
+            : isActive || allowZoom
+            ? 'opacity-0 transition-opacity duration-300 ease-out'
+            : 'opacity-100 transition-opacity duration-300 ease-out'
         }`}
         loading={isActive ? 'eager' : 'lazy'}
         decoding="async"
@@ -483,9 +388,12 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       {/* 3. LAYER 2: LIVE WEBGL CANVAS (Lazy-loaded once WebGL mounts) */}
       {shouldMountWebGL && (
         <div
-          ref={liveLayerRef}
           className={`absolute inset-0 w-full h-full z-20 ${
-            showLiveCanvas ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            showLiveCanvas
+              ? isMorphingToBlueprint
+                ? 'opacity-100 pointer-events-none'
+                : 'opacity-100'
+              : 'opacity-0 pointer-events-none'
           }`}
         >
           <Suspense fallback={null}>
@@ -501,10 +409,11 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
               showLiveCanvas={showLiveCanvas}
               isDrawingActiveReveal={isDrawingActiveReveal}
               isActiveAndSettled={keepModelShaded}
-              isExiting={isExiting}
+              isMorphingToBlueprint={isMorphingToBlueprint}
+              isFrozenBlueprint={isFrozenBlueprint}
               isHovered={isHovered}
               isAnimationPlaying={effectiveAnimationPlaying}
-              isRotating={effectiveIsRotating}
+              isRotating={isCanvasRotating}
               isDragging={isDragging}
               disableHoverTilt={allowZoom && isRotationHeld}
               prefersReducedMotion={prefersReducedMotion}
@@ -518,14 +427,17 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
                 setIsCanvasReady(true);
                 setIsPrewarmed(true);
               }}
+              onBlueprintSettled={handleBlueprintSettled}
               onCameraMove={setIsCameraMoved}
               onResetComplete={() => {
                 setIsResettingView(false);
               }}
               onContextLost={() => {
+                setIsFrozenBlueprint(false);
                 setIsCanvasReady(false);
               }}
               onContextRestored={() => {
+                setIsFrozenBlueprint(false);
                 setIsPrewarmed(false);
                 setIsCanvasReady(false);
               }}

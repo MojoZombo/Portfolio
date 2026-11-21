@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import React, { Suspense, useRef, useEffect, Component, ErrorInfo, ReactNode } from 'react';
+import React, { Suspense, useRef, useEffect, useLayoutEffect, useCallback, Component, ErrorInfo, ReactNode } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, useGLTF } from '@react-three/drei';
 import { ModelRenderer } from './ModelRenderer';
-import { CADEdgeManager } from './cadEdges';
+import { CADEdgeManager, CADEdgeRegistry, syncCADEdges } from './cadEdges';
 import { CAD_CAMERA_FOV, CAD_CAMERA_POSITION, CADStageLights } from './stageConfig';
 
 // Ensure self-hosted Draco WASM decoder is configured before any model mounts
@@ -22,9 +22,13 @@ export interface PointerHoverState {
 }
 
 export interface ScrollExitState {
-  preExit: number;
   scrollExit: number;
 }
+
+const BLUEPRINT_FILL_DARK = new THREE.Color('#233247');
+const BLUEPRINT_FILL_LIGHT = new THREE.Color('#FFFFFF');
+const BLUEPRINT_LINE_DARK = new THREE.Color('#94A8C4');
+const BLUEPRINT_LINE_LIGHT = new THREE.Color('#1E293B');
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const _camRight = new THREE.Vector3();
@@ -92,20 +96,17 @@ function CameraResetController({
   resetTrigger,
   allowZoom,
   isDragging,
-  isExiting = false,
   onResetComplete,
 }: {
   resetTrigger: number;
   allowZoom: boolean;
   isDragging: boolean;
-  isExiting?: boolean;
   onResetComplete: () => void;
 }) {
   const { camera } = useThree();
   const controls = useThree((state) => state.controls as any);
 
   const isResettingRef = useRef(false);
-  const isExitSpringingRef = useRef(false);
   const lastHandledTriggerRef = useRef(0);
   const onResetCompleteRef = useRef(onResetComplete);
   onResetCompleteRef.current = onResetComplete;
@@ -123,7 +124,6 @@ function CameraResetController({
 
     if (!allowZoom) {
       isResettingRef.current = false;
-      isExitSpringingRef.current = false;
       camera.position.copy(DEFAULT_CAMERA_POS);
       camera.lookAt(0, 0, 0);
       if (controls) {
@@ -141,41 +141,21 @@ function CameraResetController({
     phiVelRef.current = 0;
     thetaVelRef.current = 0;
     targetVelRef.current.set(0, 0, 0);
-    isExitSpringingRef.current = false;
     isResettingRef.current = true;
   }, [resetTrigger, allowZoom, camera, controls]);
-
-  useEffect(() => {
-    if (allowZoom || !isExiting) {
-      isExitSpringingRef.current = false;
-      return;
-    }
-    const targetLenSq = controls?.target ? controls.target.lengthSq() : 0;
-    if (camera.position.distanceToSquared(DEFAULT_CAMERA_POS) > 1e-4 || targetLenSq > 1e-4) {
-      rVelRef.current = 0;
-      phiVelRef.current = 0;
-      thetaVelRef.current = 0;
-      targetVelRef.current.set(0, 0, 0);
-      isExitSpringingRef.current = true;
-    }
-  }, [allowZoom, isExiting, camera, controls]);
 
   useEffect(() => {
     if (isDragging && isResettingRef.current) {
       isResettingRef.current = false;
       onResetCompleteRef.current();
     }
-    if (isDragging && isExitSpringingRef.current) {
-      isExitSpringingRef.current = false;
-    }
   }, [isDragging]);
 
   useFrame((_, rawDelta) => {
-    const exitMode = isExitSpringingRef.current && !isResettingRef.current;
-    if (!isResettingRef.current && !isExitSpringingRef.current) return;
+    if (!isResettingRef.current) return;
 
     const delta = Math.min(rawDelta, 0.035);
-    const omega = exitMode ? 7.5 : 3.2;
+    const omega = 3.2;
 
     const target: THREE.Vector3 | undefined = controls?.target;
     const activeTarget = target ?? _zeroTarget;
@@ -234,12 +214,8 @@ function CameraResetController({
       } else {
         camera.lookAt(0, 0, 0);
       }
-      const wasExplicitReset = isResettingRef.current;
       isResettingRef.current = false;
-      isExitSpringingRef.current = false;
-      if (wasExplicitReset) {
-        onResetCompleteRef.current();
-      }
+      onResetCompleteRef.current();
       return;
     }
 
@@ -332,10 +308,11 @@ function CameraPolarReturnController({
 }
 
 interface InteractiveModelStageProps {
+  stageGroupRef: React.MutableRefObject<THREE.Group | null>;
   allowZoom: boolean;
   showLiveCanvas: boolean;
   isActiveAndSettled: boolean;
-  isExiting: boolean;
+  isMorphingToBlueprint: boolean;
   isRotating: boolean;
   isAnimating: boolean;
   isDragging: boolean;
@@ -344,19 +321,19 @@ interface InteractiveModelStageProps {
   prefersReducedMotion: boolean;
   resetTrigger: number;
   pointerHoverRef: React.MutableRefObject<PointerHoverState>;
-  scrollExitRef?: React.MutableRefObject<ScrollExitState>;
   children: ReactNode;
 }
 
 /**
- * Adds stage-level hover & scroll spin braking, shortest-path exit home morph,
+ * Adds stage-level hover spin braking, gentle coast-down on exit,
  * and camera-aligned pointer parallax tilt without modifying individual model files.
  */
 function InteractiveModelStage({
+  stageGroupRef,
   allowZoom,
   showLiveCanvas,
   isActiveAndSettled,
-  isExiting,
+  isMorphingToBlueprint,
   isRotating,
   isAnimating,
   isDragging,
@@ -365,43 +342,38 @@ function InteractiveModelStage({
   prefersReducedMotion,
   resetTrigger,
   pointerHoverRef,
-  scrollExitRef,
   children,
 }: InteractiveModelStageProps) {
-  const stageRef = useRef<THREE.Group>(null);
   const baseYawRef = useRef(0);
   const spinRampRef = useRef(0);
   const hoverBrakeRef = useRef(0);
-  const scrollBrakeRef = useRef(0);
-  const yawVelRef = useRef(0);
   const currentYawTiltRef = useRef(0);
   const currentPitchTiltRef = useRef(0);
 
   useEffect(() => {
-    if (!isActiveAndSettled && !isExiting) {
+    if (!isActiveAndSettled) {
       baseYawRef.current = 0;
       spinRampRef.current = 0;
       hoverBrakeRef.current = 0;
-      scrollBrakeRef.current = 0;
-      yawVelRef.current = 0;
       currentYawTiltRef.current = 0;
       currentPitchTiltRef.current = 0;
-      stageRef.current?.quaternion.identity();
+      stageGroupRef.current?.quaternion.identity();
     }
-  }, [isActiveAndSettled, isExiting]);
+  }, [isActiveAndSettled, stageGroupRef]);
 
   useEffect(() => {
     if (resetTrigger > 0 && !allowZoom) {
       baseYawRef.current = 0;
-      yawVelRef.current = 0;
+      spinRampRef.current = 0;
+      hoverBrakeRef.current = 0;
       currentYawTiltRef.current = 0;
       currentPitchTiltRef.current = 0;
-      stageRef.current?.quaternion.identity();
+      stageGroupRef.current?.quaternion.identity();
     }
-  }, [resetTrigger, allowZoom]);
+  }, [resetTrigger, allowZoom, stageGroupRef]);
 
   useFrame(({ camera }, rawDelta) => {
-    const stage = stageRef.current;
+    const stage = stageGroupRef.current;
     if (!stage) return;
 
     if (!showLiveCanvas) {
@@ -411,24 +383,16 @@ function InteractiveModelStage({
 
     const delta = Math.min(rawDelta, 0.035);
 
-    if (isExiting) {
+    if (isMorphingToBlueprint) {
       spinRampRef.current = 0;
-      hoverBrakeRef.current = 0;
-      scrollBrakeRef.current = 0;
+      hoverBrakeRef.current = THREE.MathUtils.damp(hoverBrakeRef.current, 0, 4.0, delta);
+      if (hoverBrakeRef.current > 0.0005) {
+        baseYawRef.current -= delta * hoverBrakeRef.current;
+      }
 
-      const childYaw = stage.children[0]?.rotation.y ?? 0;
-      const totalYaw = baseYawRef.current + childYaw;
-      const yawError = -Math.atan2(Math.sin(totalYaw), Math.cos(totalYaw));
-      const omega = 9.5;
-      const accel = omega * omega * yawError - 2 * omega * yawVelRef.current;
-      yawVelRef.current += accel * delta;
-      baseYawRef.current += yawVelRef.current * delta;
-
-      currentYawTiltRef.current = THREE.MathUtils.damp(currentYawTiltRef.current, 0, 10, delta);
-      currentPitchTiltRef.current = THREE.MathUtils.damp(currentPitchTiltRef.current, 0, 10, delta);
+      currentYawTiltRef.current = THREE.MathUtils.damp(currentYawTiltRef.current, 0, 6.5, delta);
+      currentPitchTiltRef.current = THREE.MathUtils.damp(currentPitchTiltRef.current, 0, 6.5, delta);
     } else {
-      yawVelRef.current = 0;
-
       if (isRotating && isAnimating && !isPaused) {
         spinRampRef.current = Math.min(1, spinRampRef.current + delta / 1.2);
       } else {
@@ -445,14 +409,9 @@ function InteractiveModelStage({
       const hoverTarget = isHoverBraking ? 0.11 * spinRampRef.current : 0;
       hoverBrakeRef.current = THREE.MathUtils.damp(hoverBrakeRef.current, hoverTarget, 6.0, delta);
 
-      const preExit = !allowZoom && scrollExitRef ? scrollExitRef.current.preExit : 0;
-      const scrollTarget =
-        isRotating && isAnimating && !isPaused && !isDragging && !allowZoom && preExit > 0.01
-          ? 0.185 * preExit * spinRampRef.current
-          : 0;
-      scrollBrakeRef.current = THREE.MathUtils.damp(scrollBrakeRef.current, scrollTarget, 6.0, delta);
-
-      baseYawRef.current -= delta * Math.min(0.195, hoverBrakeRef.current + scrollBrakeRef.current);
+      if (hoverBrakeRef.current > 0.0005) {
+        baseYawRef.current -= delta * hoverBrakeRef.current;
+      }
 
       const tiltActive =
         showLiveCanvas &&
@@ -476,7 +435,200 @@ function InteractiveModelStage({
     stage.quaternion.copy(_yawTiltQuat).multiply(_pitchTiltQuat).multiply(_baseYawQuat);
   });
 
-  return <group ref={stageRef}>{children}</group>;
+  return <group ref={stageGroupRef}>{children}</group>;
+}
+
+/**
+ * Morphs cel-shaded materials in-place into unlit blueprint fills while
+ * coasting rotation settles, and keeps frozen canvases synced on theme toggles.
+ */
+function CADBlueprintMorphController({
+  isActiveAndSettled,
+  isMorphingToBlueprint,
+  isFrozenBlueprint,
+  isDark,
+  isPaused,
+  prefersReducedMotion,
+  stageGroupRef,
+  blueprintMixRef,
+  cadEdgeRegistryRef,
+  scrollExitRef,
+  onBlueprintSettled,
+}: {
+  isActiveAndSettled: boolean;
+  isMorphingToBlueprint: boolean;
+  isFrozenBlueprint: boolean;
+  isDark: boolean;
+  isPaused: boolean;
+  prefersReducedMotion: boolean;
+  stageGroupRef: React.MutableRefObject<THREE.Group | null>;
+  blueprintMixRef: React.MutableRefObject<number>;
+  cadEdgeRegistryRef: React.MutableRefObject<CADEdgeRegistry | null>;
+  scrollExitRef?: React.MutableRefObject<ScrollExitState>;
+  onBlueprintSettled: () => void;
+}) {
+  const { scene, gl, camera } = useThree();
+  const morphProgressRef = useRef(0);
+  const exitElapsedRef = useRef(0);
+  const settledFramesRef = useRef(0);
+  const prevChildYawRef = useRef<number | null>(null);
+  const originalColorsRef = useRef(new WeakMap<THREE.Material, THREE.Color>());
+  const mutatedMaterialsRef = useRef(new Set<THREE.Material>());
+  const onBlueprintSettledRef = useRef(onBlueprintSettled);
+  onBlueprintSettledRef.current = onBlueprintSettled;
+
+  const restoreMaterials = useCallback(() => {
+    mutatedMaterialsRef.current.forEach((mat) => {
+      const orig = originalColorsRef.current.get(mat);
+      if (mat instanceof THREE.MeshToonMaterial) {
+        if (orig) mat.color.copy(orig);
+        mat.emissive.setRGB(0, 0, 0);
+      } else if (mat instanceof THREE.MeshBasicMaterial) {
+        if (orig) mat.color.copy(orig);
+      }
+    });
+    mutatedMaterialsRef.current.clear();
+  }, []);
+
+  const applyMaterials = useCallback(
+    (mix: number, dark: boolean) => {
+      if (mix <= 0.0001) {
+        restoreMaterials();
+        return;
+      }
+
+      const bpFill = dark ? BLUEPRINT_FILL_DARK : BLUEPRINT_FILL_LIGHT;
+      const bpLine = dark ? BLUEPRINT_LINE_DARK : BLUEPRINT_LINE_LIGHT;
+
+      const applySingleMat = (mat: THREE.Material | null | undefined) => {
+        if (!mat) return;
+        if (mat instanceof THREE.MeshToonMaterial) {
+          let orig = originalColorsRef.current.get(mat);
+          if (!orig) {
+            orig = mat.color.clone();
+            originalColorsRef.current.set(mat, orig);
+          }
+          mutatedMaterialsRef.current.add(mat);
+          mat.color.copy(orig).multiplyScalar(1 - mix);
+          mat.emissive.copy(bpFill).multiplyScalar(mix);
+        } else if (mat instanceof THREE.MeshBasicMaterial && !mat.polygonOffset) {
+          let orig = originalColorsRef.current.get(mat);
+          if (!orig) {
+            orig = mat.color.clone();
+            originalColorsRef.current.set(mat, orig);
+          }
+          mutatedMaterialsRef.current.add(mat);
+          mat.color.copy(orig).lerp(bpLine, mix);
+        }
+      };
+
+      scene.traverse((obj) => {
+        if (obj.userData?.isCadEdgeQuad) return;
+        if ((obj as THREE.Mesh).isMesh && !(obj as THREE.Line).isLine) {
+          const mat = (obj as THREE.Mesh).material;
+          if (Array.isArray(mat)) {
+            for (let i = 0; i < mat.length; i++) {
+              applySingleMat(mat[i]);
+            }
+          } else {
+            applySingleMat(mat);
+          }
+        }
+      });
+    },
+    [scene, restoreMaterials]
+  );
+
+  useEffect(() => {
+    if (!isActiveAndSettled) {
+      morphProgressRef.current = 0;
+      blueprintMixRef.current = 0;
+      exitElapsedRef.current = 0;
+      settledFramesRef.current = 0;
+      prevChildYawRef.current = null;
+      restoreMaterials();
+    }
+  }, [isActiveAndSettled, blueprintMixRef, restoreMaterials]);
+
+  useEffect(() => {
+    return () => {
+      restoreMaterials();
+    };
+  }, [restoreMaterials]);
+
+  useLayoutEffect(() => {
+    if (isFrozenBlueprint && !isPaused && blueprintMixRef.current > 0.001) {
+      applyMaterials(blueprintMixRef.current, isDark);
+      if (cadEdgeRegistryRef.current) {
+        syncCADEdges(scene, gl, cadEdgeRegistryRef.current, blueprintMixRef.current, isDark);
+      }
+      gl.render(scene, camera);
+    }
+  }, [
+    isDark,
+    isFrozenBlueprint,
+    isPaused,
+    applyMaterials,
+    blueprintMixRef,
+    cadEdgeRegistryRef,
+    scene,
+    gl,
+    camera,
+  ]);
+
+  useFrame((_, rawDelta) => {
+    if (!isActiveAndSettled || isFrozenBlueprint) return;
+
+    const delta = Math.min(rawDelta, 0.035);
+
+    if (isMorphingToBlueprint) {
+      exitElapsedRef.current += delta;
+      if (prefersReducedMotion) {
+        morphProgressRef.current = 1;
+      } else {
+        const scrollHint = scrollExitRef?.current.scrollExit ?? 0;
+        const rate = 1 / 0.46 + scrollHint * 1.65;
+        morphProgressRef.current = Math.min(1, morphProgressRef.current + delta * rate);
+      }
+    } else {
+      exitElapsedRef.current = 0;
+      settledFramesRef.current = 0;
+      prevChildYawRef.current = null;
+      if (prefersReducedMotion) {
+        morphProgressRef.current = 0;
+      } else {
+        morphProgressRef.current = Math.max(0, morphProgressRef.current - delta / 0.3);
+      }
+    }
+
+    const p = morphProgressRef.current;
+    const mix = p * p * (3 - 2 * p);
+    blueprintMixRef.current = mix;
+    applyMaterials(mix, isDark);
+
+    if (isMorphingToBlueprint) {
+      const childYaw = stageGroupRef.current?.children[0]?.rotation.y ?? 0;
+      const yawSpeed =
+        prevChildYawRef.current === null
+          ? Infinity
+          : Math.abs(childYaw - prevChildYawRef.current) / Math.max(delta, 0.001);
+      prevChildYawRef.current = childYaw;
+
+      const rotationSettled =
+        prefersReducedMotion || yawSpeed < 0.014 || exitElapsedRef.current >= 0.72;
+
+      if (mix >= 0.999 && rotationSettled) {
+        settledFramesRef.current += 1;
+        if (settledFramesRef.current === 2) {
+          onBlueprintSettledRef.current();
+        }
+      } else {
+        settledFramesRef.current = 0;
+      }
+    }
+  });
+
+  return null;
 }
 
 export interface ModelCanvasProps {
@@ -491,7 +643,8 @@ export interface ModelCanvasProps {
   showLiveCanvas: boolean;
   isDrawingActiveReveal: boolean;
   isActiveAndSettled: boolean;
-  isExiting?: boolean;
+  isMorphingToBlueprint?: boolean;
+  isFrozenBlueprint?: boolean;
   isHovered: boolean;
   isAnimationPlaying: boolean;
   isRotating: boolean;
@@ -505,6 +658,7 @@ export interface ModelCanvasProps {
   pointerHoverRef: React.MutableRefObject<PointerHoverState>;
   scrollExitRef?: React.MutableRefObject<ScrollExitState>;
   onDrawn: () => void;
+  onBlueprintSettled?: () => void;
   onCameraMove: (isMoved: boolean) => void;
   onResetComplete: () => void;
   onContextLost: () => void;
@@ -525,7 +679,8 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
   showLiveCanvas,
   isDrawingActiveReveal,
   isActiveAndSettled,
-  isExiting = false,
+  isMorphingToBlueprint = false,
+  isFrozenBlueprint = false,
   isHovered,
   isAnimationPlaying,
   isRotating,
@@ -539,6 +694,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
   pointerHoverRef,
   scrollExitRef,
   onDrawn,
+  onBlueprintSettled,
   onCameraMove,
   onResetComplete,
   onContextLost,
@@ -546,6 +702,10 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
   onDragStart,
   onDragEnd,
 }) => {
+  const stageGroupRef = useRef<THREE.Group | null>(null);
+  const blueprintMixRef = useRef(0);
+  const cadEdgeRegistryRef = useRef<CADEdgeRegistry | null>(null);
+
   return (
     <Canvas
       className={
@@ -556,14 +716,18 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
           : 'grab-cursor !touch-pan-y'
       }
       style={{ background: 'transparent' }}
-      frameloop={!isPaused && (showLiveCanvas || isDrawingActiveReveal || isExiting) ? 'always' : 'never'}
+      frameloop={
+        !isPaused && (isDrawingActiveReveal || (showLiveCanvas && !isFrozenBlueprint))
+          ? 'always'
+          : 'never'
+      }
       dpr={dynamicDpr}
       gl={{
         antialias: true,
         alpha: true,
         stencil: true,
         powerPreference: 'high-performance',
-        preserveDrawingBuffer: false,
+        preserveDrawingBuffer: true,
       }}
       onCreated={({ gl }) => {
         gl.setClearColor(0x000000, 0);
@@ -594,26 +758,26 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
       <Suspense fallback={null}>
         <ModelErrorBoundary>
           <InteractiveModelStage
+            stageGroupRef={stageGroupRef}
             allowZoom={allowZoom}
             showLiveCanvas={showLiveCanvas}
             isActiveAndSettled={isActiveAndSettled}
-            isExiting={isExiting}
+            isMorphingToBlueprint={isMorphingToBlueprint}
             isRotating={isRotating}
-            isAnimating={!isPaused && isAnimationPlaying && isAnimationsStarted && !isThemeTransitioning}
+            isAnimating={!isPaused && isAnimationPlaying && isAnimationsStarted && !isMorphingToBlueprint && !isThemeTransitioning}
             isDragging={isDragging}
             disableHoverTilt={disableHoverTilt}
             isPaused={isPaused}
             prefersReducedMotion={prefersReducedMotion}
             resetTrigger={resetTrigger}
             pointerHoverRef={pointerHoverRef}
-            scrollExitRef={scrollExitRef}
           >
             <ModelRenderer
               modelType={modelType}
               isActive={isActiveAndSettled}
               isHovered={isHovered}
-              isRotating={!isPaused && isAnimationPlaying && isRotating && isAnimationsStarted && !isThemeTransitioning}
-              isAnimating={!isPaused && isAnimationPlaying && isAnimationsStarted && !isThemeTransitioning}
+              isRotating={!isPaused && isRotating && !isThemeTransitioning}
+              isAnimating={!isPaused && isAnimationPlaying && isAnimationsStarted && !isMorphingToBlueprint && !isThemeTransitioning}
             />
           </InteractiveModelStage>
         </ModelErrorBoundary>
@@ -623,12 +787,28 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
           onDrawn={onDrawn}
         />
       </Suspense>
-      <CADEdgeManager />
+      <CADBlueprintMorphController
+        isActiveAndSettled={isActiveAndSettled}
+        isMorphingToBlueprint={isMorphingToBlueprint}
+        isFrozenBlueprint={isFrozenBlueprint}
+        isDark={isDark}
+        isPaused={isPaused}
+        prefersReducedMotion={prefersReducedMotion}
+        stageGroupRef={stageGroupRef}
+        blueprintMixRef={blueprintMixRef}
+        cadEdgeRegistryRef={cadEdgeRegistryRef}
+        scrollExitRef={scrollExitRef}
+        onBlueprintSettled={onBlueprintSettled ?? (() => {})}
+      />
+      <CADEdgeManager
+        registryRef={cadEdgeRegistryRef}
+        blueprintMixRef={blueprintMixRef}
+        isDark={isDark}
+      />
       <CameraResetController
         resetTrigger={resetTrigger}
         allowZoom={allowZoom}
         isDragging={isDragging}
-        isExiting={isExiting}
         onResetComplete={onResetComplete}
       />
       <CameraStateDetector onCameraMove={onCameraMove} />
@@ -636,7 +816,8 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
         active={
           !allowZoom &&
           showLiveCanvas &&
-          !isExiting &&
+          !isMorphingToBlueprint &&
+          !isFrozenBlueprint &&
           !isPaused &&
           isAnimationPlaying &&
           isRotating &&
@@ -650,7 +831,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
           target={[0, 0, 0]}
           enableZoom={allowZoom}
           enablePan={allowZoom}
-          enableRotate={true}
+          enableRotate={allowZoom || !isMorphingToBlueprint}
           autoRotate={false}
           minPolarAngle={0}
           maxPolarAngle={Math.PI / 1.05}
