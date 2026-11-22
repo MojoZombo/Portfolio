@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Project } from '../types/project';
 import { AnimatePresence, motion, useDragControls } from 'framer-motion';
-import { ArrowUpRight, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface ProjectIndexProps {
   isOpen: boolean;
@@ -150,9 +150,6 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
             >
               {projects.map((project, index) => {
                 const isActive = project.id === activeProjectId;
-                const metaLabel = project.company
-                  ? `${project.company} · ${project.date}`
-                  : project.date;
 
                 return (
                   <button
@@ -170,20 +167,17 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
                       <div className="text-xs font-semibold leading-tight text-slate-900 dark:text-slate-100 truncate">
                         {project.title}
                       </div>
-                      <div className="text-[10px] font-mono leading-tight text-slate-500 dark:text-slate-400 truncate">
-                        {metaLabel}
-                      </div>
+                      {project.company && (
+                        <div className="text-[10px] font-mono leading-tight text-slate-500 dark:text-slate-400 truncate">
+                          {project.company}
+                        </div>
+                      )}
                     </div>
 
-                    {isActive ? (
+                    {isActive && (
                       <span
                         aria-hidden="true"
                         className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 shrink-0"
-                      />
-                    ) : (
-                      <ArrowUpRight
-                        size={12}
-                        className="text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300 shrink-0 transition-colors"
                       />
                     )}
                   </button>

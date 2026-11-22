@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState, useRef, useEffect, useCallback } from 'react';
+import React, { Suspense, lazy, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import type { PointerHoverState, ScrollExitState } from './ModelCanvas';
 import { POSTER_VERSION, preloadModelAssets } from './ModelPreloadManager';
 import { getNativeDpr } from './stageConfig';
@@ -259,6 +259,8 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
   const themeSuffix = isDark ? 'dark' : 'light';
   const [bpFallback, setBpFallback] = useState(false);
   const [shadedFallback, setShadedFallback] = useState(false);
+  const [isShadedLoaded, setIsShadedLoaded] = useState(false);
+  const shadedImgRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     setBpFallback(false);
@@ -276,6 +278,11 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
       ? `./posters/${modelType}-shaded.png`
       : `./posters/${modelType}-shaded-${themeSuffix}.png`
   }?v=${POSTER_VERSION}`;
+
+  useLayoutEffect(() => {
+    const img = shadedImgRef.current;
+    setIsShadedLoaded(Boolean(img && img.complete && img.naturalWidth > 0));
+  }, [shadedPosterPath]);
 
   const handleDragStart = () => {
     if (resumeRotateTimerRef.current) {
@@ -367,18 +374,20 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
         className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-0 ${
           showLiveCanvas
             ? 'opacity-0'
-            : isActive || allowZoom
+            : (isActive || allowZoom) && isShadedLoaded
             ? 'opacity-0 transition-opacity duration-300 ease-out'
             : 'opacity-100 transition-opacity duration-300 ease-out'
         }`}
-        loading={isActive ? 'eager' : 'lazy'}
+        loading={isActive || isNearby || isOnScreen || allowZoom ? 'eager' : 'lazy'}
         decoding="async"
       />
 
       {/* 2. LAYER 1: SHADED STATIC (Instant Solid Underlay, cuts to 3D canvas once WebGL is ready) */}
       <img
+        ref={shadedImgRef}
         src={shadedPosterPath}
         alt={`${modelType} shaded`}
+        onLoad={() => setIsShadedLoaded(true)}
         onError={() => setShadedFallback(true)}
         className={`absolute top-0 left-1/2 -translate-x-1/2 h-full w-auto max-w-none pointer-events-none select-none z-10 ${
           showLiveCanvas
@@ -389,7 +398,7 @@ export const ModelViewer: React.FC<ModelViewerProps> = ({
             ? 'opacity-100 transition-opacity duration-300 ease-out'
             : 'opacity-0 transition-opacity duration-300 ease-out'
         }`}
-        loading={isActive || allowZoom ? 'eager' : 'lazy'}
+        loading={isActive || isNearby || isOnScreen || allowZoom ? 'eager' : 'lazy'}
         {...({ fetchpriority: isActive ? 'high' : 'auto' } as Record<string, string>)}
         decoding="async"
       />

@@ -32,7 +32,7 @@ const DEFAULT_MOBILE_TITLE_HEIGHT = 116;
 const MOBILE_TITLE_EXTRA_GAP = 14;
 const MOBILE_BELOW_BREATHE = 24;
 const MOBILE_SCRUB_COMMIT_HYSTERESIS = 0.53;
-const MOBILE_SETTLE_DELAY_MS = 95;
+const MOBILE_SETTLE_DELAY_MS = 110;
 
 const smootherstep = (edge0: number, edge1: number, x: number): number => {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
@@ -270,6 +270,10 @@ export const App: React.FC = () => {
     let targetU = committedIdx;
     let isSettling = true;
     let settleTimer: number | null = null;
+    let lastViewportWidth = window.innerWidth;
+    let stableVh = window.innerHeight;
+    let isTouchActive = false;
+    let settledScrollY = window.scrollY || window.pageYOffset || 0;
     let rafId = 0;
     let lastFrameTime = 0;
 
@@ -304,7 +308,7 @@ export const App: React.FC = () => {
       const scrollY = window.scrollY || window.pageYOffset || 0;
       const vh = window.innerHeight;
       const docHeight = document.documentElement.scrollHeight;
-      const focusY = scrollY + vh * 0.5 - 42;
+      const focusY = scrollY + stableVh * 0.5 - 42;
 
       if (n <= 1 || scrollY <= 4 || focusY <= centersRef[0]) {
         return 0;
@@ -418,7 +422,7 @@ export const App: React.FC = () => {
         displayU = targetU;
         displayVel = 0;
       } else {
-        const omega = isSettling ? 11 : 22;
+        const omega = isSettling ? 10 : 20;
         const steps = rawDt > 0.018 ? 2 : 1;
         const stepDt = rawDt / steps;
         for (let s = 0; s < steps; s++) {
@@ -465,7 +469,15 @@ export const App: React.FC = () => {
         settleTimer = null;
       }
       const n = projectsData.length;
+      const currentScrollY = window.scrollY || window.pageYOffset || 0;
       const settledIdx = Math.max(0, Math.min(n - 1, Math.round(computeScrollU())));
+
+      if (!instant && isSettling && targetU === settledIdx && committedIdx === settledIdx) {
+        settledScrollY = currentScrollY;
+        return;
+      }
+
+      settledScrollY = currentScrollY;
       isSettling = true;
       targetU = settledIdx;
       commitActiveIndex(settledIdx);
@@ -484,30 +496,64 @@ export const App: React.FC = () => {
       }
     };
 
-    const handleScrollEnd = () => {
-      settleToNearest(false);
-    };
-
-    const handleScroll = () => {
-      const scrollU = computeScrollU();
-      isSettling = false;
-      targetU = reduced ? Math.round(scrollU) : scrollU;
-      ensureLoopRunning();
-
+    const scheduleSettleTimer = () => {
       if (settleTimer !== null) {
         window.clearTimeout(settleTimer);
       }
       settleTimer = window.setTimeout(() => {
         settleTimer = null;
-        if (!cancelled) {
+        if (!cancelled && !isTouchActive) {
           settleToNearest(false);
         }
       }, MOBILE_SETTLE_DELAY_MS);
     };
 
+    const handleTouchStart = () => {
+      isTouchActive = true;
+      if (settleTimer !== null) {
+        window.clearTimeout(settleTimer);
+        settleTimer = null;
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        isTouchActive = false;
+        if (!isSettling) {
+          scheduleSettleTimer();
+        }
+      }
+    };
+
+    const handleScrollEnd = () => {
+      if (isTouchActive) return;
+      settleToNearest(false);
+    };
+
+    const handleScroll = () => {
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      if (isSettling && !isTouchActive && Math.abs(scrollY - settledScrollY) < 3) {
+        return;
+      }
+
+      const scrollU = computeScrollU();
+      isSettling = false;
+      targetU = reduced ? Math.round(scrollU) : scrollU;
+      ensureLoopRunning();
+
+      if (!isTouchActive) {
+        scheduleSettleTimer();
+      }
+    };
+
     const handleResize = () => {
-      measureCenters();
-      settleToNearest(true);
+      const nextWidth = window.innerWidth;
+      if (Math.abs(nextWidth - lastViewportWidth) >= 2) {
+        lastViewportWidth = nextWidth;
+        stableVh = window.innerHeight;
+        measureCenters();
+        settleToNearest(true);
+      }
     };
 
     const handleMotionChange = (ev: MediaQueryListEvent) => {
@@ -519,6 +565,9 @@ export const App: React.FC = () => {
     measureCenters();
     settleToNearest(true);
 
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('scrollend', handleScrollEnd, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
@@ -538,6 +587,9 @@ export const App: React.FC = () => {
       rescrubMobileRef.current = null;
       if (rafId) window.cancelAnimationFrame(rafId);
       if (settleTimer !== null) window.clearTimeout(settleTimer);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('scrollend', handleScrollEnd);
       window.removeEventListener('resize', handleResize);

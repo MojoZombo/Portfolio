@@ -241,15 +241,16 @@ export function preloadModelAssets(
   isDark: boolean,
   priority: 'high' | 'low' = 'low'
 ): void {
-  // If user is actively flinging/scrolling, defer preloading so we never
-  // contest network bandwidth or main-thread JS execution during scroll animation
+  // Always start poster decode right away (asynchronous off-thread in modern browsers)
+  // so fast or slow continuous scrolling never blanks out revealed cards
+  preloadPosterImages(modelType, isDark);
+
+  // If user is actively flinging/scrolling, defer heavy JS chunks and GLB fetches
+  // so we never contest network bandwidth or main-thread JS execution during scroll animation
   if (isWindowScrolling) {
     pendingScrollPreloads.set(modelType, { isDark, priority });
     return;
   }
-
-  // Always start poster decode right away (asynchronous off-thread in modern browsers)
-  preloadPosterImages(modelType, isDark);
 
   if (priority === 'high') {
     loadModelComponentChunk(modelType);

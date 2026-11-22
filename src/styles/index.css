@@ -218,6 +218,46 @@ html.dark .list-toggle-btn[aria-expanded='true'] {
   transform: rotate(0deg) scale(1);
 }
 
+/* Clipped diagonal launch animation on Project Details button hover/focus */
+.details-btn-arrow-slot {
+  display: inline-block;
+  position: relative;
+  width: 14px;
+  height: 14px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.details-btn-arrow-primary,
+.details-btn-arrow-incoming {
+  position: absolute !important;
+  inset: 0;
+  transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease, color 200ms ease !important;
+  will-change: transform, opacity;
+}
+.details-btn-arrow-primary {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+}
+.details-btn-arrow-incoming {
+  transform: translate3d(-115%, 115%, 0) scale(0.75);
+  opacity: 0;
+}
+.details-btn:hover .details-btn-arrow-primary,
+.details-btn:focus-visible .details-btn-arrow-primary {
+  transform: translate3d(115%, -115%, 0) scale(0.75);
+  opacity: 0;
+}
+.details-btn:hover .details-btn-arrow-incoming,
+.details-btn:focus-visible .details-btn-arrow-incoming {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+  transition-delay: 45ms;
+}
+.details-btn:active .details-btn-arrow-incoming {
+  transform: translate3d(1.5px, -1.5px, 0) scale(0.95);
+  transition-duration: 120ms !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn-ripple:hover,
   .btn-ripple:hover * {
@@ -226,6 +266,26 @@ html.dark .list-toggle-btn[aria-expanded='true'] {
   .btn-ripple:hover::before {
     clip-path: none !important;
     opacity: 1 !important;
+  }
+  .details-btn-arrow-primary,
+  .details-btn-arrow-incoming,
+  .details-btn:hover .details-btn-arrow-primary,
+  .details-btn:focus-visible .details-btn-arrow-primary,
+  .details-btn:hover .details-btn-arrow-incoming,
+  .details-btn:focus-visible .details-btn-arrow-incoming,
+  .details-btn:active .details-btn-arrow-incoming {
+    transition: none !important;
+    transform: none !important;
+  }
+  .details-btn-arrow-primary,
+  .details-btn:hover .details-btn-arrow-primary,
+  .details-btn:focus-visible .details-btn-arrow-primary {
+    opacity: 1 !important;
+  }
+  .details-btn-arrow-incoming,
+  .details-btn:hover .details-btn-arrow-incoming,
+  .details-btn:focus-visible .details-btn-arrow-incoming {
+    opacity: 0 !important;
   }
 }
 

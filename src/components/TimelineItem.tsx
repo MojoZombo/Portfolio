@@ -339,8 +339,12 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
           }
 
           // Proximity pre-mount ring (adjacent cards N-1 and N+1) strictly outside viewport ring
-          const nearbyEnterThreshold = Math.max(windowHeight * 1.15, onScreenExitThreshold + 80);
-          const nearbyExitThreshold = Math.max(windowHeight * 1.35, onScreenExitThreshold + 160);
+          const nearbyEnterThreshold = isMobileDevice
+            ? onScreenExitThreshold + 40
+            : Math.max(windowHeight * 1.15, onScreenExitThreshold + 80);
+          const nearbyExitThreshold = isMobileDevice
+            ? onScreenExitThreshold + 120
+            : Math.max(windowHeight * 1.35, onScreenExitThreshold + 160);
           let nextNearby = isNearbyRef.current;
           if (distance < nearbyEnterThreshold) {
             nextNearby = true;
@@ -461,10 +465,13 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({
                 type="button"
                 tabIndex={effectiveIsActive ? 0 : -1}
                 onClick={() => onSelect(project)}
-                className="btn-ripple inline-flex items-center gap-2 px-3.5 py-2 rounded text-xs font-mono font-medium bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="btn-ripple details-btn inline-flex items-center gap-2 px-3.5 py-2 rounded text-xs font-mono font-medium bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
-                <span>View Project Details</span>
-                <ArrowUpRight size={14} />
+                <span>Project Details</span>
+                <span aria-hidden="true" className="details-btn-arrow-slot">
+                  <ArrowUpRight size={14} className="details-btn-arrow-primary" />
+                  <ArrowUpRight size={14} className="details-btn-arrow-incoming" />
+                </span>
               </button>
             </div>
           </div>
