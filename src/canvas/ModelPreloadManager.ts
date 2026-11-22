@@ -2,7 +2,7 @@ import React from 'react';
 
 let dracoConfigured = false;
 
-export const POSTER_VERSION = '20261120-v4';
+export const POSTER_VERSION = '20261121-v5';
 
 let isWindowScrolling = false;
 let scrollStopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -65,6 +65,7 @@ interface ModelAssetEntry {
 
 const MODEL_REGISTRY: Record<string, ModelAssetEntry> = {
   'tesla-actuator': {
+    glbPath: './models/TeslaActuatorClean.glb',
     loader: () => import('./models/TeslaActuatorModel').then((m) => ({ default: m.TeslaActuatorModel })),
   },
   'inductive-robot': {
