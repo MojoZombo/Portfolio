@@ -21,9 +21,9 @@ interface ModelProps {
 const toonGradient = createToonGradientMap();
 
 // Calibrated stage framing for Inductive IR3 Autonomous EV Charging Robot
-const DEFAULT_OFFSET: [number, number, number] = [0.0, -0.05, 0.0];
+const DEFAULT_OFFSET: [number, number, number] = [0.0, 0.07, 0.0];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.0, -18.0, 0.0];
-const DEFAULT_SCALE = 2.45;
+const DEFAULT_SCALE = 3.2;
 const DEFAULT_ROTATION_SPEED = 0.22;
 
 // Clean-room kinematics matching cad-workspace/build/inductive_clean.py (Y-up meters in clone space)
