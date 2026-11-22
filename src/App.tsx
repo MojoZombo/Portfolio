@@ -31,11 +31,8 @@ import { initButtonRipple, revertAllButtonRipples } from './utils/buttonRipple';
 const DEFAULT_MOBILE_TITLE_HEIGHT = 116;
 const MOBILE_TITLE_EXTRA_GAP = 14;
 const MOBILE_BELOW_BREATHE = 24;
-const MOBILE_SWITCH_HYSTERESIS = 0.52;
-const MOBILE_FAST_ENTER_VELOCITY = 1.15; // px/ms (~1150 px/s, >4 cards/sec)
-const MOBILE_FAST_EXIT_VELOCITY = 0.14;  // px/ms (~140 px/s, ~70px coast left)
-const MOBILE_FAST_JUMP_CARDS = 1.35;     // enter cruising on multi-card jump (e.g., List jump)
-const MOBILE_SETTLE_IDLE_MS = 110;       // fallback settle timer when scrollend is absent
+const MOBILE_SCRUB_COMMIT_HYSTERESIS = 0.53;
+const MOBILE_SETTLE_DELAY_MS = 95;
 
 const smootherstep = (edge0: number, edge1: number, x: number): number => {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
@@ -271,16 +268,8 @@ export const App: React.FC = () => {
     let displayU = committedIdx;
     let displayVel = 0;
     let targetU = committedIdx;
-    let displayOpen = 1;
-    let openVel = 0;
-    let targetOpen = 1;
-    let isCruising = false;
-    let pendingLandIdx: number | null = null;
-    let lastScrollY = window.scrollY || window.pageYOffset || 0;
-    let lastScrollTime = 0;
-    let smoothVel = 0;
+    let isSettling = true;
     let settleTimer: number | null = null;
-    let lastRulerIdx = -1;
     let rafId = 0;
     let lastFrameTime = 0;
 
@@ -333,34 +322,28 @@ export const App: React.FC = () => {
       return n - 1;
     };
 
-    const setActiveMobileIdx = (next: number) => {
-      if (next !== mobileActiveIndexRef.current) {
-        mobileActiveIndexRef.current = next;
-        setMobileActiveIndex(next);
-      }
-    };
-
-    const syncRuler = (idx: number) => {
+    const commitActiveIndex = (idx: number) => {
       const clamped = Math.max(0, Math.min(projectsData.length - 1, idx));
-      if (clamped !== lastRulerIdx) {
-        lastRulerIdx = clamped;
-        setActiveProjectId(projectsData[clamped].id);
+      committedIdx = clamped;
+      if (clamped !== mobileActiveIndexRef.current) {
+        mobileActiveIndexRef.current = clamped;
+        setMobileActiveIndex(clamped);
       }
+      setActiveProjectId(projectsData[clamped].id);
     };
 
-    const renderMobileScrub = (u: number, openness: number) => {
+    const renderMobileScrub = (u: number) => {
       if (cancelled) return;
       const n = projectsData.length;
-      const o = reduced ? 1 : Math.max(0, Math.min(1, openness));
       const clampedU = Math.max(0, Math.min(Math.max(0, n - 1), u));
       const k = n <= 1 ? 0 : Math.min(n - 2, Math.floor(clampedU));
       const t = n <= 1 ? 0 : clampedU - k;
-      const e = reduced ? (t < 0.5 ? 0 : 1) : smootherstep(0.05, 0.95, t);
+      const e = reduced ? (t < 0.5 ? 0 : 1) : smootherstep(0.06, 0.94, t);
 
       const sK = getPocketHeight(k);
       const sNext = n > 1 ? getPocketHeight(k + 1) : sK;
 
-      const pK = reduced ? (t < 0.5 ? 1 : 0) : 1 - smootherstep(0.08, 0.44, t);
+      const pK = reduced ? (t < 0.5 ? 1 : 0) : 1 - smootherstep(0.14, 0.48, t);
       const pNext =
         n <= 1 ? 0 : reduced ? (t >= 0.5 ? 1 : 0) : smootherstep(0.42, 0.78, t);
 
@@ -368,36 +351,33 @@ export const App: React.FC = () => {
         const entry = mobileItemRefs.current[i];
         if (!entry) continue;
 
-        let baseOffsetY = 0;
+        let offsetY = 0;
         if (i < k) {
-          baseOffsetY = 0;
+          offsetY = 0;
         } else if (i === k) {
-          baseOffsetY = sK * (1 - e);
+          offsetY = sK * (1 - e);
         } else if (i === k + 1) {
-          baseOffsetY = (sK + MOBILE_BELOW_BREATHE) * (1 - e) + sNext * e;
+          offsetY = (sK + MOBILE_BELOW_BREATHE) * (1 - e) + sNext * e;
         } else {
-          baseOffsetY =
+          offsetY =
             (sK + MOBILE_BELOW_BREATHE) * (1 - e) +
             (sNext + MOBILE_BELOW_BREATHE) * e;
         }
-        const offsetY = baseOffsetY * o;
 
         if (entry.modelEl) {
           entry.modelEl.style.transition = 'none';
           entry.modelEl.style.transform = `translate3d(0, ${offsetY.toFixed(2)}px, 0)`;
         }
 
-        let baseTitleProgress = 0;
+        let titleProgress = 0;
         let tuckY = i < k ? -10 : 10;
-        const revealTuck = 10 * (1 - o);
         if (i === k) {
-          baseTitleProgress = pK;
-          tuckY = reduced ? 0 : -10 * (1 - pK) * o + revealTuck;
+          titleProgress = pK;
+          tuckY = reduced ? 0 : -10 * (1 - pK);
         } else if (n > 1 && i === k + 1) {
-          baseTitleProgress = pNext;
-          tuckY = reduced ? 0 : 10 * (1 - pNext) * o + revealTuck;
+          titleProgress = pNext;
+          tuckY = reduced ? 0 : 10 * (1 - pNext);
         }
-        const titleProgress = baseTitleProgress * o;
 
         const scale = reduced ? 1 : 0.98 + 0.02 * titleProgress;
         if (entry.titleEl) {
@@ -407,6 +387,20 @@ export const App: React.FC = () => {
             2
           )}px, 0) scale(${scale.toFixed(4)})`;
           entry.titleEl.style.pointerEvents = titleProgress > 0.5 ? 'auto' : 'none';
+        }
+      }
+
+      if (!isSettling) {
+        const prevIdx = mobileActiveIndexRef.current;
+        const roundedIdx = Math.max(0, Math.min(n - 1, Math.round(clampedU)));
+        if (roundedIdx !== prevIdx) {
+          const shouldCommit =
+            clampedU === 0 ||
+            clampedU === n - 1 ||
+            Math.abs(clampedU - prevIdx) > MOBILE_SCRUB_COMMIT_HYSTERESIS;
+          if (shouldCommit) {
+            commitActiveIndex(roundedIdx);
+          }
         }
       }
     };
@@ -423,22 +417,14 @@ export const App: React.FC = () => {
       if (reduced) {
         displayU = targetU;
         displayVel = 0;
-        displayOpen = 1;
-        openVel = 0;
       } else {
-        const omegaU = 12;
-        const omegaOpen = targetOpen < displayOpen ? 16 : 12;
+        const omega = isSettling ? 11 : 22;
         const steps = rawDt > 0.018 ? 2 : 1;
         const stepDt = rawDt / steps;
         for (let s = 0; s < steps; s++) {
-          const accelU = omegaU * omegaU * (targetU - displayU) - 2 * omegaU * displayVel;
-          displayVel += accelU * stepDt;
+          const accel = omega * omega * (targetU - displayU) - 2 * omega * displayVel;
+          displayVel += accel * stepDt;
           displayU += displayVel * stepDt;
-
-          const accelOpen =
-            omegaOpen * omegaOpen * (targetOpen - displayOpen) - 2 * omegaOpen * openVel;
-          openVel += accelOpen * stepDt;
-          displayOpen += openVel * stepDt;
         }
 
         const maxU = Math.max(0, projectsData.length - 1);
@@ -450,50 +436,15 @@ export const App: React.FC = () => {
           displayVel = 0;
         }
 
-        if (displayOpen < 0) {
-          displayOpen = 0;
-          openVel = 0;
-        } else if (displayOpen > 1) {
-          displayOpen = 1;
-          openVel = 0;
-        }
-
         if (Math.abs(targetU - displayU) < 0.0008 && Math.abs(displayVel) < 0.004) {
           displayU = targetU;
           displayVel = 0;
         }
-        if (Math.abs(targetOpen - displayOpen) < 0.001 && Math.abs(openVel) < 0.005) {
-          displayOpen = targetOpen;
-          openVel = 0;
-        }
-
-        // Keep pocket position aligned with current focus while tucked during fast flicks
-        if (isCruising && displayOpen <= 0.03) {
-          const nearestIdx = Math.round(computeScrollU());
-          displayU = nearestIdx;
-          targetU = nearestIdx;
-          displayVel = 0;
-        }
-
-        // Complete two-phase jump once old pocket finishes tucking
-        if (!isCruising && pendingLandIdx !== null && displayOpen <= 0.04) {
-          committedIdx = pendingLandIdx;
-          displayU = pendingLandIdx;
-          targetU = pendingLandIdx;
-          displayVel = 0;
-          pendingLandIdx = null;
-          targetOpen = 1;
-          setActiveMobileIdx(committedIdx);
-          syncRuler(committedIdx);
-        }
       }
 
-      renderMobileScrub(displayU, displayOpen);
+      renderMobileScrub(displayU);
 
-      const uSettled = Math.abs(targetU - displayU) <= 0.0008 && Math.abs(displayVel) <= 0.004;
-      const openSettled = Math.abs(targetOpen - displayOpen) <= 0.001 && Math.abs(openVel) <= 0.005;
-
-      if (!uSettled || !openSettled || pendingLandIdx !== null) {
+      if (Math.abs(targetU - displayU) > 0.0008 || Math.abs(displayVel) > 0.004) {
         rafId = window.requestAnimationFrame(tick);
       } else {
         rafId = 0;
@@ -508,182 +459,65 @@ export const App: React.FC = () => {
       }
     };
 
-    const enterCruising = (scrollU: number) => {
-      if (reduced) return;
-      isCruising = true;
-      pendingLandIdx = null;
-      targetOpen = 0;
-      setActiveMobileIdx(-1);
-      syncRuler(Math.round(scrollU));
-      ensureLoopRunning();
-    };
-
-    const settleToIndex = (rawIdx: number, instant = false) => {
+    const settleToNearest = (instant = false) => {
+      if (settleTimer !== null) {
+        window.clearTimeout(settleTimer);
+        settleTimer = null;
+      }
       const n = projectsData.length;
-      const clamped = Math.max(0, Math.min(n - 1, rawIdx));
-      isCruising = false;
-      syncRuler(clamped);
+      const settledIdx = Math.max(0, Math.min(n - 1, Math.round(computeScrollU())));
+      isSettling = true;
+      targetU = settledIdx;
+      commitActiveIndex(settledIdx);
 
       if (instant || reduced) {
-        pendingLandIdx = null;
-        committedIdx = clamped;
-        displayU = clamped;
-        targetU = clamped;
-        displayVel = 0;
-        displayOpen = 1;
-        targetOpen = 1;
-        openVel = 0;
-        setActiveMobileIdx(clamped);
         if (rafId) {
           window.cancelAnimationFrame(rafId);
           rafId = 0;
         }
         lastFrameTime = 0;
-        renderMobileScrub(displayU, displayOpen);
-        return;
-      }
-
-      if (displayOpen <= 0.04) {
-        pendingLandIdx = null;
-        committedIdx = clamped;
-        displayU = clamped;
-        targetU = clamped;
+        displayU = targetU;
         displayVel = 0;
-        targetOpen = 1;
-        setActiveMobileIdx(clamped);
+        renderMobileScrub(displayU);
+      } else {
         ensureLoopRunning();
-        return;
       }
-
-      if (Math.abs(clamped - displayU) > 1.05) {
-        pendingLandIdx = clamped;
-        committedIdx = clamped;
-        targetOpen = 0;
-        setActiveMobileIdx(-1);
-        ensureLoopRunning();
-        return;
-      }
-
-      pendingLandIdx = null;
-      committedIdx = clamped;
-      targetU = clamped;
-      targetOpen = 1;
-      setActiveMobileIdx(clamped);
-      ensureLoopRunning();
-    };
-
-    const snapImmediate = () => {
-      settleToIndex(Math.round(computeScrollU()), true);
     };
 
     const handleScrollEnd = () => {
-      if (settleTimer !== null) {
-        window.clearTimeout(settleTimer);
-        settleTimer = null;
-      }
-      smoothVel = 0;
-      lastScrollTime = 0;
-      const finalIdx = Math.round(computeScrollU());
-      if (
-        isCruising ||
-        pendingLandIdx !== null ||
-        targetOpen < 1 ||
-        finalIdx !== committedIdx
-      ) {
-        settleToIndex(finalIdx, false);
-      }
+      settleToNearest(false);
     };
 
-    const scheduleFallbackSettle = () => {
+    const handleScroll = () => {
+      const scrollU = computeScrollU();
+      isSettling = false;
+      targetU = reduced ? Math.round(scrollU) : scrollU;
+      ensureLoopRunning();
+
       if (settleTimer !== null) {
         window.clearTimeout(settleTimer);
       }
       settleTimer = window.setTimeout(() => {
         settleTimer = null;
-        handleScrollEnd();
-      }, MOBILE_SETTLE_IDLE_MS);
-    };
-
-    const handleScroll = () => {
-      const n = projectsData.length;
-      const scrollY = window.scrollY || window.pageYOffset || 0;
-      const now = performance.now();
-      const dt = now - lastScrollTime;
-
-      if (lastScrollTime === 0 || dt > 120) {
-        smoothVel = 0;
-        lastScrollY = scrollY;
-        lastScrollTime = now;
-      } else if (dt >= 6) {
-        const instVel = Math.abs(scrollY - lastScrollY) / dt;
-        smoothVel = smoothVel * 0.55 + instVel * 0.45;
-        lastScrollY = scrollY;
-        lastScrollTime = now;
-      }
-
-      scheduleFallbackSettle();
-
-      const scrollU = computeScrollU();
-
-      if (scrollU === 0 || scrollU === n - 1) {
-        const edgeIdx = scrollU === 0 ? 0 : n - 1;
-        if (
-          isCruising ||
-          pendingLandIdx !== null ||
-          targetOpen < 1 ||
-          edgeIdx !== committedIdx
-        ) {
-          settleToIndex(edgeIdx, false);
+        if (!cancelled) {
+          settleToNearest(false);
         }
-        return;
-      }
-
-      if (
-        !reduced &&
-        (smoothVel >= MOBILE_FAST_ENTER_VELOCITY ||
-          (!isCruising && Math.abs(scrollU - committedIdx) >= MOBILE_FAST_JUMP_CARDS))
-      ) {
-        enterCruising(scrollU);
-        return;
-      }
-
-      if (isCruising) {
-        const nearestIdx = Math.round(scrollU);
-        syncRuler(nearestIdx);
-        if (smoothVel <= MOBILE_FAST_EXIT_VELOCITY) {
-          settleToIndex(nearestIdx, false);
-        }
-        return;
-      }
-
-      let nextIdx = committedIdx;
-      if (Math.abs(scrollU - committedIdx) > MOBILE_SWITCH_HYSTERESIS) {
-        nextIdx = Math.max(0, Math.min(n - 1, Math.round(scrollU)));
-      }
-
-      if (
-        pendingLandIdx !== null ||
-        targetOpen < 1 ||
-        nextIdx !== committedIdx ||
-        Math.abs(targetU - nextIdx) > 0.0001
-      ) {
-        settleToIndex(nextIdx, false);
-      }
+      }, MOBILE_SETTLE_DELAY_MS);
     };
 
     const handleResize = () => {
       measureCenters();
-      snapImmediate();
+      settleToNearest(true);
     };
 
     const handleMotionChange = (ev: MediaQueryListEvent) => {
       reduced = ev.matches;
-      snapImmediate();
+      settleToNearest(true);
     };
 
-    rescrubMobileRef.current = () => renderMobileScrub(displayU, displayOpen);
+    rescrubMobileRef.current = () => renderMobileScrub(displayU);
     measureCenters();
-    snapImmediate();
+    settleToNearest(true);
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('scrollend', handleScrollEnd, { passive: true });
@@ -695,7 +529,7 @@ export const App: React.FC = () => {
       fonts.ready.then(() => {
         if (cancelled) return;
         measureCenters();
-        snapImmediate();
+        settleToNearest(true);
       });
     }
 
