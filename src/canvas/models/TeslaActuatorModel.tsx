@@ -22,22 +22,36 @@ const toonGradient = createToonGradientMap();
 
 // Calibrated stage framing for Tesla Deployable Linear Actuator
 const DEFAULT_OFFSET: [number, number, number] = [0.0, 0.0, 0.0];
-const DEFAULT_ROTATION_DEG: [number, number, number] = [0.0, -10.0, 0.0];
-const DEFAULT_SCALE = 5.2;
+const DEFAULT_ROTATION_DEG: [number, number, number] = [0.0, 14.0, 0.0];
+const DEFAULT_SCALE = 7.0;
 const DEFAULT_ROTATION_SPEED = 0.20;
 
 // Clean-room kinematics matching cad-workspace/build/tesla_clean.py (Y-up meters in clone space)
-const STROKE_1 = 0.088;
-const STROKE_2 = 0.172;
-const HINGE_Y_DEPLOYED = 0.416;
-const HINGE_Z = 0.022;
-const PIN_DY = -0.022;
-const PIN_DZ = -0.024;
-const RAIL_Z = -0.002;
-const ROD_X = 0.042;
-const CARRIAGE_Y_DEPLOYED = 0.194;
-const L_ROD = 0.200;
-const MAX_FLIP_RAD = (82 * Math.PI) / 180;
+const STROKE_1 = 0.086;
+const STROKE_2 = 0.170;
+const HINGE_Y_DEP = 0.420;
+const HINGE_Z = -0.002;
+const PIN_DY = -0.024;
+const PIN_DZ = 0.030;
+const RAIL_Z = 0.028;
+const ROD_X = 0.035;
+const CARRIAGE_Y_STOP = 0.185;
+const L_ROD = 0.211;
+const MAX_FLIP_RAD = Math.PI / 2;
+
+const CRANK_R = Math.hypot(PIN_DY, PIN_DZ);
+const CRANK_PHI_0 = Math.atan2(PIN_DZ, PIN_DY);
+const DZ_90 = HINGE_Z - PIN_DY - RAIL_Z;
+const DY_90 = Math.sqrt(L_ROD * L_ROD - DZ_90 * DZ_90);
+const HINGE_Y_CRIT = CARRIAGE_Y_STOP + DY_90 - PIN_DZ;
+
+// Dwell-padded motion timing: pause smoothly at deployed (top) and stowed (bottom)
+const TOP_DWELL = 1.4;
+const RETRACT_DUR = 3.0;
+const BOT_DWELL = 1.4;
+const EXTEND_DUR = 3.0;
+const CYCLE_PERIOD = TOP_DWELL + RETRACT_DUR + BOT_DWELL + EXTEND_DUR;
+const INITIAL_PHASE_OFFSET = 0.85;
 
 const STAGE1_NAMES = new Set([
   'stage_1_tube_l',
@@ -58,7 +72,8 @@ const STAGE2_NAMES = new Set([
 
 const PLATE_NAMES = new Set([
   'payload_plate',
-  'plate_yoke_rib',
+  'plate_yoke_ear_l',
+  'plate_yoke_ear_r',
   'plate_yoke_crank',
   'plate_yoke_clevis_pin',
 ]);
@@ -86,11 +101,13 @@ const PART_NAME_COLORS: Record<string, string> = {
   base_col_mount_r: '#334155',
   motor_mount: '#334155',
   motor_cap: '#334155',
-  plate_yoke_rib: '#334155',
+  plate_yoke_ear_l: '#334155',
+  plate_yoke_ear_r: '#334155',
   plate_yoke_crank: '#334155',
   guide_rail_tab_bot: '#334155',
   guide_rail_tab_top: '#334155',
   motor_body: '#1e293b',
+  guide_rail_stop: '#1e293b',
   link_rod_head_bot: '#1e293b',
   link_rod_head_top: '#1e293b',
   pulley_motor: '#3b82f6',
@@ -126,6 +143,24 @@ const DEFAULT_PART_ANIMATIONS: Record<number, PartAnimationConfig> = {};
 const smootherstep = (edge0: number, edge1: number, x: number): number => {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
   return t * t * t * (t * (t * 6 - 15) + 10);
+};
+
+const computeStrokeWithDwell = (timeSec: number): number => {
+  const raw = (timeSec + INITIAL_PHASE_OFFSET) % CYCLE_PERIOD;
+  const phase = raw < 0 ? raw + CYCLE_PERIOD : raw;
+  if (phase < TOP_DWELL) {
+    return 1;
+  }
+  const tRetract = phase - TOP_DWELL;
+  if (tRetract < RETRACT_DUR) {
+    return 1 - smootherstep(0, RETRACT_DUR, tRetract);
+  }
+  const tBot = tRetract - RETRACT_DUR;
+  if (tBot < BOT_DWELL) {
+    return 0;
+  }
+  const tExtend = tBot - BOT_DWELL;
+  return smootherstep(0, EXTEND_DUR, tExtend);
 };
 
 // Shared global blueprint materials
@@ -330,10 +365,10 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
     const stage1Group = new THREE.Group();
     const stage2Group = new THREE.Group();
     const platePivotGroup = new THREE.Group();
-    platePivotGroup.position.set(0, HINGE_Y_DEPLOYED, HINGE_Z);
+    platePivotGroup.position.set(0, HINGE_Y_DEP, HINGE_Z);
     const carriageGroup = new THREE.Group();
     const rodPivotGroup = new THREE.Group();
-    rodPivotGroup.position.set(ROD_X, CARRIAGE_Y_DEPLOYED, RAIL_Z);
+    rodPivotGroup.position.set(ROD_X, CARRIAGE_Y_STOP, RAIL_Z);
 
     clone.add(stage1Group);
     clone.add(stage2Group);
@@ -373,23 +408,42 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
     };
   }, []);
 
-  const applyKinematics = useCallback((p: number) => {
-    const clampedP = Math.max(0, Math.min(1, p));
-    const stage1DeltaY = -(1 - clampedP) * STROKE_1;
-    const stage2DeltaY = -(1 - clampedP) * STROKE_2;
-    const hingeY = HINGE_Y_DEPLOYED + stage2DeltaY;
+  const applyKinematics = useCallback((s: number) => {
+    const clampedS = Math.max(0, Math.min(1, s));
+    const stage1DeltaY = -(1 - clampedS) * STROKE_1;
+    const stage2DeltaY = -(1 - clampedS) * STROKE_2;
+    const hingeY = HINGE_Y_DEP + stage2DeltaY;
 
-    const flipT = smootherstep(0.32, 0.96, clampedP);
-    const plateAngle = (1 - flipT) * MAX_FLIP_RAD;
+    let plateTheta: number;
+    let pinTopY: number;
+    let pinTopZ: number;
+    let carriageY: number;
 
-    const cosA = Math.cos(plateAngle);
-    const sinA = Math.sin(plateAngle);
-    const pinTopY = hingeY + (PIN_DY * cosA - PIN_DZ * sinA);
-    const pinTopZ = HINGE_Z + (PIN_DY * sinA + PIN_DZ * cosA);
+    if (hingeY <= HINGE_Y_CRIT) {
+      // Phase 1: pure linear translation — carriage rides freely below top stop, plate stays 90 deg perpendicular
+      plateTheta = MAX_FLIP_RAD;
+      pinTopY = hingeY + PIN_DZ;
+      pinTopZ = HINGE_Z - PIN_DY;
+      carriageY = pinTopY - DY_90;
+    } else {
+      // Phase 2: carriage hits top end stop — rigid link rod rotates plate 90 deg <-> 0 deg
+      carriageY = CARRIAGE_Y_STOP;
+      const dY = carriageY - hingeY;
+      const dZ = RAIL_Z - HINGE_Z;
+      const d = Math.hypot(dY, dZ);
+      const cosPsi = Math.max(
+        -1,
+        Math.min(1, (d * d + CRANK_R * CRANK_R - L_ROD * L_ROD) / (2 * d * CRANK_R))
+      );
+      const psi = Math.acos(cosPsi);
+      const phiPin = Math.atan2(dZ, dY) - psi;
+      plateTheta = Math.max(0, Math.min(MAX_FLIP_RAD, CRANK_PHI_0 - phiPin));
 
-    const dz = pinTopZ - RAIL_Z;
-    const dy = Math.sqrt(Math.max(1e-6, L_ROD * L_ROD - dz * dz));
-    const carriageY = pinTopY - dy;
+      const cosT = Math.cos(plateTheta);
+      const sinT = Math.sin(plateTheta);
+      pinTopY = hingeY + (PIN_DY * cosT + PIN_DZ * sinT);
+      pinTopZ = HINGE_Z + (-PIN_DY * sinT + PIN_DZ * cosT);
+    }
 
     if (stage1GroupRef.current) {
       stage1GroupRef.current.position.y = stage1DeltaY;
@@ -399,15 +453,14 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
     }
     if (platePivotRef.current) {
       platePivotRef.current.position.set(0, hingeY, HINGE_Z);
-      platePivotRef.current.rotation.x = plateAngle;
+      platePivotRef.current.rotation.x = -plateTheta;
     }
     if (carriageGroupRef.current) {
-      carriageGroupRef.current.position.y = carriageY - CARRIAGE_Y_DEPLOYED;
+      carriageGroupRef.current.position.y = carriageY - CARRIAGE_Y_STOP;
     }
     if (rodPivotRef.current) {
       rodPivotRef.current.position.set(ROD_X, carriageY, RAIL_Z);
-      // Local +Z maps forward; rotating around -X leans +Y axis toward dz (-Y->+Z)
-      rodPivotRef.current.rotation.x = Math.atan2(dz, dy);
+      rodPivotRef.current.rotation.x = Math.atan2(pinTopZ - RAIL_Z, pinTopY - carriageY);
     }
   }, []);
 
@@ -569,10 +622,10 @@ export const TeslaActuatorModel: React.FC<ModelProps> = ({
       }
     }
 
-    // Cosine deployment cycle starting cleanly at deployed rest pose (p = 1 at t = 0)
+    // Dwell-padded 2-phase end-stop deployment cycle starting at deployed rest pose (s = 1 at t = 0)
     // and freezing in place when paused in ProjectModal
-    const p = 0.5 + 0.5 * Math.cos(localTimeRef.current * 1.15);
-    applyKinematics(p);
+    const s = computeStrokeWithDwell(localTimeRef.current);
+    applyKinematics(s);
   });
 
   return (
