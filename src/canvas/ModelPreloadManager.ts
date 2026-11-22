@@ -2,7 +2,7 @@ import React from 'react';
 
 let dracoConfigured = false;
 
-export const POSTER_VERSION = '20261121-v7';
+export const POSTER_VERSION = '20261121-v8';
 
 let isWindowScrolling = false;
 let scrollStopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -69,6 +69,7 @@ const MODEL_REGISTRY: Record<string, ModelAssetEntry> = {
     loader: () => import('./models/TeslaActuatorModel').then((m) => ({ default: m.TeslaActuatorModel })),
   },
   'inductive-robot': {
+    glbPath: './models/InductiveRobotClean.glb',
     loader: () => import('./models/InductiveRobotModel').then((m) => ({ default: m.InductiveRobotModel })),
   },
   'robot-hand': {
