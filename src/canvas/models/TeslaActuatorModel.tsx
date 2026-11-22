@@ -31,12 +31,12 @@ const STROKE_1 = 0.086;
 const STROKE_2 = 0.170;
 const HINGE_Y_DEP = 0.420;
 const HINGE_Z = -0.002;
-const PIN_DY = -0.024;
-const PIN_DZ = 0.030;
-const RAIL_Z = 0.028;
-const ROD_X = 0.035;
-const CARRIAGE_Y_STOP = 0.185;
-const L_ROD = 0.211;
+const PIN_DY = -0.026;
+const PIN_DZ = 0.023;
+const RAIL_Z = 0.021;
+const ROD_X = 0.0455;
+const CARRIAGE_Y_STOP = 0.184;
+const L_ROD = 0.210;
 const MAX_FLIP_RAD = Math.PI / 2;
 
 const CRANK_R = Math.hypot(PIN_DY, PIN_DZ);
@@ -104,8 +104,7 @@ const PART_NAME_COLORS: Record<string, string> = {
   plate_yoke_ear_l: '#334155',
   plate_yoke_ear_r: '#334155',
   plate_yoke_crank: '#334155',
-  guide_rail_tab_bot: '#334155',
-  guide_rail_tab_top: '#334155',
+  guide_rail_cap_bot: '#334155',
   motor_body: '#1e293b',
   guide_rail_stop: '#1e293b',
   link_rod_head_bot: '#1e293b',
