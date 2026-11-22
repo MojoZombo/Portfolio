@@ -55,6 +55,7 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
 }) => {
   const activeRowRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const lastDesktopPosRef = useRef<{ top: number; right: number; maxHeight: number } | null>(null);
   const dragControls = useDragControls();
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
@@ -78,18 +79,24 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
       panel.style.maxHeight = '';
     };
 
-    if (!isOpen || isMobile) {
+    if (isMobile) {
       clearDesktopStyles();
+      return;
+    }
+
+    if (!isOpen) {
+      // Preserve last desktop anchor coordinates while AnimatePresence runs the exit animation
       return;
     }
 
     const applyPosition = () => {
       const panel = panelRef.current;
       if (!panel) return;
-      const { top, right, maxHeight } = measureDesktopAnchorPosition(anchorRef?.current ?? null);
-      panel.style.top = `${top}px`;
-      panel.style.right = `${right}px`;
-      panel.style.maxHeight = `${maxHeight}px`;
+      const pos = measureDesktopAnchorPosition(anchorRef?.current ?? null);
+      lastDesktopPosRef.current = pos;
+      panel.style.top = `${pos.top}px`;
+      panel.style.right = `${pos.right}px`;
+      panel.style.maxHeight = `${pos.maxHeight}px`;
     };
 
     applyPosition();
@@ -130,7 +137,6 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
       if (rafId) window.cancelAnimationFrame(rafId);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
-      clearDesktopStyles();
     };
   }, [isOpen, isMobile, anchorRef]);
 
@@ -162,8 +168,10 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
     };
   }, [isOpen, isMobile, onClose]);
 
-  const initialDesktopPos =
-    isOpen && !isMobile ? measureDesktopAnchorPosition(anchorRef?.current ?? null) : null;
+  if (isOpen && !isMobile) {
+    lastDesktopPosRef.current = measureDesktopAnchorPosition(anchorRef?.current ?? null);
+  }
+  const desktopPos = !isMobile ? lastDesktopPosRef.current : null;
 
   return (
     <AnimatePresence>
@@ -218,11 +226,11 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
                 : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }
             }
             style={
-              !isMobile && initialDesktopPos
+              desktopPos
                 ? {
-                    top: `${initialDesktopPos.top}px`,
-                    right: `${initialDesktopPos.right}px`,
-                    maxHeight: `${initialDesktopPos.maxHeight}px`,
+                    top: `${desktopPos.top}px`,
+                    right: `${desktopPos.right}px`,
+                    maxHeight: `${desktopPos.maxHeight}px`,
                     transformOrigin: 'top right',
                   }
                 : undefined
