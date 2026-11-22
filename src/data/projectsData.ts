@@ -1051,11 +1051,11 @@ export const projectsData: Project[] = [
     ],
     modelType: 'outrigger',
     palette: {
-      primary: '#ca8a04',
-      secondary: '#334155',
-      accent: '#2563eb',
+      primary: '#24528a',
+      secondary: '#1e293b',
+      accent: '#ea580c',
       base: '#0f172a',
-      details: '#e2e8f0'
+      details: '#cbd5e1'
     }
   },
 

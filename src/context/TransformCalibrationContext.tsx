@@ -1593,9 +1593,9 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
   },
   outrigger: {
     modelId: 'outrigger',
-    offset: [0.00, -0.20, 0.00],
-    rotation: [0, 45, 0],
-    scale: 1.8,
+    offset: [0.00, 0.08, 0.00],
+    rotation: [0, -22, 0],
+    scale: 1.68,
     defaultColors: {},
     defaultAnimations: {},
   },

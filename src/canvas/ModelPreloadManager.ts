@@ -2,7 +2,7 @@ import React from 'react';
 
 let dracoConfigured = false;
 
-export const POSTER_VERSION = '20261121-v11';
+export const POSTER_VERSION = '20261121-v12';
 
 let isWindowScrolling = false;
 let scrollStopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -93,6 +93,7 @@ const MODEL_REGISTRY: Record<string, ModelAssetEntry> = {
     loader: () => import('./models/WinchCatchModel').then((m) => ({ default: m.WinchCatchModel })),
   },
   'outrigger': {
+    glbPath: './models/RaiseOutriggerClean.glb',
     loader: () => import('./models/OutriggerModel').then((m) => ({ default: m.OutriggerModel })),
   },
   'modular-gripper': {
