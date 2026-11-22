@@ -35,9 +35,9 @@ export { DEFAULT_CDPR_CONFIG, TransformCalibrationContext, useTransformCalibrati
 const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> = {
   catamaran: {
     modelId: 'catamaran',
-    offset: [-0.15, 0.03, 0.00],
+    offset: [-0.15, 0.08, 0.00],
     rotation: [-90, -90, 0],
-    scale: 2.30,
+    scale: 2.34,
     defaultRotationSpeed: 0.2,
     defaultColors: {
       2: '#cbd5e1',
@@ -225,9 +225,9 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
   },
   'robot-hand': {
     modelId: 'robot-hand',
-    offset: [0.42, 0.51, 0.46],
+    offset: [0.42, 0.06, 0.46],
     rotation: [0, -90, 0],
-    scale: 0.95,
+    scale: 1.18,
     defaultColors: {
       0: '#008c4a', // mesh1757_mesh
       3: '#3b82f6', // mesh1757_mesh_10_(Body_B)
@@ -740,9 +740,9 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
   },
   'modular-gripper': {
     modelId: 'modular-gripper',
-    offset: [0.00, 0.00, 0.00],
+    offset: [0.00, -0.008, 0.00],
     rotation: [0.0, 0.0, 0.0],
-    scale: 8.50,
+    scale: 8.45,
     defaultColors: {
       0: '#475569', // Gripper_Attachment_Base-1001
       7: '#3b82f6', // Mesh_108
@@ -845,9 +845,9 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
   },
   'underwater-robot': {
     modelId: 'underwater-robot',
-    offset: [0.00, 0.00, 0.00],
+    offset: [0.00, 0.06, 0.00],
     rotation: [0.0, -59.5, 0.0],
-    scale: 1.00,
+    scale: 1.36,
     defaultColors: {
       0: '#003262', // dropperBottom-1
       1: '#FDB515', // dropperPlatform-2
@@ -987,9 +987,9 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
   },
   'cable-robot-2': {
     modelId: 'cable-robot-2',
-    offset: [0.00, -0.10, 0.00],
+    offset: [0.00, 0.16, 0.00],
     rotation: [0, 30, 0],
-    scale: 1.6,
+    scale: 1.50,
     defaultColors: {},
     defaultAnimations: {},
   },
@@ -1099,9 +1099,9 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
   },
   'drone-catch': {
     modelId: 'drone-catch',
-    offset: [0.00, 0.32, 0.00],
+    offset: [0.00, 0.30, 0.00],
     rotation: [0, 38, 0],
-    scale: 1.00,
+    scale: 1.280,
     defaultColors: (() => {
       const colors: Record<number, string> = {
         0: '#64748b',
@@ -1593,7 +1593,7 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
   },
   outrigger: {
     modelId: 'outrigger',
-    offset: [0.11, 0.06, -0.09],
+    offset: [0.0, 0.12, 0.0],
     rotation: [0, -24, 0],
     scale: 1.48,
     defaultColors: {},
@@ -1601,9 +1601,9 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
   },
   'bottle-scrubber': {
     modelId: 'bottle-scrubber',
-    offset: [0.00, 0.00, 0.00],
+    offset: [0.00, 0.004, 0.00],
     rotation: [0, 0, 0],
-    scale: 7.50,
+    scale: 12.3,
     defaultColors: {
       0: '#cbd5e1', // newspring-1
       1: '#0d9488', // Scrub attachment jadenedit-1
@@ -1709,9 +1709,9 @@ const BUILTIN_MODEL_DEFAULTS: Record<string, Partial<RegisteredModelDefaults>> =
   },
   'anti-tangle-winch': {
     modelId: 'anti-tangle-winch',
-    offset: [0.00, 0.00, 0.01],
+    offset: [0.00, -0.002, 0.00],
     rotation: [-180, 0, 0],
-    scale: 20.00,
+    scale: 36.0,
     defaultColors: {
       0: '#475569',
       1: '#475569',

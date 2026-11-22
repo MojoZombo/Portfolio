@@ -10,6 +10,9 @@ interface ModelProps {
   isRotating?: boolean;
 }
 
+const DEFAULT_SCALE = 1.40;
+const DEFAULT_POS_Y = -0.84;
+
 export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotating = true, isAnimating = true }) => {
   const groupRef = useRef<THREE.Group>(null);
   const intakeRef = useRef<THREE.Group>(null);
@@ -35,7 +38,7 @@ export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotati
     if (!isActive) {
       if (groupRef.current) {
         groupRef.current.rotation.set(0, 0, 0);
-        groupRef.current.scale.setScalar(1.2);
+        groupRef.current.scale.setScalar(DEFAULT_SCALE);
       }
       currentSpeedRef.current = 0;
       localTimeRef.current = 0;
@@ -46,7 +49,7 @@ export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotati
     }
 
     if (groupRef.current) {
-      groupRef.current.scale.setScalar(1.2);
+      groupRef.current.scale.setScalar(DEFAULT_SCALE);
     }
 
     // Smoothstep ease-in curve over 1.2s to smoothly accelerate from a standstill
@@ -90,7 +93,7 @@ export const FTCRobotModel: React.FC<ModelProps> = ({ isActive = false, isRotati
   const armColor = '#94a3b8'; // Aluminum lift arm
 
   return (
-    <group ref={groupRef} position={[0, -0.2, 0]} scale={1.2}>
+    <group ref={groupRef} position={[0, DEFAULT_POS_Y, 0]} scale={DEFAULT_SCALE}>
       {/* Chassis Frame Channel (Extruded U-Channel) */}
       <CADMesh color={plateColor} isActive={isActive} position={[0, 0.2, 0]}>
         <boxGeometry args={[1.5, 0.1, 1.2]} />

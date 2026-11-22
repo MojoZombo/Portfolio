@@ -27,9 +27,9 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Cable Robot Iteration 2
-const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
+const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.16, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [-90, -0.5, 0];
-const DEFAULT_SCALE = 1.30;
+const DEFAULT_SCALE = 1.50;
 
 // Baked Custom Part Color Overrides
 const DEFAULT_PART_COLORS: Record<number, string> = {

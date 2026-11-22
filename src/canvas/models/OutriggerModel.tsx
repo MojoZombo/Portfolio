@@ -21,10 +21,14 @@ interface ModelProps {
 const toonGradient = createToonGradientMap();
 
 // Calibrated stage framing for Raise Robotics Tracked Construction Robot (true-scale UR20 + overhead arch)
-const DEFAULT_OFFSET: [number, number, number] = [0.11, 0.06, -0.09];
+const DEFAULT_OFFSET: [number, number, number] = [0.0, 0.12, 0.0];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.0, -24.0, 0.0];
 const DEFAULT_SCALE = 1.48;
 const DEFAULT_ROTATION_SPEED = 0.20;
+// Physical mass-weighted Center of Mass Z in Three.js GLB meters:
+// tracked mobile base + cobalt enclosure center is Z = 0.00 (spanning [-0.63, +0.63]);
+// +0.14 m accounts for the front-mounted dual UR20 arms while keeping rotation squarely above the mobile base.
+const COM_Z_THREE = 0.14;
 
 // Clean-room kinematics matching cad-workspace/build/raise_outrigger_clean.py (Y-up meters in clone space)
 // build123d (X_bd, Y_bd, Z_bd) -> Three.js (X = X_bd, Y = Z_bd, Z = -Y_bd)
@@ -431,10 +435,10 @@ export const OutriggerModel: React.FC<ModelProps> = ({
       }
     });
 
-    // Center overall robot silhouette at origin while keeping clone inner space in GLB meters
+    // Pivot around physical Center of Mass above the tracked mobile base (not outstretched arm volume center)
     const bbox = new THREE.Box3().setFromObject(clone);
     const center = bbox.getCenter(new THREE.Vector3());
-    clone.position.set(-center.x, -center.y, -center.z);
+    clone.position.set(0, -center.y, -COM_Z_THREE);
 
     const bodyGroup = new THREE.Group();
     const outriggerLegsGroup = new THREE.Group();

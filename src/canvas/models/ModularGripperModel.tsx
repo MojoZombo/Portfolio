@@ -27,9 +27,9 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Modular Gripper
-const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.00, 0.00];
+const DEFAULT_OFFSET: [number, number, number] = [0.00, -0.008, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.00, 0.00, 0.00];
-const DEFAULT_SCALE = 8.80;
+const DEFAULT_SCALE = 8.45;
 
 // Baked Custom Part Color Overrides for Modular Gripper
 const DEFAULT_PART_COLORS: Record<number, string> = {

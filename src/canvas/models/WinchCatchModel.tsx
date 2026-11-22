@@ -27,9 +27,9 @@ interface MeshNodeInfo {
 const toonGradient = createToonGradientMap();
 
 // Optimal Calibrated Defaults for Winch Catch
-const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.32, 0.00];
+const DEFAULT_OFFSET: [number, number, number] = [0.00, 0.30, 0.00];
 const DEFAULT_ROTATION_DEG: [number, number, number] = [0.00, 38.00, 0.00];
-const DEFAULT_SCALE = 1.220;
+const DEFAULT_SCALE = 1.280;
 
 // Baked Custom Part Color Overrides for Winch
 const DEFAULT_PART_COLORS: Record<number, string> = (() => {

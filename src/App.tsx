@@ -92,6 +92,7 @@ export const App: React.FC = () => {
   });
   const [activeProjectId, setActiveProjectId] = useState<string>(projectsData[0]?.id || '');
   const [isProjectIndexOpen, setIsProjectIndexOpen] = useState(false);
+  const listButtonRef = useRef<HTMLButtonElement>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
@@ -650,6 +651,7 @@ export const App: React.FC = () => {
       <Header
         isProjectIndexOpen={isProjectIndexOpen}
         onToggleProjectIndex={handleToggleProjectIndex}
+        listButtonRef={listButtonRef}
       />
 
       {/* Project Index Popover (desktop) / Bottom Sheet (mobile) */}
@@ -659,6 +661,7 @@ export const App: React.FC = () => {
         projects={projectsData}
         activeProjectId={activeProjectId}
         onSelectProject={handleJumpToProject}
+        anchorRef={listButtonRef}
       />
 
       {/* Continuous Dynamic Timeline Ruler along the side */}

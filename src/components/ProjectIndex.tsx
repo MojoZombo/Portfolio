@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Project } from '../types/project';
 import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { X } from 'lucide-react';
@@ -9,6 +9,40 @@ interface ProjectIndexProps {
   projects: Project[];
   activeProjectId: string;
   onSelectProject: (project: Project, index: number) => void;
+  anchorRef?: React.RefObject<HTMLElement>;
+}
+
+const DESKTOP_PANEL_WIDTH = 300;
+const DESKTOP_ANCHOR_GAP = 10;
+const DESKTOP_VIEWPORT_PAD = 16;
+const DESKTOP_BOTTOM_PAD = 18;
+const HEADER_TRACK_DURATION_MS = 560;
+
+function measureDesktopAnchorPosition(anchorEl: HTMLElement | null): {
+  top: number;
+  right: number;
+  maxHeight: number;
+} {
+  if (typeof window === 'undefined') {
+    return { top: 96, right: 24, maxHeight: 540 };
+  }
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+  if (!anchorEl) {
+    return {
+      top: 96,
+      right: 24,
+      maxHeight: Math.max(200, window.innerHeight - 114),
+    };
+  }
+  const rect = anchorEl.getBoundingClientRect();
+  const rawRight = viewportWidth - rect.right;
+  const right = Math.max(
+    DESKTOP_VIEWPORT_PAD,
+    Math.min(viewportWidth - DESKTOP_PANEL_WIDTH - DESKTOP_VIEWPORT_PAD, Math.round(rawRight))
+  );
+  const top = Math.max(DESKTOP_VIEWPORT_PAD, Math.round(rect.bottom + DESKTOP_ANCHOR_GAP));
+  const maxHeight = Math.max(200, Math.round(window.innerHeight - top - DESKTOP_BOTTOM_PAD));
+  return { top, right, maxHeight };
 }
 
 export const ProjectIndex: React.FC<ProjectIndexProps> = ({
@@ -17,8 +51,10 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
   projects,
   activeProjectId,
   onSelectProject,
+  anchorRef,
 }) => {
   const activeRowRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const dragControls = useDragControls();
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
@@ -32,6 +68,71 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
     window.addEventListener('resize', updateViewport, { passive: true });
     return () => window.removeEventListener('resize', updateViewport);
   }, []);
+
+  useLayoutEffect(() => {
+    const clearDesktopStyles = () => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      panel.style.top = '';
+      panel.style.right = '';
+      panel.style.maxHeight = '';
+    };
+
+    if (!isOpen || isMobile) {
+      clearDesktopStyles();
+      return;
+    }
+
+    const applyPosition = () => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const { top, right, maxHeight } = measureDesktopAnchorPosition(anchorRef?.current ?? null);
+      panel.style.top = `${top}px`;
+      panel.style.right = `${right}px`;
+      panel.style.maxHeight = `${maxHeight}px`;
+    };
+
+    applyPosition();
+
+    let rafId = 0;
+    let trackingUntil = 0;
+
+    const stepTracking = () => {
+      applyPosition();
+      if (performance.now() < trackingUntil) {
+        rafId = window.requestAnimationFrame(stepTracking);
+      } else {
+        rafId = 0;
+      }
+    };
+
+    const startTracking = () => {
+      trackingUntil = performance.now() + HEADER_TRACK_DURATION_MS;
+      if (!rafId) {
+        rafId = window.requestAnimationFrame(stepTracking);
+      }
+    };
+
+    // Track Header's 500ms translate3d transition if opened right after a scroll transition or scrolled while open
+    startTracking();
+
+    const handleScroll = () => {
+      startTracking();
+    };
+    const handleResize = () => {
+      applyPosition();
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize, { passive: true });
+
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
+      clearDesktopStyles();
+    };
+  }, [isOpen, isMobile, anchorRef]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -61,6 +162,9 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
     };
   }, [isOpen, isMobile, onClose]);
 
+  const initialDesktopPos =
+    isOpen && !isMobile ? measureDesktopAnchorPosition(anchorRef?.current ?? null) : null;
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -77,6 +181,7 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
           />
 
           <motion.div
+            ref={panelRef}
             key="project-index-panel"
             role="dialog"
             aria-modal={isMobile}
@@ -94,17 +199,17 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
             }}
             initial={
               isMobile
-                ? { y: '100%' }
+                ? { y: '100%', opacity: 1, scale: 1 }
                 : { opacity: 0, y: -6, scale: 0.98 }
             }
             animate={
               isMobile
-                ? { y: 0 }
+                ? { y: 0, opacity: 1, scale: 1 }
                 : { opacity: 1, y: 0, scale: 1 }
             }
             exit={
               isMobile
-                ? { y: '100%' }
+                ? { y: '100%', opacity: 1, scale: 1 }
                 : { opacity: 0, y: -6, scale: 0.98 }
             }
             transition={
@@ -112,7 +217,17 @@ export const ProjectIndex: React.FC<ProjectIndexProps> = ({
                 ? { duration: 0.26, ease: [0.16, 1, 0.3, 1] }
                 : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }
             }
-            className="fixed z-[45] inset-x-0 bottom-0 sm:inset-x-auto sm:bottom-auto sm:top-[92px] md:top-[106px] sm:right-6 lg:right-14 min-[1440px]:right-[72px] sm:w-[300px] max-h-[78dvh] sm:max-h-[calc(100vh-124px)] flex flex-col rounded-t-2xl sm:rounded-xl overflow-visible sm:overflow-hidden bg-white dark:bg-[#0c121e] text-slate-900 dark:text-slate-100"
+            style={
+              !isMobile && initialDesktopPos
+                ? {
+                    top: `${initialDesktopPos.top}px`,
+                    right: `${initialDesktopPos.right}px`,
+                    maxHeight: `${initialDesktopPos.maxHeight}px`,
+                    transformOrigin: 'top right',
+                  }
+                : undefined
+            }
+            className="fixed z-[46] inset-x-0 bottom-0 sm:inset-x-auto sm:bottom-auto sm:w-[300px] max-h-[78dvh] flex flex-col rounded-t-2xl sm:rounded-xl overflow-visible sm:overflow-hidden bg-white dark:bg-[#0c121e] text-slate-900 dark:text-slate-100"
           >
             {/* Mobile-only concise draggable header */}
             <div

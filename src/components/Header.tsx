@@ -5,11 +5,13 @@ import { Sun, Moon, FileText, MapPin, GraduationCap, Mail, Linkedin, ArrowUpRigh
 interface HeaderProps {
   isProjectIndexOpen?: boolean;
   onToggleProjectIndex?: () => void;
+  listButtonRef?: React.RefObject<HTMLButtonElement>;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   isProjectIndexOpen = false,
   onToggleProjectIndex,
+  listButtonRef,
 }) => {
   const { theme, toggleTheme } = useTheme();
 
@@ -235,6 +237,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {onToggleProjectIndex && (
             <button
+              ref={listButtonRef}
               type="button"
               onClick={onToggleProjectIndex}
               onMouseDown={(e) => {

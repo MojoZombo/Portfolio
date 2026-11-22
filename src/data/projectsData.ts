@@ -1050,6 +1050,7 @@ export const projectsData: Project[] = [
       'Resolving dynamic tipping moments without exceeding tracked mobile base maximum load ratings.'
     ],
     modelType: 'outrigger',
+    modelTranslateX: 235,
     palette: {
       primary: '#24528a',
       secondary: '#1e293b',
