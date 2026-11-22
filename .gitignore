@@ -46,3 +46,6 @@ src/data/backups/
 /*.png
 *_original.glb
 scratch/
+
+# Private local 3D reference files, build123d venv, and preview renders
+cad-workspace/

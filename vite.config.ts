@@ -101,6 +101,7 @@ export default defineConfig({
       ignored: [
         '**/public/posters/**',
         '**/dist/**',
+        '**/cad-workspace/**',
         '**/*.mp4',
         '**/*.webm',
         '**/*.pdf',
