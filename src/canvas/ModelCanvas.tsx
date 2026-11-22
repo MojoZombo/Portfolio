@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import React, { Suspense, useRef, useEffect, useLayoutEffect, useCallback, Component, ErrorInfo, ReactNode } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useStore, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, useGLTF } from '@react-three/drei';
 import { ModelRenderer } from './ModelRenderer';
 import { CADEdgeManager, CADEdgeRegistry, syncCADEdges } from './cadEdges';
@@ -446,6 +446,7 @@ function CADBlueprintMorphController({
   isActiveAndSettled,
   isMorphingToBlueprint,
   isFrozenBlueprint,
+  showLiveCanvas,
   isDark,
   isPaused,
   prefersReducedMotion,
@@ -458,6 +459,7 @@ function CADBlueprintMorphController({
   isActiveAndSettled: boolean;
   isMorphingToBlueprint: boolean;
   isFrozenBlueprint: boolean;
+  showLiveCanvas: boolean;
   isDark: boolean;
   isPaused: boolean;
   prefersReducedMotion: boolean;
@@ -467,7 +469,12 @@ function CADBlueprintMorphController({
   scrollExitRef?: React.MutableRefObject<ScrollExitState>;
   onBlueprintSettled: () => void;
 }) {
-  const { scene, gl, camera } = useThree();
+  const { scene } = useThree();
+  const store = useStore();
+  const isDarkRef = useRef(isDark);
+  isDarkRef.current = isDark;
+  const isStaticCanvasRef = useRef(showLiveCanvas && (isFrozenBlueprint || isPaused));
+  isStaticCanvasRef.current = showLiveCanvas && (isFrozenBlueprint || isPaused);
   const morphProgressRef = useRef(0);
   const exitElapsedRef = useRef(0);
   const settledFramesRef = useRef(0);
@@ -556,25 +563,43 @@ function CADBlueprintMorphController({
     };
   }, [restoreMaterials]);
 
-  useLayoutEffect(() => {
-    if (isFrozenBlueprint && !isPaused && blueprintMixRef.current > 0.001) {
-      applyMaterials(blueprintMixRef.current, isDark);
-      if (cadEdgeRegistryRef.current) {
-        syncCADEdges(scene, gl, cadEdgeRegistryRef.current, blueprintMixRef.current, isDark);
-      }
-      gl.render(scene, camera);
+  const repaintStaticFrame = useCallback(() => {
+    const state = store.getState();
+    if (state.size.width <= 0 || state.size.height <= 0) return;
+    if (state.gl.getContext().isContextLost()) return;
+    const mix = blueprintMixRef.current;
+    if (mix > 0.001) {
+      applyMaterials(mix, isDarkRef.current);
     }
-  }, [
-    isDark,
-    isFrozenBlueprint,
-    isPaused,
-    applyMaterials,
-    blueprintMixRef,
-    cadEdgeRegistryRef,
-    scene,
-    gl,
-    camera,
-  ]);
+    if (cadEdgeRegistryRef.current) {
+      syncCADEdges(state.scene, state.gl, cadEdgeRegistryRef.current, mix, isDarkRef.current);
+    }
+    state.gl.render(state.scene, state.camera);
+  }, [store, applyMaterials, blueprintMixRef, cadEdgeRegistryRef]);
+
+  useLayoutEffect(() => {
+    let prevWidth = store.getState().size.width;
+    let prevHeight = store.getState().size.height;
+    let prevDpr = store.getState().viewport.dpr;
+
+    return store.subscribe((state) => {
+      const { width, height } = state.size;
+      const dpr = state.viewport.dpr;
+      if (width === prevWidth && height === prevHeight && dpr === prevDpr) return;
+      prevWidth = width;
+      prevHeight = height;
+      prevDpr = dpr;
+      if (isStaticCanvasRef.current) {
+        repaintStaticFrame();
+      }
+    });
+  }, [store, repaintStaticFrame]);
+
+  useLayoutEffect(() => {
+    if (showLiveCanvas && (isFrozenBlueprint || isPaused)) {
+      repaintStaticFrame();
+    }
+  }, [isDark, isFrozenBlueprint, isPaused, showLiveCanvas, repaintStaticFrame]);
 
   useFrame((_, rawDelta) => {
     if (!isActiveAndSettled || isFrozenBlueprint) return;
@@ -791,6 +816,7 @@ export const ModelCanvas: React.FC<ModelCanvasProps> = ({
         isActiveAndSettled={isActiveAndSettled}
         isMorphingToBlueprint={isMorphingToBlueprint}
         isFrozenBlueprint={isFrozenBlueprint}
+        showLiveCanvas={showLiveCanvas}
         isDark={isDark}
         isPaused={isPaused}
         prefersReducedMotion={prefersReducedMotion}

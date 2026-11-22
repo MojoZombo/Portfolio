@@ -126,8 +126,6 @@ const PART_NAME_COLORS: Record<string, string> = {
   husky_rear_cowl_r: '#f59e0b',
   husky_side_trim_l: '#f59e0b',
   husky_side_trim_r: '#f59e0b',
-  husky_front_trim_l: '#f59e0b',
-  husky_front_trim_r: '#f59e0b',
   inverter_yellow_shroud: '#f59e0b',
   pedestal_base_plate: '#94a3b8',
   pedestal_column: '#94a3b8',
